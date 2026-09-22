@@ -1,4 +1,4 @@
-FROM node:22-alpine AS build
+FROM node:26-alpine AS build
 WORKDIR /app
 COPY package.json package-lock.json* ./
 COPY apps/gateway/package.json apps/gateway/package.json
@@ -16,7 +16,7 @@ RUN npm run build
 FROM build AS production-deps
 RUN npm prune --omit=dev
 
-FROM node:22-alpine AS gateway
+FROM node:26-alpine AS gateway
 WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=production-deps --chown=node:node /app/node_modules ./node_modules
@@ -35,7 +35,7 @@ USER node
 EXPOSE 8080
 CMD ["node", "apps/gateway/dist/server.js"]
 
-FROM node:22-alpine AS control-plane
+FROM node:26-alpine AS control-plane
 WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=production-deps --chown=node:node /app/node_modules ./node_modules
