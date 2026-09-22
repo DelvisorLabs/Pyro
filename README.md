@@ -25,8 +25,11 @@
 ## What Pyro does
 <img width="960" height="540" alt="pyro_readme" src="https://github.com/user-attachments/assets/bed043a4-d990-4315-9a53-b5e5d4068ae9" />
 
-<br>
-Pyro turns untrusted user input into explicit decisions: **allow**, **review**, or **block**. You configure what is evaluated, what each signal means, and which thresholds cause an intervention.
+<br />
+
+Pyro turns untrusted user input into explicit decisions: <strong>allow, review, or block</strong>. You configure what is evaluated, what each signal means, and which thresholds cause an intervention.
+
+<br />
 
 Each request follows a simple path:
 
