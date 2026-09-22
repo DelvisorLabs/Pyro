@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { api } from "@/lib/api";
 import { duration, money, percent, providerLabel, timeAgo } from "@/lib/format";
@@ -44,6 +45,8 @@ export function ActivityPage({ refreshKey }: { refreshKey: number }) {
   const [labelKey, setLabelKey] = useState("all");
   const [labelValue, setLabelValue] = useState("");
   const [detail, setDetail] = useState<TraceDetail>();
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string>();
   const query = useMemo(() => {
     const params = new URLSearchParams({ limit: "250" });
     if (search.trim()) params.set("search", search.trim());
@@ -54,10 +57,24 @@ export function ActivityPage({ refreshKey }: { refreshKey: number }) {
     if (labelValue.trim()) params.set("labelValue", labelValue.trim());
     return params.toString();
   }, [search, status, profile, appId, labelKey, labelValue]);
-  const load = () => api.get<{ events: ClassificationEvent[]; total: number; labelKeys: string[] }>(`/api/activity?${query}`).then((data) => {
-    setEvents(data.events); setTotal(data.total); setLabelKeys(data.labelKeys);
-  });
-  useEffect(() => { const timeout = window.setTimeout(() => void load(), 150); return () => clearTimeout(timeout); }, [refreshKey, query]);
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    const timeout = window.setTimeout(() => {
+      void api.get<{ events: ClassificationEvent[]; total: number; labelKeys: string[] }>(`/api/activity?${query}`).then((data) => {
+        if (!active) return;
+        setEvents(data.events);
+        setTotal(data.total);
+        setLabelKeys(data.labelKeys);
+        setError(undefined);
+      }).catch((reason: Error) => {
+        if (active) setError(reason.message);
+      }).finally(() => {
+        if (active) setLoading(false);
+      });
+    }, 150);
+    return () => { active = false; clearTimeout(timeout); };
+  }, [refreshKey, query]);
   useEffect(() => {
     void api.get<{ profiles: Profile[] }>("/api/profiles").then((data) => setProfiles(data.profiles));
     void api.get<{ apps: AppRecord[] }>("/api/apps").then((data) => setApps(data.apps));
@@ -70,7 +87,7 @@ export function ActivityPage({ refreshKey }: { refreshKey: number }) {
       <Card className="mb-3 p-4">
         <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
           <div><h2 className="text-sm font-semibold text-neutral-950">Filter activity</h2><p className="mt-0.5 text-xs text-neutral-500">Search trace details or narrow results with structured fields.</p></div>
-          <span className="whitespace-nowrap rounded-full bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-600">{total} matching {total === 1 ? "trace" : "traces"}</span>
+          {loading ? <Skeleton className="h-6 w-28 rounded-full" /> : <span className="whitespace-nowrap rounded-full bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-600">{total} matching {total === 1 ? "trace" : "traces"}</span>}
         </div>
         <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <div className="min-w-0 space-y-1.5 sm:col-span-2">
@@ -84,7 +101,8 @@ export function ActivityPage({ refreshKey }: { refreshKey: number }) {
           <div className="min-w-0 space-y-1.5 sm:col-span-2"><Label htmlFor="activity-label-value" className="text-xs text-neutral-600">Label value</Label><Input id="activity-label-value" placeholder={labelKey === "all" ? "Filter any label value" : `Filter ${labelKey}`} value={labelValue} onChange={(event) => setLabelValue(event.target.value)} /></div>
         </div>
       </Card>
-      {!events.length ? <EmptyState title="No matching classifications">Change the filters or send a request with labels to the classification API.</EmptyState> : <Card><Table><TableHeader><TableRow><TableHead>Decision</TableHead><TableHead>Application</TableHead><TableHead>Policy</TableHead><TableHead>Labels</TableHead><TableHead>Risk</TableHead><TableHead>Strongest signal</TableHead><TableHead>Time</TableHead></TableRow></TableHeader><TableBody>{events.map((event) => {
+      {error && <div className="mb-3 border border-neutral-500 bg-neutral-100 px-4 py-3 text-sm text-neutral-900">{error}</div>}
+      {loading ? <ActivityTableSkeleton /> : !events.length ? <EmptyState title="No matching classifications">Change the filters or send a request with labels to the classification API.</EmptyState> : <Card><Table><TableHeader><TableRow><TableHead>Decision</TableHead><TableHead>Application</TableHead><TableHead>Policy</TableHead><TableHead>Labels</TableHead><TableHead>Risk</TableHead><TableHead>Strongest signal</TableHead><TableHead>Time</TableHead></TableRow></TableHeader><TableBody>{events.map((event) => {
         const strongest = [...event.detectors].sort((a, b) => b.weightedProbability - a.weightedProbability)[0];
         const labels = Object.entries(event.labels ?? {});
         return <TableRow className="cursor-pointer" key={`${event.id}-${event.createdAt}`} onClick={() => void openTrace(event.id)}><TableCell><VerdictBadge event={event} /></TableCell><TableCell>{event.appName ?? event.appId ?? "Default app"}</TableCell><TableCell><code className="text-xs">{event.profileId}</code></TableCell><TableCell><div className="flex max-w-[260px] flex-wrap gap-1">{labels.slice(0, 2).map(([key, value]) => <Badge key={key} className="max-w-[120px] normal-case tracking-normal" title={`${key}: ${value}`}><span className="truncate">{key}</span></Badge>)}{labels.length > 2 && <Badge>+{labels.length - 2}</Badge>}{labels.length === 0 && <span className="text-slate-400">—</span>}</div></TableCell><TableCell className="font-medium">{percent(event.risk)}</TableCell><TableCell className="max-w-[240px] truncate text-slate-600">{strongest?.name ?? event.error ?? "—"}</TableCell><TableCell className="whitespace-nowrap text-slate-500" title={new Date(event.createdAt).toLocaleString()}>{timeAgo(event.createdAt)}</TableCell></TableRow>;
@@ -97,4 +115,16 @@ export function ActivityPage({ refreshKey }: { refreshKey: number }) {
 
 function TraceStat({ label, value }: { label: string; value: string }) {
   return <div className="rounded-[2px] border border-neutral-300 bg-neutral-50 p-3"><div className="text-[10px] uppercase tracking-[0.12em] text-neutral-500">{label}</div><div className="mt-1 truncate text-sm font-medium capitalize">{value}</div></div>;
+}
+
+function ActivityTableSkeleton() {
+  return (
+    <Card role="status" aria-live="polite" aria-label="Loading activity">
+      <span className="sr-only">Loading activity</span>
+      <Table>
+        <TableHeader><TableRow><TableHead>Decision</TableHead><TableHead>Application</TableHead><TableHead>Policy</TableHead><TableHead>Labels</TableHead><TableHead>Risk</TableHead><TableHead>Strongest signal</TableHead><TableHead>Time</TableHead></TableRow></TableHeader>
+        <TableBody>{Array.from({ length: 7 }, (_, index) => <TableRow key={index} className="hover:bg-transparent"><TableCell><Skeleton className="h-5 w-16" /></TableCell><TableCell><Skeleton className="h-4 w-24" /></TableCell><TableCell><Skeleton className="h-4 w-20" /></TableCell><TableCell><div className="flex gap-1"><Skeleton className="h-5 w-14" /><Skeleton className="h-5 w-12" /></div></TableCell><TableCell><Skeleton className="h-4 w-10" /></TableCell><TableCell><Skeleton className="h-4 w-32" /></TableCell><TableCell><Skeleton className="h-4 w-14" /></TableCell></TableRow>)}</TableBody>
+      </Table>
+    </Card>
+  );
 }
