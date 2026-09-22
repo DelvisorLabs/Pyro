@@ -1,0 +1,15 @@
+.call-chip { --cc-size: 32px; --cc-expected: 2500ms; position: relative; display: inline-flex; height: var(--cc-size); align-items: center; gap: 7px; overflow: hidden; padding: 0 10px; border: 1px solid #cacac4; border-radius: 2px; background: #f1f1ed; color: #222; font-size: 12px; line-height: 1; user-select: none; }
+.call-chip__fill { position: absolute; inset: 0; background: #deded8; transform: scaleX(0); transform-origin: left; pointer-events: none; }
+.call-chip[data-status="running"] .call-chip__fill { transition: transform var(--cc-expected) linear; }
+.call-chip[data-status="done"] .call-chip__fill { background: #d7d7d1; transition: transform 180ms cubic-bezier(.23,1,.32,1); }
+.call-chip[data-status="error"] .call-chip__fill { background: #e0e0da; }
+.call-chip__slot { position: relative; width: 14px; height: 14px; }
+.call-chip__glyph { position: absolute; inset: 0; display: grid; place-items: center; opacity: 0; transform: translateY(60%); filter: blur(2px); }
+.call-chip__glyph[data-state="in"] { opacity: 1; transform: none; filter: none; transition: all 200ms cubic-bezier(.23,1,.32,1); }
+.call-chip__glyph[data-state="out"] { transform: translateY(-60%); transition: all 140ms ease; }
+.call-chip__name, .call-chip__argument, .call-chip__timer, .call-chip__slot { position: relative; }
+.call-chip__name { font-weight: 650; }
+.call-chip__argument { max-width: 130px; overflow: hidden; color: #686863; text-overflow: ellipsis; white-space: nowrap; }
+.call-chip__timer { min-width: 55px; color: #777772; font-variant-numeric: tabular-nums; text-align: right; }
+.call-chip__retry { position: absolute; inset: 0; border: 0; background: transparent; }
+@media (prefers-reduced-motion: reduce) { .call-chip__fill, .call-chip__glyph { transition: none !important; filter: none !important; } }

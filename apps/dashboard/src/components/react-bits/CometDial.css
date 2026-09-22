@@ -1,0 +1,16 @@
+.comet-dial { --cd-size: 132px; position: relative; width: var(--cd-size); height: var(--cd-size); color: #171717; user-select: none; }
+.comet-dial__ring { position: absolute; inset: 0; width: 100%; height: 100%; outline: none; cursor: grab; touch-action: none; }
+.comet-dial__ring:active { cursor: grabbing; }
+.comet-dial__ring:focus-visible { filter: drop-shadow(0 0 1px #111); }
+.comet-dial__track, .comet-dial__lit, .comet-dial__comet path { fill: none; stroke-linecap: square; }
+.comet-dial__track { stroke: #d2d2cc; }
+.comet-dial__lit, .comet-dial__comet path { stroke: #181818; }
+.comet-dial__head { fill: #181818; }
+.comet-dial__readout { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; font-variant-numeric: tabular-nums; }
+.comet-dial__input { width: 2.7ch; border: 0; border-bottom: 1px solid transparent; border-radius: 0; outline: 0; background: transparent; color: inherit; font-size: calc(var(--cd-size) * .19); font-weight: 650; letter-spacing: -.05em; line-height: 1; text-align: center; pointer-events: auto; appearance: textfield; }
+.comet-dial__input:hover { border-bottom-color: #b7b7b1; }
+.comet-dial__input:focus { border-bottom-color: #181818; }
+.comet-dial__input::-webkit-inner-spin-button, .comet-dial__input::-webkit-outer-spin-button { margin: 0; appearance: none; }
+.comet-dial__unit { position: absolute; left: calc(50% + var(--cd-size) * .19); top: 50%; margin: 0; color: #777; font-size: calc(var(--cd-size) * .09); line-height: 1; transform: translateY(-42%); }
+.comet-dial[data-disabled] { opacity: .45; }
+.comet-dial[data-disabled] .comet-dial__ring { pointer-events: none; }

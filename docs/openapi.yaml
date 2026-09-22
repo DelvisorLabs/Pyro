@@ -1,0 +1,177 @@
+openapi: 3.1.0
+info:
+  title: Pyro API
+  version: 0.2.0
+  description: Typed prompt-injection classification for text, chats, and arbitrary JSON payloads. Each bearer key is scoped to one configured application.
+servers:
+  - url: http://localhost:8080
+security:
+  - bearerAuth: []
+paths:
+  /v1/classify:
+    post:
+      summary: Classify an input and wait for a decision
+      operationId: classify
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: "#/components/schemas/Envelope"
+                - type: object
+                  additionalProperties: true
+          text/plain:
+            schema:
+              type: string
+      responses:
+        "200":
+          description: Classification decision
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Decision"
+        "401": { description: Invalid API key }
+        "403": { description: Application is disabled or the key/app cannot use the requested policy }
+        "413": { description: Input exceeds the selected profile limit }
+        "429": { description: Queue capacity or effective application/API-key rate limit has been reached }
+  /v1/jobs:
+    post:
+      summary: Enqueue a classification and return immediately
+      operationId: createClassificationJob
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Envelope"
+      responses:
+        "202":
+          description: Job accepted
+  /v1/jobs/{id}:
+    get:
+      summary: Read an asynchronous job
+      operationId: getClassificationJob
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: Current job state }
+        "404": { description: Job is unknown or expired }
+  /v1/profiles:
+    get:
+      summary: List public profile identifiers
+      responses:
+        "200": { description: Available profiles }
+  /v1/events:
+    get:
+      summary: Open a real-time classification event stream
+      description: Upgrade to WebSocket, then send `{"type":"auth","apiKey":"..."}` within five seconds. Events are scoped to the API key's application.
+      operationId: streamClassificationEvents
+      x-websocket: true
+      responses:
+        "101": { description: WebSocket connection established }
+        "401": { description: Authentication failed }
+  /v1/health:
+    get:
+      security: []
+      summary: Liveness and queue state
+      responses:
+        "200": { description: Service is alive }
+  /v1/ready:
+    get:
+      security: []
+      summary: Provider readiness
+      responses:
+        "200": { description: Ready }
+        "503": { description: Provider credentials are missing }
+  /metrics:
+    get:
+      security: []
+      summary: Prometheus metrics
+      responses:
+        "200": { description: Prometheus exposition format }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+  schemas:
+    Envelope:
+      type: object
+      required: [input]
+      properties:
+        input: {}
+        profile: { type: string, default: default }
+        metadata:
+          type: object
+          additionalProperties: true
+        labels:
+          type: object
+          maxProperties: 20
+          description: Searchable request context such as a session URL, tenant, or environment.
+          propertyNames: { pattern: "^[A-Za-z0-9_.-]{1,64}$" }
+          additionalProperties: { type: string, maxLength: 2048 }
+    DetectorResult:
+      type: object
+      required: [id, name, probability, weightedProbability]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        probability: { type: number, minimum: 0, maximum: 1 }
+        weightedProbability: { type: number, minimum: 0, maximum: 1 }
+    Decision:
+      type: object
+      required: [id, createdAt, profileId, verdict, action, risk, confidence, reason, detectors, model, provider, latencyMs, queueMs]
+      properties:
+        id: { type: string, description: Server-generated decision identifier }
+        requestId: { type: string, description: Valid incoming X-Request-Id or a generated request identifier }
+        createdAt: { type: string, format: date-time }
+        traceId: { type: string, description: W3C trace identifier }
+        profileId: { type: string }
+        verdict: { enum: [safe, suspicious, unsafe, indeterminate] }
+        action: { enum: [allow, review, block] }
+        risk: { type: number, minimum: 0, maximum: 1 }
+        confidence: { type: number, minimum: 0, maximum: 1 }
+        reason: { type: string }
+        detectors:
+          type: array
+          items: { $ref: "#/components/schemas/DetectorResult" }
+        model: { type: string }
+        provider: { type: string }
+        latencyMs: { type: number }
+        queueMs: { type: number }
+        labels:
+          type: object
+          additionalProperties: { type: string }
+        timings:
+          type: object
+          properties:
+            providerMs: { type: number }
+            policyMs: { type: number }
+            totalMs: { type: number }
+        usage:
+          type: object
+          description: Provider token usage and actual billed cost when reported. Local decisions report zero cost.
+          properties:
+            inputTokens: { type: integer, minimum: 0 }
+            outputTokens: { type: integer, minimum: 0 }
+            cost:
+              type: object
+              required: [amount, currency]
+              properties:
+                amount: { type: number, minimum: 0 }
+                currency: { type: string, pattern: "^[A-Z]{3}$" }
+        shadows:
+          type: array
+          description: Non-enforcing results from configured shadow policies.
+          items:
+            type: object
+            properties:
+              profileId: { type: string }
+              verdict: { enum: [safe, suspicious, unsafe, indeterminate] }
+              action: { enum: [allow, review, block] }
+              risk: { type: number }
+              changed: { type: boolean }

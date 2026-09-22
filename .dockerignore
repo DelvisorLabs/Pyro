@@ -1,0 +1,14 @@
+node_modules
+**/node_modules
+**/dist
+.git
+.env*
+!.env.example
+data
+npm-debug.log
+coverage
+**/__pycache__
+**/*.py[cod]
+**/.pytest_cache
+**/.venv
+**/*.egg-info

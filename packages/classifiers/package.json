@@ -1,0 +1,20 @@
+{
+  "name": "@pyro/classifiers",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": "./dist/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --import tsx --test test/*.test.ts"
+  },
+  "dependencies": {
+    "@pyro/contracts": "*"
+  },
+  "devDependencies": {
+    "tsx": "^4.20.6"
+  }
+}

@@ -1,0 +1,83 @@
+name: pyro
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: pyro
+      POSTGRES_USER: pyro
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - pyro-postgres:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:55432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pyro -d pyro"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  gateway:
+    build:
+      context: .
+      target: gateway
+    restart: unless-stopped
+    environment:
+      HOST: 0.0.0.0
+      PORT: 8080
+      DATABASE_URL: postgresql://pyro:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/pyro
+      CONTROL_PLANE_SECRET: ${CONTROL_PLANE_SECRET:?Set CONTROL_PLANE_SECRET in .env}
+      TYPESAFE_API_KEY: ${TYPESAFE_API_KEY:-}
+      QUEUE_CONCURRENCY: ${QUEUE_CONCURRENCY:-16}
+      QUEUE_MAX_DEPTH: ${QUEUE_MAX_DEPTH:-1000}
+      CLASSIFICATION_TIMEOUT_MS: ${CLASSIFICATION_TIMEOUT_MS:-8000}
+      GATEWAY_API_KEY: ${GATEWAY_API_KEY:?Set GATEWAY_API_KEY in .env}
+    ports:
+      - "127.0.0.1:8080:8080"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/v1/health"]
+      interval: 5s
+      timeout: 2s
+      retries: 10
+
+  control-plane:
+    build:
+      context: .
+      target: control-plane
+    restart: unless-stopped
+    environment:
+      HOST: 0.0.0.0
+      PORT: 8081
+      DATABASE_URL: postgresql://pyro:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/pyro
+      GATEWAY_INTERNAL_URL: http://gateway:8080
+      GATEWAY_API_KEY: ${GATEWAY_API_KEY:?Set GATEWAY_API_KEY in .env}
+      CONTROL_PLANE_SECRET: ${CONTROL_PLANE_SECRET:?Set CONTROL_PLANE_SECRET in .env}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Set ADMIN_PASSWORD in .env}
+      TYPESAFE_API_KEY: ${TYPESAFE_API_KEY:-}
+      TYPESAFE_ENDPOINT: ${TYPESAFE_ENDPOINT:-https://api.typesafe.ai/v1/systemone}
+      TYPESAFE_MODEL: ${TYPESAFE_MODEL:-jev-latest}
+    ports:
+      - "127.0.0.1:8081:8081"
+    depends_on:
+      gateway:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8081/health"]
+      interval: 5s
+      timeout: 2s
+      retries: 10
+
+  dashboard:
+    build:
+      context: .
+      target: dashboard
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3000:8080"
+    depends_on:
+      control-plane:
+        condition: service_healthy
+
+volumes:
+  pyro-postgres:
