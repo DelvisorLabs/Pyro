@@ -12,6 +12,7 @@
     "test": "node --import tsx --test src/*.test.ts"
   },
   "devDependencies": {
+    "@types/node": "^22.0.0",
     "tsx": "^4.20.6"
   }
 }
