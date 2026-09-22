@@ -16,7 +16,7 @@
     "typecheck": "npm run build:packages && npm run typecheck --workspaces --if-present"
   },
   "devDependencies": {
-    "concurrently": "^9.2.1",
+    "concurrently": "^10.0.5",
     "typescript": "^7.0.2"
   },
   "engines": {
