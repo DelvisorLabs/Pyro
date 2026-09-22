@@ -1,6 +1,6 @@
-# Pyro
+# <img width="28" height="28" alt="svgviewer-png-output" src="https://github.com/user-attachments/assets/7d9680c7-3003-486e-a6a4-3b5478573800" /> Pyro
 
-Pyro is a localhost-first, open-source gateway for classifying messages, chats, tool context, and arbitrary JSON as safe, suspicious, unsafe, or indeterminate. A configurable decision model supplies typed detector probabilities; deterministic profiles turn those probabilities into allow, review, or block actions.
+Pyro is a self-hostable, open-source gateway for classifying messages, chats, tool context, and arbitrary JSON as safe, suspicious, unsafe, or indeterminate. A configurable decision model supplies typed detector probabilities; deterministic profiles turn those probabilities into allow, review, or block actions.
 
 ## Run locally with Docker
 
