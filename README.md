@@ -4,8 +4,6 @@
 
 <h1 align="center">Pyro</h1>
 
-<p align="center"><strong>Know what reaches your AI. Control what passes.</strong></p>
-
 <p align="center">
   Self-hosted prompt monitoring and protection with fast local rules,<br />
   configurable semantic detectors, and
@@ -24,17 +22,16 @@
   <a href="./docs/openapi.yaml">API reference</a>
 </p>
 
-> [!NOTE]
-> **Monitor every prompt without paying generative-model prices.** With Jev, semantic evaluation currently costs **$0.042 per million input tokens**, with no metered output tokens. Local-rule matches skip the model call entirely. Pyro hosting and storage are separate.
-
 ## What Pyro does
+<img width="960" height="540" alt="pyro_readme" src="https://github.com/user-attachments/assets/bed043a4-d990-4315-9a53-b5e5d4068ae9" />
 
-Pyro turns untrusted text, conversations, tool context, and JSON into an explicit decision: **allow**, **review**, or **block**. You decide what is evaluated, what each signal means, and which thresholds cause an intervention.
+<br>
+Pyro turns untrusted user input into explicit decisions: **allow**, **review**, or **block**. You configure what is evaluated, what each signal means, and which thresholds cause an intervention.
 
 Each request follows a simple path:
 
-1. Application-specific local rules handle known cases immediately. A match returns a decision without calling a model.
-2. If no local rule matches, Pyro sends every enabled semantic detector to a System One model in one structured request.
+1. Application-specific local rules handle known cases immediately. No model involved.
+2. No local rule matches -> Pyro sends every enabled semantic detector to a System One model.
 3. The selected protection profile combines the returned probabilities using thresholds and a decision strategy you control.
 4. Pyro records the outcome, contributing signals, labels, and trace context so the decision can be understood later.
 
@@ -46,15 +43,15 @@ The dashboard gives you one place to:
 - tune review and block thresholds without changing application code;
 - compare new policies in shadow mode before enforcing them;
 - add fast local rules for known phrases, values, or tool names;
-- issue separate API keys and policies for different applications;
+- issue API keys and policies for different applications;
 - inspect the rule or detector behind a decision;
 - track model usage, cost, latency, and decision traces.
 
-Raw prompt previews are off by default. Pyro records hashes and decision metadata unless a profile explicitly enables preview storage.
+Pyro records hashes and decision metadata unless raw storage is explicitly enabled.
 
 ## Why Pyro?
 
-Most prompt-security products give you a fixed detector, a collection of scanners, or a framework that becomes part of the application runtime. Pyro focuses on something different: **visible, editable protection that operators and developers can work on together**.
+Most prompt-security products give you a fixed detector, a collection of scanners, or a framework that becomes part of the application runtime. Pyro focuses on: **visible, configurable protection that operators and developers can work on together**.
 
 A protection profile is not a hidden vendor policy. It is a configuration you can open and change: detectors, questions, weights, thresholds, decision strategy, failure behavior, notifications, and shadow profiles. Local rules are visible on the application that owns them. Results show the signals that contributed to the final action.
 
