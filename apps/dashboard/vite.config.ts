@@ -27,9 +27,11 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
-        manualChunks: {
-          charts: ["recharts"],
-          primitives: ["@radix-ui/react-dialog", "@radix-ui/react-select", "@radix-ui/react-switch"],
+        codeSplitting: {
+          groups: [
+            { name: "charts", test: /node_modules\/recharts/ },
+            { name: "primitives", test: /node_modules\/@radix-ui\/react-(dialog|select|switch)/ },
+          ],
         },
       },
     },
