@@ -50,7 +50,7 @@ USER node
 EXPOSE 8081
 CMD ["node", "apps/control-plane/dist/server.js"]
 
-FROM nginx:1.29-alpine AS dashboard
+FROM nginx:1.31-alpine AS dashboard
 COPY apps/dashboard/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/apps/dashboard/dist /usr/share/nginx/html
 RUN sed -i 's|^pid .*;|pid /tmp/nginx.pid;|' /etc/nginx/nginx.conf \
