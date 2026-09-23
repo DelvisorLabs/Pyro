@@ -46,7 +46,7 @@ export function PlaygroundPage({ onDecision }: { onDecision: () => void }) {
               <div className="space-y-2"><Label>Input format</Label><GlideSelect className="w-full" value={format} onChange={setFormat} options={[{ value: "text", label: "Plain text" }, { value: "json", label: "JSON / chat payload" }]} ariaLabel="Input format" menuWidth={210} /></div>
             </div>
             <div className="space-y-2"><Label htmlFor="playground-input">Untrusted content</Label><Textarea id="playground-input" className="min-h-[300px]" value={input} onChange={(event) => setInput(event.target.value)} spellCheck={false} /></div>
-            {error && <div className="border border-neutral-500 bg-neutral-100 px-3 py-2 text-sm text-neutral-900">{error}</div>}
+            {error && <div className="border border-line-strong bg-surface-subtle px-3 py-2 text-sm text-foreground">{error}</div>}
             <Button onClick={classify} disabled={loading || !input.trim()} aria-live="polite" aria-busy={loading || undefined}>
               {loading ? <LoaderCircle className="size-4 animate-spin" /> : error ? <RotateCcw className="size-4" /> : decision ? <Check className="size-4" /> : <ArrowRight className="size-4" />}
               {loading ? "Evaluating input" : error ? "Try again" : decision ? "Evaluate again" : "Classify input"}
@@ -56,10 +56,10 @@ export function PlaygroundPage({ onDecision }: { onDecision: () => void }) {
         <Card>
           <CardHeader><CardTitle>Decision</CardTitle></CardHeader>
           <CardContent>
-            {!decision ? <div className="flex min-h-[360px] items-center justify-center text-center text-sm leading-6 text-neutral-500">A typed decision and every detector probability will appear here.</div> : <div>
-              <div className="flex items-start justify-between border-b border-neutral-200 pb-5"><div><VerdictBadge event={decision} /><div className="mt-3 text-4xl font-semibold tracking-[-0.05em]">{percent(decision.risk)}</div><div className="mt-1 text-xs uppercase tracking-[0.1em] text-neutral-500">Aggregate risk</div></div><div className="text-right text-xs text-neutral-500">{decision.model}</div></div>
-              <p className="border-b border-neutral-200 py-4 text-sm leading-6 text-neutral-600">{decision.reason}</p>
-              <div className="mt-4 space-y-4">{[...decision.detectors].sort((a, b) => b.weightedProbability - a.weightedProbability).map((detector) => <div key={detector.id}><div className="mb-1.5 flex justify-between text-xs"><span className="font-medium text-neutral-700">{detector.name}</span><code>{percent(detector.probability)}</code></div><div className="h-1.5 bg-neutral-100"><div className={detector.probability >= .8 ? "h-full bg-neutral-950 transition-all duration-500" : detector.probability >= .55 ? "h-full bg-neutral-700 transition-all duration-500" : "h-full bg-neutral-400 transition-all duration-500"} style={{ width: `${Math.max(1, detector.probability * 100)}%` }} /></div></div>)}</div>
+            {!decision ? <div className="flex min-h-[360px] items-center justify-center text-center text-sm leading-6 text-muted">A typed decision and every detector probability will appear here.</div> : <div>
+              <div className="flex items-start justify-between border-b border-line pb-5"><div><VerdictBadge event={decision} /><div className="metric-value mt-3">{percent(decision.risk)}</div><div className="field-caption mt-1">Aggregate risk</div></div><div className="text-right text-xs text-muted">{decision.model}</div></div>
+              <p className="border-b border-line py-4 text-sm leading-6 text-secondary">{decision.reason}</p>
+              <div className="mt-4 space-y-4">{[...decision.detectors].sort((a, b) => b.weightedProbability - a.weightedProbability).map((detector) => <div key={detector.id}><div className="mb-1.5 flex justify-between text-xs"><span className="font-medium text-secondary">{detector.name}</span><code>{percent(detector.probability)}</code></div><div className="h-1.5 bg-surface-subtle"><div className={detector.probability >= .8 ? "h-full bg-accent transition-all duration-500" : detector.probability >= .55 ? "h-full bg-accent transition-all duration-500" : "h-full bg-surface-hover transition-all duration-500"} style={{ width: `${Math.max(1, detector.probability * 100)}%` }} /></div></div>)}</div>
             </div>}
           </CardContent>
         </Card>

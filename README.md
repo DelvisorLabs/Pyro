@@ -33,8 +33,8 @@ Pyro turns untrusted user input into explicit decisions: <strong>allow, review, 
 
 Each request follows a simple path:
 
-1. Application-specific local rules handle known cases immediately. No model involved.
-2. No local rule matches -> Pyro sends every enabled semantic detector to a System One model.
+1. Application and profile local rules handle known cases immediately. No model involved.
+2. If no local rule matches, Pyro evaluates enabled semantic detectors together in one System One request.
 3. The selected protection profile combines the returned probabilities using thresholds and a decision strategy you control.
 4. Pyro records the outcome, contributing signals, labels, and trace context so the decision can be understood later.
 
@@ -56,7 +56,7 @@ Pyro records hashes and decision metadata unless raw storage is explicitly enabl
 
 Most prompt-security products give you a fixed detector, a collection of scanners, or a framework that becomes part of the application runtime. Pyro focuses on: **visible, configurable protection that operators and developers can work on together**.
 
-A protection profile is not a hidden vendor policy. It is a configuration you can open and change: detectors, questions, weights, thresholds, decision strategy, failure behavior, notifications, and shadow profiles. Local rules are visible on the application that owns them. Results show the signals that contributed to the final action.
+A protection profile is not a hidden vendor policy. It is a configuration you can open and change: detectors, questions, weights, thresholds, decision strategy, failure behavior, notifications, and shadow profiles. Local rules are visible on the application or profile that owns them. Results show the signals that contributed to the final action.
 
 System One models are designed to return typed decisions and calibrated probabilities instead of generated prose. Pyro uses that shape directly: all enabled detectors are evaluated together, and the result is immediately usable by software and visible to operators.
 
@@ -108,13 +108,13 @@ These products are not exact substitutes. LLM Guard is a stronger match when you
 
 Pyro treats protection as configuration rather than magic hidden behind an API. New profiles begin empty, so an application receives only the checks its team deliberately chooses. Teams can start narrowly, inspect real decisions, adjust thresholds, and test a replacement profile in shadow mode before enforcing it.
 
-That model also provides the foundation for a future **rule and profile library**. Reusable protection packs should remain:
+The **rule and profile library** in [`profiles/`](./profiles/README.md) provides four opt-in YAML presets. Import, export, inspect and edit them from Protection Profiles. Reusable protection packs remain:
 
 - opt-in rather than silently installed;
 - readable before they are enabled;
 - forkable and editable for each organization;
 - versioned so changes can be reviewed and rolled back;
-- accompanied by tests, supported inputs, and benchmark results.
+- validated on import, with coverage evaluated against your own traffic.
 
 The goal is not a marketplace of opaque promises. It is a practical catalog of configurations that teams can understand, adapt, and improve.
 
@@ -187,6 +187,8 @@ A profile describes what should be evaluated and how Pyro should act on the resu
 - fail-open or fail-closed behavior;
 - input limits and evaluation timeouts;
 - dashboard notifications and optional input previews;
+- reusable local rules with literal or RE2 regex matching;
+- YAML import/export and curated preset selection;
 - up to three shadow profiles for side-by-side policy testing.
 
 The new-profile editor starts empty. Add only the signals and notifications that are relevant to the application; Pyro does not silently attach a bundle of default protections.
@@ -197,7 +199,15 @@ Create one Pyro application for each workload—for example, a support assistant
 
 Labels add searchable context to a decision without changing policy behavior. A session URL, tenant, environment, feature name, or release identifier can be attached to a request and filtered later in Activity.
 
-Local rules handle clear organization-specific cases before a model is called. The current rule engine uses bounded literal `contains` or `equals` matching and can send a request to review or block it immediately. Because a matching rule skips model evaluation, it also avoids that request's inference cost and latency.
+Local rules handle clear organization-specific cases before a model is called. The rule engine supports bounded literal `contains`/`equals` matching and linear-time RE2 `regex` matching and can send a request to review or block it immediately. Because a matching rule skips model evaluation, it also avoids that request's inference cost and latency.
+
+Local rules can belong to a profile or an application. Both sets run together: block takes priority over review, then highest risk. Local-only profiles allow unmatched inputs without a provider call. See the [profile format and precedence guide](./profiles/README.md).
+
+## Webhooks
+
+Route decisions to signed outgoing webhooks from **Webhooks**. Filter by application, profile, action and minimum risk; test destinations and inspect or retry deliveries. PostgreSQL stores the event and outbound delivery atomically, and the gateway delivers asynchronously with bounded retries. Destination URLs and signing keys are encrypted.
+
+Run `npm run test:webhook` against your local running stack for a signed delivery and retry smoke test. For manual testing, run `npm run webhook:receiver` and follow the [webhook guide](./docs/integrations.md).
 
 ## Use it from code
 
@@ -245,13 +255,18 @@ if decision["action"] == "block":
     raise RuntimeError(decision["reason"])
 ```
 
-Both clients support immediate decisions, background jobs, job polling, profile discovery, custom request IDs, labels, and configurable timeouts. See the [TypeScript client guide](./packages/sdk/README.md) and [Python client guide](./sdks/python/README.md).
+The TypeScript and Python clients support immediate decisions, background jobs, job polling, profile discovery, custom request IDs, labels, and configurable timeouts. See the [TypeScript client guide](./packages/sdk/README.md) and [Python client guide](./sdks/python/README.md).
+
+### Rust
+
+An async Rust client is available in [`sdks/rust`](./sdks/rust/README.md), with typed decisions, background jobs, polling, labels, request IDs and webhook verification. Add it as a local Cargo path dependency. TypeScript also includes webhook signature verification and bounded, cancellable job polling. No SDK packages are published by this change.
 
 ## API and data
 
 - API base URL: `http://localhost:8080`
 - Interactive dashboard: [http://localhost:3000](http://localhost:3000)
-- Complete HTTP contract: [`docs/openapi.yaml`](./docs/openapi.yaml)
+- Gateway HTTP contract: [`docs/openapi.yaml`](./docs/openapi.yaml)
+- Profiles and integrations contract: [`docs/control-plane.openapi.yaml`](./docs/control-plane.openapi.yaml)
 - Prometheus metrics: `http://localhost:8080/metrics`
 
 Configuration, policies, sessions, and activity are stored in PostgreSQL. Provider credentials entered through the dashboard are encrypted before storage. Prompt content sent for System One evaluation is transmitted to the configured model provider; review that provider's data terms for your deployment. Pyro does not store raw inputs unless a protection profile enables previews.
@@ -266,6 +281,10 @@ PYTHONPATH=sdks/python/src python3 -m unittest discover -s sdks/python/tests -v
 ```
 
 Security issues should be reported privately as described in [`SECURITY.md`](./SECURITY.md).
+
+## Next features
+
+See the [five-feature roadmap](./docs/roadmap.md) for versioned policies, an evaluation lab, a review inbox, team access, and durable execution/operational controls.
 
 ## Scope
 

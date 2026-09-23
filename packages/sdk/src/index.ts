@@ -15,6 +15,9 @@ export interface ClassifyOptions {
   signal?: AbortSignal;
 }
 
+export interface ProfileSummary { id: string; name: string; description: string }
+export interface JobReceipt { id: string; status: "queued"; statusUrl: string }
+
 export interface Job {
   id: string;
   status: "queued" | "running" | "complete" | "failed";
@@ -30,6 +33,7 @@ export class PyroError extends Error {
     public readonly status: number,
     public readonly requestId?: string,
     public readonly details?: unknown,
+    public readonly retryAfterSeconds?: number,
   ) {
     super(message);
     this.name = "PyroError";
@@ -45,6 +49,9 @@ export class PyroClient {
     if (!options.apiKey) throw new Error("apiKey is required");
     this.baseUrl = (options.baseUrl ?? "http://localhost:8080").replace(/\/$/, "");
     this.timeoutMs = options.timeoutMs ?? 10_000;
+    if (!Number.isFinite(this.timeoutMs) || this.timeoutMs <= 0) throw new Error("timeoutMs must be positive.");
+    const url = new URL(this.baseUrl);
+    if (!["http:", "https:"].includes(url.protocol) || url.username || url.password || url.search || url.hash) throw new Error("baseUrl must be an HTTP(S) URL without credentials, query or fragment.");
     this.fetcher = options.fetch ?? globalThis.fetch;
   }
 
@@ -57,7 +64,7 @@ export class PyroClient {
     });
   }
 
-  async createJob(input: unknown, options: ClassifyOptions = {}): Promise<{ id: string; status: string; statusUrl: string }> {
+  async createJob(input: unknown, options: ClassifyOptions = {}): Promise<JobReceipt> {
     return this.request("/v1/jobs", {
       method: "POST",
       body: JSON.stringify(this.envelope(input, options)),
@@ -71,21 +78,32 @@ export class PyroClient {
   }
 
   async waitForJob(id: string, options: { intervalMs?: number; timeoutMs?: number; signal?: AbortSignal } = {}): Promise<ClassificationDecision> {
-    const started = Date.now();
     const timeoutMs = options.timeoutMs ?? 60_000;
-    while (Date.now() - started < timeoutMs) {
-      const job = await this.getJob(id, options.signal);
-      if (job.status === "complete" && job.decision) return job.decision;
-      if (job.status === "failed") throw new PyroError(job.error ?? "Classification job failed.", 500);
-      await new Promise<void>((resolve, reject) => {
-        const timer = setTimeout(resolve, options.intervalMs ?? 250);
-        options.signal?.addEventListener("abort", () => { clearTimeout(timer); reject(options.signal?.reason); }, { once: true });
-      });
-    }
-    throw new PyroError("Timed out waiting for classification job.", 408);
+    const intervalMs = options.intervalMs ?? 250;
+    if (!Number.isFinite(timeoutMs) || timeoutMs <= 0 || !Number.isFinite(intervalMs) || intervalMs <= 0) throw new Error("Polling timeout and interval must be positive.");
+    const deadline = new AbortController();
+    const timer = setTimeout(() => deadline.abort(new PyroError("Timed out waiting for classification job.", 408)), timeoutMs);
+    const signal = options.signal ? AbortSignal.any([options.signal, deadline.signal]) : deadline.signal;
+    try {
+      while (true) {
+        signal.throwIfAborted();
+        const job = await this.getJob(id, signal);
+        if (job.status === "complete" && job.decision) return job.decision;
+        if (job.status === "failed") throw new PyroError(job.error ?? "Classification job failed.", 500);
+        await new Promise<void>((resolve, reject) => {
+          const abort = () => { clearTimeout(pause); reject(signal.reason); };
+          const pause = setTimeout(() => { signal.removeEventListener("abort", abort); resolve(); }, intervalMs);
+          signal.addEventListener("abort", abort, { once: true });
+          if (signal.aborted) abort();
+        });
+      }
+    } catch (error) {
+      if (signal.aborted) throw signal.reason;
+      throw error;
+    } finally { clearTimeout(timer); }
   }
 
-  async listProfiles(signal?: AbortSignal): Promise<Array<{ id: string; name: string; description: string }>> {
+  async listProfiles(signal?: AbortSignal): Promise<ProfileSummary[]> {
     return this.request("/v1/profiles", { signal });
   }
 
@@ -103,6 +121,7 @@ export class PyroClient {
       const response = await this.fetcher(`${this.baseUrl}${path}`, {
         ...init,
         signal,
+        redirect: "error",
         headers: {
           Authorization: `Bearer ${this.options.apiKey}`,
           Accept: "application/json",
@@ -115,7 +134,8 @@ export class PyroClient {
       try { body = await response.json(); } catch { body = {}; }
       if (!response.ok) {
         const message = typeof body === "object" && body && "error" in body ? String(body.error) : `Request failed (${response.status}).`;
-        throw new PyroError(message, response.status, requestId, body);
+        const retryAfter = response.headers.get("retry-after");
+        throw new PyroError(message, response.status, requestId, body, retryAfter && /^\d+$/.test(retryAfter) ? Number(retryAfter) : undefined);
       }
       return body as T;
     } finally {
@@ -125,3 +145,6 @@ export class PyroClient {
 }
 
 export type { ClassificationDecision, ClassificationEnvelope } from "@pyro/contracts";
+
+export { verifyWebhook } from "./webhooks.js";
+export type { WebhookEvent, PolicyAction, Verdict, DetectorResult } from "@pyro/contracts";

@@ -21,14 +21,14 @@ export function LoginPage({ onLogin }: { onLogin: (user: { id: string; username:
   };
   return (
     <main className="subtle-grid flex min-h-screen items-center justify-center p-5">
-      <Card className="w-full max-w-md shadow-sm">
+      <Card className="w-full max-w-md">
         <CardContent className="p-7">
-          <div className="mb-8 flex items-center gap-3"><PyroMark className="size-9 text-neutral-950" /><strong className="block text-sm">Pyro</strong></div>
-          <h1 className="text-2xl font-semibold tracking-[-0.03em]">Sign in</h1>
-          <p className="mt-1 text-sm text-neutral-500">Enter the administrator password configured for this instance.</p>
+          <div className="mb-8 flex items-center gap-3"><PyroMark className="size-9 text-foreground" /><strong className="block text-sm">Pyro</strong></div>
+          <h1 className="text-2xl font-semibold tracking-[-0.025em]">Sign in</h1>
+          <p className="mt-1 text-sm text-muted">Enter the administrator password configured for this instance.</p>
           <form onSubmit={submit} className="mt-7 space-y-5">
             <div className="space-y-2"><Label htmlFor="password">Administrator password</Label><Input id="password" autoComplete="current-password" type="password" autoFocus value={password} onChange={(event) => setPassword(event.target.value)} /></div>
-            {error && <div className="border border-neutral-500 bg-neutral-100 px-3 py-2 text-sm text-neutral-900">{error}</div>}
+            {error && <div className="border border-line-strong bg-surface-subtle px-3 py-2 text-sm text-foreground">{error}</div>}
             <Button className="w-full" disabled={loading || !password}>{loading && <Loader2 className="size-4 animate-spin" />}{loading ? "Signing in" : "Sign in"}</Button>
           </form>
         </CardContent>

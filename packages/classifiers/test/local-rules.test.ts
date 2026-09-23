@@ -47,3 +47,10 @@ test("handles deeply nested untrusted payloads without recursive traversal", () 
 
   assert.doesNotThrow(() => evaluateLocalRules(payload, [rules[0]]));
 });
+
+test("RE2 regex supports case flags and remains bounded for nested repetition", () => {
+  const rule = { id: "regex-test", name: "Regex", description: "", enabled: true, scope: "all_text" as const, match: "regex" as const, pattern: "secret-[a-z0-9]{4}", caseSensitive: false, action: "block" as const, risk: 1 };
+  assert.equal(evaluateLocalRules({ text: "SECRET-aB12" }, [rule]).length, 1);
+  assert.equal(evaluateLocalRules({ text: "SECRET-aB12" }, [{ ...rule, caseSensitive: true }]).length, 0);
+  assert.equal(evaluateLocalRules("a".repeat(100_000) + "!", [{ ...rule, pattern: "^(a+)+$" }]).length, 0);
+});

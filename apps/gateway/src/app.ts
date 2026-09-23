@@ -31,9 +31,11 @@ import {
   type Profile,
   type ProviderSettings,
   type StoredSecret,
+  type StoredIntegration,
 } from "@pyro/contracts";
 import { ConcurrentQueue, QueueFullError } from "@pyro/queue";
 import { CachedDocument, decryptText, openDatabase } from "@pyro/storage";
+import { decisionDeliveries, DeliveryWorker } from "@pyro/integrations";
 import type { GatewayConfig } from "./config.js";
 import { GatewayMetrics } from "./metrics.js";
 
@@ -148,6 +150,8 @@ export async function buildGateway(config: GatewayConfig): Promise<FastifyInstan
   const keysStore = database.document<ApiKeyRecord[]>("api_keys", () => []);
   const secretsStore = database.document<SecretFile>("provider_secrets", () => ({}));
   const eventsStore = database.events;
+  const integrations = new CachedDocument(database.document<StoredIntegration[]>("integrations", () => []));
+  const deliveryWorker = new DeliveryWorker(database, config.controlPlaneSecret);
   const profiles = new CachedDocument(profilesStore);
   const apps = new CachedDocument(appsStore);
   const settings = new CachedDocument(settingsStore);
@@ -262,13 +266,25 @@ export async function buildGateway(config: GatewayConfig): Promise<FastifyInstan
     firewallApp: AppRecord,
   ): Promise<{ decision: ClassificationDecision; failure?: string; localRuleId?: string }> => {
     const started = performance.now();
-    const localMatch = evaluateLocalRules(envelope.input, firewallApp.localRules)[0];
+    const localMatch = evaluateLocalRules(envelope.input, [
+      ...firewallApp.localRules.map((rule) => ({ ...rule, id: `app:${rule.id}` })),
+      ...(profile.localRules ?? []).map((rule) => ({ ...rule, id: `profile:${rule.id}` })),
+    ])[0];
     if (localMatch) {
       const latencyMs = performance.now() - started;
       return {
         decision: localRuleDecision(id, traceId, profile, queueMs, localMatch, envelope.metadata, latencyMs),
         localRuleId: localMatch.rule.id,
       };
+    }
+    if (!profile.detectors.some((detector) => detector.enabled)) {
+      return { decision: {
+        id, traceId, createdAt: new Date().toISOString(), profileId: profile.id,
+        verdict: "safe", action: "allow", risk: 0, confidence: 1,
+        reason: "No local rule matched; no semantic detectors are enabled.", detectors: [],
+        model: "local-rules", provider: "local-rules", latencyMs: performance.now() - started, queueMs,
+        usage: { inputTokens: 0, outputTokens: 0, cost: { amount: 0, currency: "USD" } }, metadata: envelope.metadata,
+      } };
     }
     const provider = await settings.read();
     const controller = new AbortController();
@@ -381,7 +397,7 @@ export async function buildGateway(config: GatewayConfig): Promise<FastifyInstan
       localRuleId,
       error: failure,
     };
-    await eventsStore.append(event);
+    await eventsStore.append(event, decisionDeliveries(event, await integrations.read()));
     app.log.info({ decisionId: id, requestId, traceId, profile: profile.id, action: decision.action, risk: decision.risk, latencyMs: decision.latencyMs }, "classification completed");
     metrics.record(decision, Boolean(failure));
     metrics.updateQueue(queue.snapshot());
@@ -578,9 +594,11 @@ export async function buildGateway(config: GatewayConfig): Promise<FastifyInstan
   cleanup.unref();
   app.addHook("onClose", async () => {
     clearInterval(cleanup);
+    await deliveryWorker.stop();
     await database.close();
   });
 
+  deliveryWorker.start((error) => app.log.error({ err: error }, "Webhook delivery worker failed"));
   return app;
 }
 

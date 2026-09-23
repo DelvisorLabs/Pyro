@@ -1,0 +1,20 @@
+[package]
+name = "pyro-client"
+version = "0.1.0"
+edition = "2024"
+license = "Apache-2.0"
+description = "Async Rust client for the Pyro prompt protection gateway"
+repository = "https://github.com/DelvisorLabs/Pyro"
+readme = "README.md"
+
+[dependencies]
+reqwest = { version = "0.13", default-features = false, features = ["json", "rustls"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+tokio = { version = "1", features = ["time"] }
+hmac = "0.12"
+sha2 = "0.10"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "io-util"] }

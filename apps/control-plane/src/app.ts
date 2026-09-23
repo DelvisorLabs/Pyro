@@ -22,6 +22,9 @@ import { encryptText, openDatabase } from "@pyro/storage";
 import { createSession, ensureAdmin, sessionUserId, sha256, verifyAdminPassword } from "./auth.js";
 import type { ControlPlaneConfig } from "./config.js";
 
+import { registerIntegrations } from "./integrations.js";
+import { exportProfileYaml, loadPresetProfiles, parseProfileYaml } from "./profile-files.js";
+
 interface SecretFile {
   typesafeApiKey?: StoredSecret;
 }
@@ -100,6 +103,7 @@ export async function buildControlPlane(config: ControlPlaneConfig): Promise<Fas
   };
 
   app.decorateRequest("user", null);
+  registerIntegrations(app, database, config.controlPlaneSecret, requireSession);
 
   app.get("/health", async () => {
     await database.ping();
@@ -249,6 +253,33 @@ export async function buildControlPlane(config: ControlPlaneConfig): Promise<Fas
       request.log.error(error);
       return reply.code(502).send({ error: "The gateway is unavailable." });
     }
+  });
+
+  const presets = await loadPresetProfiles();
+  app.get("/api/profile-presets", { preHandler: requireSession }, async () => ({ presets }));
+  app.post<{ Body: { yaml?: string } }>("/api/profiles/preview", { preHandler: requireSession }, async (request, reply) => {
+    try {
+      if (typeof request.body?.yaml !== "string") throw new Error("A YAML string is required.");
+      return { profile: parseProfileYaml(request.body.yaml) };
+    } catch (error) { return reply.code(400).send({ error: error instanceof Error ? error.message : "Invalid YAML." }); }
+  });
+  app.post<{ Body: { yaml?: string } }>("/api/profiles/import", { preHandler: requireSession }, async (request, reply) => {
+    try {
+      if (typeof request.body?.yaml !== "string") throw new Error("A YAML string is required.");
+      const profile = parseProfileYaml(request.body.yaml);
+      let conflict = false;
+      await profilesStore.update((current) => {
+        conflict = current.some((p) => p.id === profile.id || p.name.trim().toLowerCase() === profile.name.trim().toLowerCase());
+        return conflict ? current : [...current, profile];
+      });
+      if (conflict) return reply.code(409).send({ error: "A profile with this ID or name already exists. Change it before importing." });
+      return reply.code(201).send({ profile });
+    } catch (error) { return reply.code(400).send({ error: error instanceof Error ? error.message : "Invalid YAML." }); }
+  });
+  app.get<{ Params: { id: string } }>("/api/profiles/:id/export", { preHandler: requireSession }, async (request, reply) => {
+    const profile = (await profilesStore.read()).find((p) => p.id === request.params.id);
+    if (!profile) return reply.code(404).send({ error: "Profile not found." });
+    return reply.header("Content-Disposition", `attachment; filename="${profile.id}.yaml"`).type("application/yaml").send(exportProfileYaml(profile));
   });
 
   app.get("/api/profiles", { preHandler: requireSession }, async () => ({ profiles: await profilesStore.read() }));

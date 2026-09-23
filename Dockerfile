@@ -8,6 +8,7 @@ COPY packages/contracts/package.json packages/contracts/package.json
 COPY packages/storage/package.json packages/storage/package.json
 COPY packages/queue/package.json packages/queue/package.json
 COPY packages/classifiers/package.json packages/classifiers/package.json
+COPY packages/integrations/package.json packages/integrations/package.json
 COPY packages/sdk/package.json packages/sdk/package.json
 RUN npm ci
 COPY . .
@@ -31,6 +32,9 @@ COPY --from=build --chown=node:node /app/packages/queue/package.json ./packages/
 COPY --from=build --chown=node:node /app/packages/queue/dist ./packages/queue/dist
 COPY --from=build --chown=node:node /app/packages/classifiers/package.json ./packages/classifiers/package.json
 COPY --from=build --chown=node:node /app/packages/classifiers/dist ./packages/classifiers/dist
+COPY --from=build --chown=node:node /app/packages/integrations/package.json ./packages/integrations/package.json
+COPY --from=build --chown=node:node /app/packages/integrations/dist ./packages/integrations/dist
+COPY --from=build --chown=node:node /app/profiles ./profiles
 USER node
 EXPOSE 8080
 CMD ["node", "apps/gateway/dist/server.js"]
@@ -46,6 +50,9 @@ COPY --from=build --chown=node:node /app/packages/contracts/package.json ./packa
 COPY --from=build --chown=node:node /app/packages/contracts/dist ./packages/contracts/dist
 COPY --from=build --chown=node:node /app/packages/storage/package.json ./packages/storage/package.json
 COPY --from=build --chown=node:node /app/packages/storage/dist ./packages/storage/dist
+COPY --from=build --chown=node:node /app/packages/integrations/package.json ./packages/integrations/package.json
+COPY --from=build --chown=node:node /app/packages/integrations/dist ./packages/integrations/dist
+COPY --from=build --chown=node:node /app/profiles ./profiles
 USER node
 EXPOSE 8081
 CMD ["node", "apps/control-plane/dist/server.js"]

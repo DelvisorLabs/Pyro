@@ -1,6 +1,6 @@
 {
   "name": "pyro",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "type": "module",
   "workspaces": [
@@ -8,12 +8,14 @@
     "packages/*"
   ],
   "scripts": {
-    "build:packages": "npm run build -w @pyro/contracts && npm run build -w @pyro/storage && npm run build -w @pyro/queue && npm run build -w @pyro/classifiers && npm run build -w @pyro/sdk",
+    "build:packages": "npm run build -w @pyro/contracts && npm run build -w @pyro/storage && npm run build -w @pyro/integrations && npm run build -w @pyro/queue && npm run build -w @pyro/classifiers && npm run build -w @pyro/sdk",
     "build": "npm run build:packages && npm run build -w @pyro/gateway && npm run build -w @pyro/control-plane && npm run build -w @pyro/dashboard",
     "check": "npm run typecheck && npm test && npm run build",
     "dev": "concurrently -n gateway,control,dashboard -c blue,magenta,green \"npm run dev -w @pyro/gateway\" \"npm run dev -w @pyro/control-plane\" \"npm run dev -w @pyro/dashboard\"",
-    "test": "npm run test -w @pyro/storage && npm run test -w @pyro/queue && npm run test -w @pyro/classifiers && npm run test -w @pyro/sdk && npm run test -w @pyro/gateway && npm run test -w @pyro/control-plane",
-    "typecheck": "npm run build:packages && npm run typecheck --workspaces --if-present"
+    "test": "npm run test -w @pyro/storage && npm run test -w @pyro/integrations && npm run test -w @pyro/queue && npm run test -w @pyro/classifiers && npm run test -w @pyro/sdk && npm run test -w @pyro/gateway && npm run test -w @pyro/control-plane && npm run test -w @pyro/dashboard",
+    "typecheck": "npm run build:packages && npm run typecheck --workspaces --if-present",
+    "webhook:receiver": "node scripts/webhook-receiver.mjs",
+    "test:webhook": "node scripts/test-webhook.mjs"
   },
   "devDependencies": {
     "concurrently": "^9.2.1",

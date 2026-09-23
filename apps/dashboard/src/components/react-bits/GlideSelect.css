@@ -1,24 +1,18 @@
-.glide-select { --gs-chip: 36px; --gs-row: 33px; --gs-font: 13px; --gs-menu-width: 190px; position: relative; display: inline-block; min-width: 0; }
-.glide-select[data-disabled] { opacity: .45; }
-.glide-select__trigger { display: inline-flex; width: 100%; height: var(--gs-chip); align-items: center; justify-content: space-between; gap: 12px; padding: 0 10px; border: 1px solid #c9c9c3; border-radius: 2px; background: #fff; color: #171717; font: 500 var(--gs-font)/1 inherit; outline: none; transition: border-color 140ms ease, background 140ms ease, transform 140ms ease; }
-.glide-select__trigger:hover, .glide-select__trigger[aria-expanded="true"] { border-color: #777; background: #f5f5f2; }
-.glide-select__trigger:focus-visible { border-color: #111; box-shadow: 0 0 0 1px #111; }
+/* React Bits glide motion shared by both dropdown APIs. */
+.glide-select__trigger { transition: border-color 140ms ease, background 140ms ease, transform 140ms ease; }
 .glide-select__trigger:active { transform: translateY(1px); }
-.glide-select__label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.glide-select__label[data-empty] { color: #878782; }
-.glide-select__chevron { display: inline-flex; flex: none; color: #777; transition: transform 180ms cubic-bezier(.23,1,.32,1); }
-.glide-select__trigger[aria-expanded="true"] .glide-select__chevron { transform: rotate(180deg); }
-.glide-select__menu { position: absolute; z-index: 70; width: var(--gs-menu-width); min-width: 100%; padding: 3px; border: 1px solid #bdbdb7; border-radius: 3px; background: #fff; box-shadow: 0 8px 24px rgb(0 0 0 / 10%); animation: glide-pop 150ms cubic-bezier(.23,1,.32,1); }
-.glide-select__menu[data-side="bottom"] { top: calc(100% + 5px); transform-origin: top; }
-.glide-select__menu[data-side="top"] { bottom: calc(100% + 5px); transform-origin: bottom; }
-.glide-select__menu[data-align="left"] { left: 0; }
-.glide-select__menu[data-align="right"] { right: 0; }
-.glide-select__list { position: relative; display: grid; gap: 1px; }
-.glide-select__pill { position: absolute; inset: 0 0 auto; height: var(--gs-row); border-radius: 1px; background: #eeeeea; opacity: 0; pointer-events: none; transition: transform 180ms cubic-bezier(.23,1,.32,1), opacity 100ms ease; }
-.glide-select__option { position: relative; z-index: 1; display: flex; height: var(--gs-row); align-items: center; gap: 8px; padding: 0 8px 0 10px; border-radius: 1px; color: #282826; font-size: var(--gs-font); cursor: default; user-select: none; }
-.glide-select__name { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.glide-select__tag { flex: none; color: #858580; font-size: 11px; }
-.glide-select__check { display: inline-flex; visibility: hidden; }
-.glide-select__check[data-on] { visibility: visible; }
-@keyframes glide-pop { from { opacity: 0; transform: scale(.98) translateY(-2px); } }
-@media (prefers-reduced-motion: reduce) { .glide-select__menu { animation: none; } .glide-select__pill, .glide-select__chevron { transition: none; } }
+.glide-select__chevron { display: inline-flex; transition: transform 180ms cubic-bezier(.23,1,.32,1); }
+.glide-select__trigger[data-state="open"] .glide-select__chevron { transform: rotate(180deg); }
+.glide-select__menu { transform-origin: var(--radix-select-content-transform-origin); }
+.glide-select__menu[data-state="open"] { animation: glide-pop 180ms cubic-bezier(.23,1,.32,1); }
+.glide-select__menu[data-state="closed"] { animation: glide-close 120ms ease-in; }
+.ui-scope-popover { transform-origin: var(--radix-popover-content-transform-origin); }
+.ui-scope-popover[data-state="open"] { animation: glide-pop 180ms cubic-bezier(.23,1,.32,1); }
+.ui-scope-popover[data-state="closed"] { animation: glide-close 120ms ease-in; }
+.glide-select__list { position: relative; max-height: min(312px, calc(var(--radix-select-content-available-height) - 8px)); }
+.glide-select__pill { position: absolute; inset: 0 0 auto; border-radius: 3px; background: var(--surface-hover); opacity: 0; pointer-events: none; transition: transform 180ms cubic-bezier(.23,1,.32,1), height 180ms ease, opacity 100ms ease; }
+.glide-select__option { z-index: 1; }
+.glide-select__option > [id] { min-width: 0; width: 100%; }
+@keyframes glide-pop { from { opacity: 0; transform: scale(.98) translateY(-3px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+@keyframes glide-close { to { opacity: 0; transform: scale(.98); } }
+@media (prefers-reduced-motion: reduce) { .glide-select__menu { animation: none; } .glide-select__pill, .glide-select__chevron, .glide-select__trigger { transition: none; } }

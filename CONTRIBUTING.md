@@ -15,7 +15,10 @@ Before opening a pull request, run:
 ```bash
 npm run check
 PYTHONPATH=sdks/python/src python3 -m unittest discover -s sdks/python/tests -v
+cargo test --manifest-path sdks/rust/Cargo.toml
 docker compose config --quiet
 ```
 
 Keep changes focused, include tests for behavior changes, and avoid committing `.env`, database exports, credentials, or captured user inputs.
+
+Set `TEST_DATABASE_URL` to a disposable PostgreSQL database to exercise real event/outbox transactions and multi-worker delivery leases. The storage tests write test data.

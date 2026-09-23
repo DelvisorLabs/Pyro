@@ -3,9 +3,18 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#0c0c0c" />
+    <meta name="theme-color" content="#fafafa" />
     <meta name="description" content="Pyro classifies messages, chats, and tool calls in real time." />
     <link rel="icon" type="image/svg+xml" href="/pyro-mark.svg" />
+    <script>
+      try {
+        const saved = JSON.parse(localStorage.getItem("pyro-dashboard-preferences") || "{}");
+        const theme = saved?.theme || localStorage.getItem("pyro-theme");
+        document.documentElement.dataset.theme = theme === "dark" || (theme === "system" && matchMedia("(prefers-color-scheme: dark)").matches) ? "dark" : "light";
+        document.documentElement.dataset.density = saved?.density === "compact" ? "compact" : "comfortable";
+        document.documentElement.dataset.motion = saved?.reduceMotion === true ? "reduce" : "system";
+      } catch {}
+    </script>
     <title>Pyro</title>
   </head>
   <body>

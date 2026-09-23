@@ -3,17 +3,17 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-[2px] border text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-neutral-950 disabled:pointer-events-none disabled:opacity-45",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-control border text-[13px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 focus-visible:ring-offset-surface disabled:pointer-events-none disabled:opacity-45",
   {
     variants: {
       variant: {
-        default: "border-neutral-950 bg-neutral-950 text-white hover:bg-neutral-800",
-        outline: "border-neutral-300 bg-white text-neutral-800 hover:border-neutral-600 hover:bg-neutral-100",
-        ghost: "border-transparent bg-transparent text-neutral-600 hover:bg-neutral-200/70 hover:text-neutral-950",
-        danger: "border-neutral-950 bg-white text-neutral-950 hover:bg-neutral-950 hover:text-white",
+        default: "border-accent bg-accent text-inverse hover:bg-accent-hover",
+        outline: "border-line-strong bg-surface text-secondary hover:border-subtle hover:bg-surface-subtle",
+        ghost: "border-transparent bg-transparent text-secondary hover:bg-surface-hover/70 hover:text-foreground",
+        danger: "border-line bg-surface text-danger hover:border-danger hover:bg-danger-surface",
       },
       size: {
-        default: "h-10 px-4",
+        default: "h-9 px-3.5",
         sm: "h-8 px-3 text-xs",
         icon: "size-9 p-0",
       },

@@ -6,10 +6,10 @@ import { cn } from "@/lib/utils";
 
 export function PageHeader({ title, description, actions }: { title: string; description: string; actions?: ReactNode }) {
   return (
-    <div className="mb-6 flex items-end justify-between gap-4 border-b border-neutral-300 pb-5">
+    <div className="mb-7 flex flex-wrap items-start justify-between gap-4">
       <div>
-        <h1 className="text-2xl font-semibold tracking-[-0.035em] text-neutral-950">{title}</h1>
-        <p className="mt-1 max-w-2xl text-sm leading-6 text-neutral-500">{description}</p>
+        <h1 className="text-[22px] leading-8 font-semibold tracking-[-0.025em] text-foreground">{title}</h1>
+        <p className="mt-1 max-w-2xl text-[13px] leading-5 text-muted">{description}</p>
       </div>
       {actions}
     </div>
@@ -18,26 +18,26 @@ export function PageHeader({ title, description, actions }: { title: string; des
 
 export function VerdictBadge({ event, className }: { event: Pick<ClassificationEvent, "verdict" | "action">; className?: string }) {
   const style = event.verdict === "unsafe"
-    ? "border-neutral-950 bg-neutral-950 text-white"
+    ? "border-accent bg-accent text-inverse"
     : event.verdict === "suspicious"
-      ? "border-neutral-700 bg-neutral-200 text-neutral-950"
+      ? "border-accent bg-surface-hover text-foreground"
       : event.verdict === "indeterminate"
-        ? "border-neutral-400 bg-neutral-100 text-neutral-700"
-        : "border-neutral-300 bg-white text-neutral-700";
+        ? "border-line-strong bg-surface-subtle text-secondary"
+        : "border-line-strong bg-surface text-secondary";
   return <Badge className={cn(style, className)}>{event.verdict}</Badge>;
 }
 
 export function VerdictIcon({ verdict }: { verdict: ClassificationEvent["verdict"] }) {
-  if (verdict === "unsafe") return <ShieldX className="size-4 text-neutral-950" />;
-  if (verdict === "suspicious" || verdict === "indeterminate") return <AlertTriangle className="size-4 text-neutral-700" />;
-  return <Check className="size-4 text-neutral-500" />;
+  if (verdict === "unsafe") return <ShieldX className="size-4 text-foreground" />;
+  if (verdict === "suspicious" || verdict === "indeterminate") return <AlertTriangle className="size-4 text-secondary" />;
+  return <Check className="size-4 text-muted" />;
 }
 
 export function EmptyState({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <div className="flex min-h-48 flex-col items-center justify-center border border-dashed border-neutral-300 bg-neutral-50 px-6 text-center">
-      <strong className="text-sm text-neutral-800">{title}</strong>
-      <p className="mt-1 max-w-md text-sm leading-6 text-neutral-500">{children}</p>
+    <div className="flex min-h-48 flex-col items-center justify-center border border-dashed border-line-strong bg-surface-subtle px-6 text-center">
+      <strong className="text-sm text-secondary">{title}</strong>
+      <p className="mt-1 max-w-md text-sm leading-6 text-muted">{children}</p>
     </div>
   );
 }

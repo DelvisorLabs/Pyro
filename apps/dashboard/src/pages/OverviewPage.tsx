@@ -1,9 +1,12 @@
+import { chartTooltipStyle } from "@/components/ui/chart";
+import { MetricCard } from "@/components/ui/metric-card";
 import { useEffect, useState } from "react";
 import { Activity, Clock3, Gauge, ShieldX } from "lucide-react";
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageHeader } from "@/components/shared";
+import { useDashboardPreferences } from "@/components/ui/theme";
 import { api } from "@/lib/api";
 import { compactNumber, duration, percent } from "@/lib/format";
 import type { Overview } from "@/lib/types";
@@ -17,6 +20,7 @@ const EMPTY: Overview = {
 };
 
 export function OverviewPage({ refreshKey }: { refreshKey: number }) {
+  const { preferences } = useDashboardPreferences();
   const [overview, setOverview] = useState<Overview>(EMPTY);
   const [error, setError] = useState<string>();
   const [loading, setLoading] = useState(true);
@@ -39,14 +43,14 @@ export function OverviewPage({ refreshKey }: { refreshKey: number }) {
       });
     };
     void load(true);
-    const timer = setInterval(() => void load(), 5_000);
-    return () => { active = false; clearInterval(timer); };
-  }, [refreshKey]);
+    const timer = preferences.liveUpdates ? setInterval(() => void load(), 5_000) : undefined;
+    return () => { active = false; if (timer !== undefined) clearInterval(timer); };
+  }, [refreshKey, preferences.liveUpdates]);
 
   return (
     <>
       <PageHeader title="Overview" description="Live request throughput, enforcement decisions, and gateway health." />
-      {error && <div className="mb-4 border border-neutral-500 bg-neutral-100 px-4 py-3 text-sm text-neutral-900">{error}</div>}
+      {error && <div className="mb-4 border border-line-strong bg-surface-subtle px-4 py-3 text-sm text-foreground">{error}</div>}
       {loading && !loaded ? <OverviewSkeleton /> : loaded ? <OverviewContent overview={overview} /> : null}
     </>
   );
@@ -64,7 +68,7 @@ function OverviewContent({ overview }: { overview: Overview }) {
   return (
     <>
       <div className="metric-grid">
-        {cards.map((card) => <Card key={card.label}><CardContent className="p-4"><div className="flex items-start justify-between"><span className="text-sm text-neutral-500">{card.label}</span><card.icon className="size-4 text-neutral-400" /></div><div className="mt-5 text-3xl font-semibold tracking-[-0.04em]">{card.value}</div><p className="mt-1 text-xs text-neutral-500">{card.detail}</p></CardContent></Card>)}
+        {cards.map((card) => <MetricCard key={card.label} {...card} />)}
       </div>
       <div className="two-column mt-4">
         <Card>
@@ -72,13 +76,13 @@ function OverviewContent({ overview }: { overview: Overview }) {
           <CardContent className="h-[320px] pl-2">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={overview.timeline} margin={{ top: 12, right: 18, bottom: 0, left: -16 }}>
-                <defs><linearGradient id="volume" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#1f1f1e" stopOpacity={0.18} /><stop offset="100%" stopColor="#1f1f1e" stopOpacity={0.01} /></linearGradient></defs>
-                <CartesianGrid stroke="#deded8" vertical={false} />
-                <XAxis dataKey="at" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "#6f6f6a" }} tickFormatter={(value) => new Date(value).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} />
-                <YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "#6f6f6a" }} />
-                <Tooltip contentStyle={{ borderRadius: 2, border: "1px solid #bdbdb7", fontSize: 12 }} labelFormatter={(value) => new Date(String(value)).toLocaleString()} />
-                <Area type="monotone" dataKey="total" stroke="#1f1f1e" strokeWidth={1.5} fill="url(#volume)" />
-                <Area type="monotone" dataKey="blocked" stroke="#777772" fill="transparent" strokeWidth={1.5} strokeDasharray="4 3" />
+                <defs><linearGradient id="volume" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="var(--chart-primary)" stopOpacity={0.18} /><stop offset="100%" stopColor="var(--chart-primary)" stopOpacity={0.01} /></linearGradient></defs>
+                <CartesianGrid stroke="var(--line)" vertical={false} />
+                <XAxis dataKey="at" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "var(--muted)" }} tickFormatter={(value) => new Date(value).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} />
+                <YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "var(--muted)" }} />
+                <Tooltip contentStyle={chartTooltipStyle} labelFormatter={(value) => new Date(String(value)).toLocaleString()} />
+                <Area type="monotone" dataKey="total" stroke="var(--chart-primary)" strokeWidth={1.5} fill="url(#volume)" />
+                <Area type="monotone" dataKey="blocked" stroke="var(--chart-secondary)" fill="transparent" strokeWidth={1.5} strokeDasharray="4 3" />
               </AreaChart>
             </ResponsiveContainer>
           </CardContent>
@@ -86,18 +90,18 @@ function OverviewContent({ overview }: { overview: Overview }) {
         <Card>
           <CardHeader><CardTitle>Gateway</CardTitle></CardHeader>
           <CardContent className="space-y-4 text-sm">
-            <div className="flex items-center justify-between border-b border-neutral-100 pb-3"><span className="text-neutral-500">Status</span><span className="flex items-center gap-2 font-medium"><i className={`size-2 ${overview.gateway.status === "ok" ? "bg-neutral-950" : "bg-neutral-400"}`} />{overview.gateway.status ?? "unknown"}</span></div>
-            <div className="flex items-center justify-between border-b border-neutral-100 pb-3"><span className="text-neutral-500">Concurrency</span><strong>{queue?.concurrency ?? "—"}</strong></div>
-            <div className="flex items-center justify-between border-b border-neutral-100 pb-3"><span className="text-neutral-500">Accepted jobs</span><strong>{queue?.accepted ?? "—"}</strong></div>
-            <div className="flex items-center justify-between border-b border-neutral-100 pb-3"><span className="text-neutral-500">Failed jobs</span><strong>{queue?.failed ?? overview.totals.failed}</strong></div>
-            <div className="flex items-center justify-between border-b border-neutral-100 pb-3"><span className="text-neutral-500">Provider circuit</span><strong className="capitalize">{overview.gateway.circuitBreaker?.state ?? "—"}</strong></div>
-            <div className="flex items-center justify-between"><span className="text-neutral-500">Rejected jobs</span><strong>{queue?.rejected ?? "—"}</strong></div>
+            <div className="flex items-center justify-between border-b border-line pb-3"><span className="text-muted">Status</span><span className="flex items-center gap-2 font-medium"><i className={`size-2 ${overview.gateway.status === "ok" ? "bg-accent" : "bg-surface-hover"}`} />{overview.gateway.status ?? "unknown"}</span></div>
+            <div className="flex items-center justify-between border-b border-line pb-3"><span className="text-muted">Concurrency</span><strong>{queue?.concurrency ?? "—"}</strong></div>
+            <div className="flex items-center justify-between border-b border-line pb-3"><span className="text-muted">Accepted jobs</span><strong>{queue?.accepted ?? "—"}</strong></div>
+            <div className="flex items-center justify-between border-b border-line pb-3"><span className="text-muted">Failed jobs</span><strong>{queue?.failed ?? overview.totals.failed}</strong></div>
+            <div className="flex items-center justify-between border-b border-line pb-3"><span className="text-muted">Provider circuit</span><strong className="capitalize">{overview.gateway.circuitBreaker?.state ?? "—"}</strong></div>
+            <div className="flex items-center justify-between"><span className="text-muted">Rejected jobs</span><strong>{queue?.rejected ?? "—"}</strong></div>
           </CardContent>
         </Card>
       </div>
       <div className="two-column mt-4">
-        <Card><CardHeader><CardTitle>Detector signals</CardTitle></CardHeader><CardContent className="h-[300px] pl-2"><ResponsiveContainer width="100%" height="100%"><BarChart data={overview.detectors.slice(0, 8)} margin={{ top: 12, right: 18, bottom: 30, left: -16 }}><CartesianGrid stroke="#deded8" vertical={false} /><XAxis dataKey="name" interval={0} angle={-18} textAnchor="end" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: "#6f6f6a" }} /><YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "#6f6f6a" }} /><Tooltip contentStyle={{ borderRadius: 2, border: "1px solid #bdbdb7", fontSize: 12 }} /><Bar dataKey="signals" fill="#2a2a28" /></BarChart></ResponsiveContainer></CardContent></Card>
-        <Card><CardHeader><CardTitle>Latency and policy safety</CardTitle></CardHeader><CardContent className="space-y-4 text-sm"><div className="flex items-center justify-between border-b border-neutral-100 pb-3"><span className="text-neutral-500">Provider p95</span><strong>{duration(overview.totals.p95ProviderMs)}</strong></div><div className="flex items-center justify-between border-b border-neutral-100 pb-3"><span className="text-neutral-500">Queue p95</span><strong>{duration(overview.totals.p95QueueMs)}</strong></div><div className="flex items-center justify-between border-b border-neutral-100 pb-3"><span className="text-neutral-500">Shadow action changes</span><strong>{overview.totals.shadowChanges}</strong></div>{overview.actions.map((item) => <div key={item.action} className="flex items-center justify-between border-b border-neutral-100 pb-3 capitalize"><span className="text-neutral-500">{item.action}</span><strong>{item.count}</strong></div>)}</CardContent></Card>
+        <Card><CardHeader><CardTitle>Detector signals</CardTitle></CardHeader><CardContent className="h-[300px] pl-2"><ResponsiveContainer width="100%" height="100%"><BarChart data={overview.detectors.slice(0, 8)} margin={{ top: 12, right: 18, bottom: 30, left: -16 }}><CartesianGrid stroke="var(--line)" vertical={false} /><XAxis dataKey="name" interval={0} angle={-18} textAnchor="end" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: "var(--muted)" }} /><YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "var(--muted)" }} /><Tooltip contentStyle={chartTooltipStyle} /><Bar dataKey="signals" fill="var(--chart-primary)" /></BarChart></ResponsiveContainer></CardContent></Card>
+        <Card><CardHeader><CardTitle>Latency and policy safety</CardTitle></CardHeader><CardContent className="space-y-4 text-sm"><div className="flex items-center justify-between border-b border-line pb-3"><span className="text-muted">Provider p95</span><strong>{duration(overview.totals.p95ProviderMs)}</strong></div><div className="flex items-center justify-between border-b border-line pb-3"><span className="text-muted">Queue p95</span><strong>{duration(overview.totals.p95QueueMs)}</strong></div><div className="flex items-center justify-between border-b border-line pb-3"><span className="text-muted">Shadow action changes</span><strong>{overview.totals.shadowChanges}</strong></div>{overview.actions.map((item) => <div key={item.action} className="flex items-center justify-between border-b border-line pb-3 capitalize"><span className="text-muted">{item.action}</span><strong>{item.count}</strong></div>)}</CardContent></Card>
       </div>
     </>
   );
@@ -118,7 +122,7 @@ function OverviewSkeleton() {
     <div role="status" aria-live="polite" aria-label="Loading overview">
       <span className="sr-only">Loading overview</span>
       <div className="metric-grid">
-        {overviewMetrics.map((metric) => <Card key={metric.label}><CardContent className="p-4"><div className="flex items-start justify-between"><span className="text-sm text-neutral-500">{metric.label}</span><metric.icon className="size-4 text-neutral-300" /></div><Skeleton className="mt-5 h-9 w-24" /><Skeleton className="mt-2 h-3 w-32" /></CardContent></Card>)}
+        {overviewMetrics.map((metric) => <Card key={metric.label}><CardContent className="p-4"><div className="flex items-start justify-between"><span className="text-sm text-muted">{metric.label}</span><metric.icon className="size-4 text-subtle" /></div><Skeleton className="mt-5 h-9 w-24" /><Skeleton className="mt-2 h-3 w-32" /></CardContent></Card>)}
       </div>
       <div className="two-column mt-4">
         <Card>
@@ -145,7 +149,7 @@ function OverviewSkeleton() {
 }
 
 function RowSkeleton({ labels }: { labels: string[] }) {
-  return labels.map((label, index) => <div key={label} className={`flex items-center justify-between pb-3 ${index < labels.length - 1 ? "border-b border-neutral-100" : ""}`}><span className="text-neutral-500">{label}</span><Skeleton className="h-4 w-16" /></div>);
+  return labels.map((label, index) => <div key={label} className={`flex items-center justify-between pb-3 ${index < labels.length - 1 ? "border-b border-line" : ""}`}><span className="text-muted">{label}</span><Skeleton className="h-4 w-16" /></div>);
 }
 
 function ChartSkeleton() {

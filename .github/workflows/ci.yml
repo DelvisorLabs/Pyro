@@ -41,6 +41,8 @@ jobs:
         with:
           python-version: "3.12"
       - run: PYTHONPATH=sdks/python/src python -m unittest discover -s sdks/python/tests -v
+      - name: Rust SDK
+        run: cargo test --locked --manifest-path sdks/rust/Cargo.toml
       - name: Validate and build containers
         env:
           ADMIN_PASSWORD: ci-admin-password-not-for-production

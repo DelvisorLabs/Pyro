@@ -1,6 +1,6 @@
-import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
+import { createCipheriv, createDecipheriv, createHash, randomBytes, randomUUID } from "node:crypto";
 import { Pool, type PoolClient } from "pg";
-import type { ClassificationEvent, StoredSecret } from "@pyro/contracts";
+import type { ClassificationEvent, StoredSecret, Delivery } from "@pyro/contracts";
 
 export interface DocumentStore<T> {
   read(): Promise<T>;
@@ -9,7 +9,7 @@ export interface DocumentStore<T> {
 }
 
 export interface EventStore {
-  append(value: ClassificationEvent): Promise<void>;
+  append(value: ClassificationEvent, deliveries?: Delivery[]): Promise<void>;
   readRecent(limit?: number): Promise<ClassificationEvent[]>;
   findById(id: string): Promise<ClassificationEvent | undefined>;
   query(options: EventQuery): Promise<EventQueryResult>;
@@ -99,10 +99,19 @@ export interface EventUsage {
   byApiKey: Array<{ id: string; requests: number }>;
 }
 
+export interface DeliveryStore {
+  enqueue(delivery: Delivery): Promise<void>;
+  claim(limit?: number, now?: Date): Promise<Delivery[]>;
+  finish(delivery: Delivery): Promise<void>;
+  list(integrationId?: string): Promise<Delivery[]>;
+  retry(id: string): Promise<boolean>;
+}
+
 export interface Database {
   readonly kind: "postgresql" | "memory";
   document<T>(key: string, fallback: () => T): DocumentStore<T>;
   readonly events: EventStore;
+  readonly deliveries: DeliveryStore;
   ping(): Promise<void>;
   close(): Promise<void>;
 }
@@ -143,6 +152,13 @@ const migrations = [
     CREATE INDEX IF NOT EXISTS pyro_events_api_key_created_idx ON pyro_events (api_key_id, created_at DESC);
     CREATE INDEX IF NOT EXISTS pyro_events_labels_idx ON pyro_events USING gin (labels);
   `,
+  `CREATE TABLE IF NOT EXISTS pyro_deliveries (
+    id text PRIMARY KEY, integration_id text NOT NULL, event_id text NOT NULL,
+    created_at timestamptz NOT NULL, status text NOT NULL, next_attempt_at timestamptz NOT NULL,
+    payload jsonb NOT NULL, UNIQUE (integration_id, event_id)
+  );
+  CREATE INDEX IF NOT EXISTS pyro_deliveries_due_idx ON pyro_deliveries(next_attempt_at) WHERE status IN ('pending', 'delivering');
+  CREATE INDEX IF NOT EXISTS pyro_deliveries_integration_idx ON pyro_deliveries(integration_id, created_at DESC);`,
 ];
 
 async function adoptLegacyTableNames(client: PoolClient): Promise<void> {
@@ -286,8 +302,11 @@ class PostgresEvents implements EventStore {
     return { sql: clauses.length ? `WHERE ${clauses.join(" AND ")}` : "", values };
   }
 
-  async append(event: ClassificationEvent): Promise<void> {
-    await this.pool.query(
+  async append(event: ClassificationEvent, deliveries: Delivery[] = []): Promise<void> {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+    await client.query(
       `INSERT INTO pyro_events
         (id, created_at, app_id, profile_id, verdict, action, risk, provider, api_key_id, labels, payload)
        VALUES ($1, $2::timestamptz, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11::jsonb)
@@ -295,6 +314,10 @@ class PostgresEvents implements EventStore {
       [event.id, event.createdAt, event.appId ?? null, event.profileId, event.verdict, event.action, event.risk,
         event.provider, event.apiKeyId ?? null, JSON.stringify(event.labels ?? {}), JSON.stringify(event)],
     );
+      for (const delivery of deliveries) await insertDelivery(client, delivery);
+      await client.query("COMMIT");
+    } catch (error) { await client.query("ROLLBACK"); throw error; }
+    finally { client.release(); }
   }
 
   async readRecent(limit = 100): Promise<ClassificationEvent[]> {
@@ -497,12 +520,55 @@ class PostgresEvents implements EventStore {
   }
 }
 
+async function insertDelivery(client: Pool | PoolClient, delivery: Delivery): Promise<void> {
+  await client.query(`INSERT INTO pyro_deliveries (id, integration_id, event_id, created_at, status, next_attempt_at, payload)
+    VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb) ON CONFLICT DO NOTHING`,
+    [delivery.id, delivery.integrationId, delivery.eventId, delivery.createdAt, delivery.status, delivery.nextAttemptAt, JSON.stringify(delivery)]);
+}
+
+class PostgresDeliveries implements DeliveryStore {
+  constructor(private readonly pool: Pool) {}
+  async enqueue(delivery: Delivery): Promise<void> { await insertDelivery(this.pool, delivery); }
+  async claim(limit = 10, now = new Date()): Promise<Delivery[]> {
+    const token = randomUUID();
+    const until = new Date(now.getTime() + 30_000).toISOString();
+    const result = await this.pool.query<{ payload: Delivery }>(`
+      WITH due AS (SELECT id FROM pyro_deliveries
+        WHERE status IN ('pending', 'delivering') AND next_attempt_at <= $1
+        ORDER BY next_attempt_at LIMIT $2 FOR UPDATE SKIP LOCKED)
+      UPDATE pyro_deliveries d SET status = 'delivering', next_attempt_at = $3::text::timestamptz,
+        payload = d.payload || jsonb_build_object('status', 'delivering', 'nextAttemptAt', $3::text,
+          'leaseToken', $4::text, 'attempts', (d.payload->>'attempts')::int + 1)
+      FROM due WHERE d.id = due.id RETURNING d.payload`, [now.toISOString(), limit, until, token]);
+    return result.rows.map((row) => row.payload);
+  }
+  async finish(delivery: Delivery): Promise<void> {
+    await this.pool.query(`UPDATE pyro_deliveries SET status = $2, next_attempt_at = $3, payload = $4::jsonb
+      WHERE id = $1 AND payload->>'leaseToken' = $5 AND status = 'delivering'`,
+      [delivery.id, delivery.status, delivery.nextAttemptAt, JSON.stringify(delivery), delivery.leaseToken]);
+  }
+  async list(integrationId?: string): Promise<Delivery[]> {
+    const result = await this.pool.query<{ payload: Delivery }>(`SELECT payload FROM pyro_deliveries
+      WHERE ($1::text IS NULL OR integration_id = $1) ORDER BY created_at DESC LIMIT 100`, [integrationId ?? null]);
+    return result.rows.map((row) => row.payload);
+  }
+  async retry(id: string): Promise<boolean> {
+    const now = new Date().toISOString();
+    const result = await this.pool.query(`UPDATE pyro_deliveries SET status = 'pending', next_attempt_at = $2::text::timestamptz,
+      payload = (payload - 'error' - 'leaseToken' - 'lastStatus') || jsonb_build_object('status', 'pending', 'attempts', 0, 'nextAttemptAt', $2::text)
+      WHERE id = $1 AND status = 'failed'`, [id, now]);
+    return result.rowCount === 1;
+  }
+}
+
 class PostgresDatabase implements Database {
   readonly kind = "postgresql" as const;
   readonly events: EventStore;
+  readonly deliveries: DeliveryStore;
 
   constructor(private readonly pool: Pool) {
     this.events = new PostgresEvents(pool);
+    this.deliveries = new PostgresDeliveries(pool);
   }
 
   document<T>(key: string, fallback: () => T): DocumentStore<T> {
@@ -574,9 +640,32 @@ class MemoryDatabase implements Database {
   readonly kind = "memory" as const;
   private readonly documents = new Map<string, unknown>();
   private readonly eventRows: ClassificationEvent[] = [];
+  private readonly deliveryRows = new Map<string, Delivery>();
+  readonly deliveries: DeliveryStore = {
+    enqueue: async (delivery) => {
+      if (![...this.deliveryRows.values()].some((d) => d.integrationId === delivery.integrationId && d.eventId === delivery.eventId)) this.deliveryRows.set(delivery.id, structuredClone(delivery));
+    },
+    claim: async (limit = 10, now = new Date()) => {
+      const due = [...this.deliveryRows.values()].filter((d) => ["pending", "delivering"].includes(d.status) && d.nextAttemptAt <= now.toISOString()).sort((a, b) => a.nextAttemptAt.localeCompare(b.nextAttemptAt)).slice(0, limit);
+      for (const d of due) { d.status = "delivering"; d.leaseToken = randomUUID(); d.attempts++; d.nextAttemptAt = new Date(now.getTime() + 30_000).toISOString(); }
+      return structuredClone(due);
+    },
+    finish: async (delivery) => {
+      const current = this.deliveryRows.get(delivery.id);
+      if (current?.status === "delivering" && current.leaseToken === delivery.leaseToken) this.deliveryRows.set(delivery.id, structuredClone(delivery));
+    },
+    list: async (integrationId) => structuredClone([...this.deliveryRows.values()].filter((d) => !integrationId || d.integrationId === integrationId).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 100)),
+    retry: async (id) => {
+      const d = this.deliveryRows.get(id);
+      if (!d || d.status !== "failed") return false;
+      d.status = "pending"; d.attempts = 0; d.nextAttemptAt = new Date().toISOString(); delete d.error; delete d.leaseToken; delete d.lastStatus;
+      return true;
+    },
+  };
   readonly events: EventStore = {
-    append: async (event) => {
+    append: async (event, deliveries = []) => {
       if (!this.eventRows.some((item) => item.id === event.id)) this.eventRows.push(structuredClone(event));
+      for (const delivery of deliveries) await this.deliveries.enqueue(delivery);
     },
     readRecent: async (limit = 100) => this.eventRows.slice(-Math.max(1, limit)).reverse().map((event) => structuredClone(event)),
     findById: async (id) => {

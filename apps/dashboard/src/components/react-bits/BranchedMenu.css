@@ -1,31 +1,22 @@
-.branched-menu {
-  --bm-row: 34px;
-  --bm-indent: 34px;
-  position: relative;
-  display: flex;
-  width: min(var(--bm-width), 100%);
-  flex-direction: column;
-  padding-left: 14px;
-  color: #f3f4f2;
-  font-size: 13px;
-}
-.branched-menu::before { content: ""; position: absolute; inset: 7px auto 0 0; width: 1px; background: linear-gradient(#555a58 0 68%, transparent); }
-.branched-menu__marker { position: absolute; top: 0; left: -1px; z-index: 1; width: 3px; height: 15px; background: #f4f5f2; opacity: 0; transition: top 220ms cubic-bezier(.23,1,.32,1), opacity 140ms ease; }
+.branched-menu { --bm-row: 38px; --bm-indent: 26px; position: relative; display: flex; width: min(var(--bm-width), 100%); flex-direction: column; gap: 16px; padding-left: 8px; color: var(--foreground); font-size: 13px; }
+.branched-menu__marker { position: absolute; top: 0; left: -1px; width: 2px; height: 12px; background: var(--accent); opacity: 0; transition: top 180ms ease, opacity 140ms ease; }
 .branched-menu__marker[data-on] { opacity: 1; }
 .branched-menu__section { display: flex; flex-direction: column; }
-.branched-menu__head { padding: 8px 0; border: 0; background: transparent; color: #929895; font: inherit; font-weight: 600; text-align: left; transition: color 160ms ease; }
-.branched-menu__section[data-open] .branched-menu__head, .branched-menu__head[data-active], .branched-menu__head:hover { color: #f3f4f2; }
-.branched-menu__body { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 240ms cubic-bezier(.23,1,.32,1); }
+.branched-menu__head { padding: 6px 0; border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 11px; font-weight: 600; text-align: left; }
+.branched-menu__head:hover { color: var(--foreground); }
+.branched-menu__body { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 180ms ease; }
 .branched-menu__section[data-open] .branched-menu__body { grid-template-rows: 1fr; }
 .branched-menu__fold { min-height: 0; overflow: hidden; }
 .branched-menu__tree { position: relative; padding: 5px 0; }
-.branched-menu__lines { position: absolute; inset: 0 auto auto 0; overflow: visible; opacity: 0; transition: opacity 180ms ease; }
+.branched-menu__lines { position: absolute; inset: 0 auto auto 0; overflow: visible; opacity: 0; transition: opacity 140ms ease; }
 .branched-menu__section[data-open] .branched-menu__lines { opacity: 1; }
 .branched-menu__base, .branched-menu__reach { fill: none; stroke-width: 1; stroke-linecap: square; stroke-linejoin: round; }
-.branched-menu__base { stroke: #515654; }
-.branched-menu__reach { stroke: #f3f4f2; transition: stroke-dashoffset 320ms cubic-bezier(.23,1,.32,1); }
-.branched-menu__item { display: flex; width: 100%; height: var(--bm-row); align-items: center; gap: 8px; padding: 0 0 0 var(--bm-indent); border: 0; background: transparent; color: #a8aeab; font: inherit; text-align: left; transition: color 160ms ease; }
-.branched-menu__item:hover, .branched-menu__item[data-active] { color: #fff; }
-.branched-menu__item[data-active] { font-weight: 650; }
+.branched-menu__base { stroke: var(--line-strong); }
+.branched-menu__reach { stroke: var(--accent); transition: stroke-dashoffset 220ms ease; }
+.branched-menu__item { display: flex; width: 100%; height: var(--bm-row); align-items: center; gap: 9px; padding: 0 8px 0 var(--bm-indent); border: 0; border-radius: 4px; background: transparent; color: var(--muted); font: inherit; text-align: left; transition: color 120ms ease, background 120ms ease; }
+.branched-menu__item:hover { color: var(--foreground); }
+.branched-menu__item[data-active] { color: var(--foreground); font-weight: 600; }
 .branched-menu__icon { display: inline-flex; flex: none; }
+.branched-menu__item:focus-visible, .branched-menu__head:focus-visible { outline-offset: -2px; }
 @media (prefers-reduced-motion: reduce) { .branched-menu__marker, .branched-menu__body, .branched-menu__reach { transition: none; } }
+@media (max-width: 640px) { .branched-menu { width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 8px 20px; } .branched-menu__marker { display: none; } }

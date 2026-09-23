@@ -12,3 +12,6 @@ coverage
 **/.pytest_cache
 **/.venv
 **/*.egg-info
+
+**/target
+**/*.tsbuildinfo

@@ -1,3 +1,4 @@
+import { RE2JS } from "re2js";
 import type { LocalRule } from "@pyro/contracts";
 
 export interface LocalRuleMatch {
@@ -53,7 +54,19 @@ function collectToolNames(value: unknown, output: string[]): void {
   }
 }
 
+const regexCache = new Map<string, RE2JS>();
+
 function matches(rule: LocalRule, candidate: string): boolean {
+  if (rule.match === "regex") {
+    const key = `${rule.caseSensitive}:${rule.pattern}`;
+    let regex = regexCache.get(key);
+    if (!regex) {
+      regex = RE2JS.compile(rule.pattern, rule.caseSensitive ? 0 : RE2JS.CASE_INSENSITIVE);
+      if (regexCache.size >= 256) regexCache.clear();
+      regexCache.set(key, regex);
+    }
+    return regex.matcher(candidate).find();
+  }
   const left = rule.caseSensitive ? candidate : candidate.toLowerCase();
   const right = rule.caseSensitive ? rule.pattern : rule.pattern.toLowerCase();
   return rule.match === "equals" ? left === right : left.includes(right);

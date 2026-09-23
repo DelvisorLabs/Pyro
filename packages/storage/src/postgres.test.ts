@@ -46,3 +46,30 @@ test("PostgreSQL event queries, aggregates, and cursors", { skip: !databaseUrl }
   assert.equal(overview.timeline.length, 12);
   await database.close();
 });
+
+test("PostgreSQL atomically persists deliveries and leases them across workers", { skip: !databaseUrl }, async () => {
+  const db = await openDatabase(databaseUrl!);
+  const { randomUUID } = await import("node:crypto");
+  const now = new Date().toISOString(); const eventId = randomUUID(); const integrationId = randomUUID();
+  const event: ClassificationEvent = { id: eventId, createdAt: now, profileId: "default", action: "block", verdict: "unsafe", risk: .9, confidence: .9, reason: "test", detectors: [], model: "test", provider: "test", latencyMs: 1, queueMs: 0, inputHash: "hash" };
+  const delivery: import("@pyro/contracts").Delivery = { id: randomUUID(), integrationId, eventId, createdAt: now, status: "pending", attempts: 0, nextAttemptAt: now, payload: { id: eventId, type: "decision.created", createdAt: now, data: { id: eventId, profileId: "default", action: "block", verdict: "unsafe", risk: .9, provider: "test", latencyMs: 1, failed: false } } };
+  await db.events.append(event, [delivery]); await db.events.append(event, [delivery]);
+  assert.equal((await db.deliveries.list(integrationId)).length, 1);
+  const [left, right] = await Promise.all([db.deliveries.claim(100), db.deliveries.claim(100)]);
+  assert.equal([...left, ...right].filter((d) => d.id === delivery.id).length, 1);
+  const old = [...left, ...right].find((d) => d.id === delivery.id)!;
+  const recovered = (await db.deliveries.claim(100, new Date(Date.now() + 31_000))).find((d) => d.id === delivery.id)!;
+  await db.deliveries.finish({ ...old, status: "delivered" });
+  assert.equal((await db.deliveries.list(integrationId))[0]!.status, "delivering");
+  await db.deliveries.finish({ ...recovered, status: "failed" });
+  assert.equal(await db.deliveries.retry(delivery.id), true);
+  const retry = (await db.deliveries.list(integrationId))[0]!;
+  assert.equal(retry.status, "pending"); assert.equal(retry.attempts, 0);
+  const claimed = (await db.deliveries.claim(100)).find((d) => d.id === delivery.id)!;
+  await db.deliveries.finish({ ...claimed, status: "delivered" });
+  // An invalid outbox row must roll back the event as well.
+  const invalidId = randomUUID();
+  await assert.rejects(db.events.append({ ...event, id: invalidId }, [{ ...delivery, id: randomUUID(), eventId: invalidId, createdAt: "invalid date" }]));
+  assert.equal(await db.events.findById(invalidId), undefined);
+  await db.close();
+});

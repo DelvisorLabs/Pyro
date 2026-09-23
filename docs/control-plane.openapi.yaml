@@ -1,0 +1,865 @@
+openapi: 3.1.0
+info:
+  title: Pyro profiles and integrations API
+  version: 0.2.0
+  description: Authenticated control-plane endpoints. Use pf_session from
+    /api/auth/login. Gateway bearer keys are not accepted. See integrations.md
+    and ../profiles/README.md for runtime semantics and constraints.
+servers:
+  - url: http://localhost:8081
+security:
+  - session: []
+paths:
+  /api/profile-presets:
+    get:
+      summary: List curated profile configurations and YAML
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  presets:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        profile:
+                          $ref: "#/components/schemas/Profile"
+                        yaml:
+                          type: string
+        "400":
+          description: Invalid configuration
+        "401":
+          description: Session required
+        "404":
+          description: Resource not found
+        "409":
+          description: Conflict or invalid state transition
+  /api/profiles/preview:
+    post:
+      summary: Validate YAML without saving
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - yaml
+              properties:
+                yaml:
+                  type: string
+                  description: pyro/v1 Profile YAML; maximum 256 KB; aliases, unsupported tags and
+                    duplicate keys rejected.
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  profile:
+                    $ref: "#/components/schemas/Profile"
+        "400":
+          description: Invalid configuration
+        "401":
+          description: Session required
+        "404":
+          description: Resource not found
+        "409":
+          description: Conflict or invalid state transition
+  /api/profiles/import:
+    post:
+      summary: Import YAML preserving its ID; never overwrite
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - yaml
+              properties:
+                yaml:
+                  type: string
+                  description: pyro/v1 Profile YAML; maximum 256 KB; aliases, unsupported tags and
+                    duplicate keys rejected.
+      responses:
+        "201":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  profile:
+                    $ref: "#/components/schemas/Profile"
+        "400":
+          description: Invalid configuration
+        "401":
+          description: Session required
+        "404":
+          description: Resource not found
+        "409":
+          description: Conflict or invalid state transition
+  /api/profiles/{id}/export:
+    get:
+      summary: Export YAML without timestamps or shadow references
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Portable profile
+          content:
+            application/yaml:
+              schema:
+                type: string
+        "400":
+          description: Invalid configuration
+        "401":
+          description: Session required
+        "404":
+          description: Resource not found
+        "409":
+          description: Conflict or invalid state transition
+  /api/integrations:
+    get:
+      summary: List redacted integrations
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  integrations:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/PublicIntegration"
+        "400":
+          description: Invalid configuration
+        "401":
+          description: Session required
+        "404":
+          description: Resource not found
+        "409":
+          description: Conflict or invalid state transition
+    post:
+      summary: Create an outgoing webhook and return its signing key once
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - url
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 100
+                type:
+                  type: string
+                  enum:
+                    - webhook
+                enabled:
+                  default: true
+                  type: boolean
+                actions:
+                  default:
+                    - review
+                    - block
+                  minItems: 1
+                  maxItems: 3
+                  type: array
+                  items:
+                    type: string
+                    enum:
+                      - allow
+                      - review
+                      - block
+                profileIds:
+                  default: []
+                  maxItems: 100
+                  type: array
+                  items:
+                    type: string
+                    minLength: 1
+                    maxLength: 64
+                appIds:
+                  default: []
+                  maxItems: 100
+                  type: array
+                  items:
+                    type: string
+                    minLength: 1
+                    maxLength: 64
+                minimumRisk:
+                  default: 0
+                  type: number
+                  minimum: 0
+                  maximum: 1
+                allowPrivateNetwork:
+                  default: false
+                  type: boolean
+                url:
+                  type: string
+                  format: uri
+                  description: Encrypted at rest. Omit or empty on update to preserve.
+      responses:
+        "201":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IntegrationResult"
+        "400":
+          description: Invalid configuration
+        "401":
+          description: Session required
+        "404":
+          description: Resource not found
+        "409":
+          description: Conflict or invalid state transition
+  /api/integrations/{id}:
+    put:
+      summary: Update outgoing webhook settings
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: []
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 100
+                type:
+                  type: string
+                  enum:
+                    - webhook
+                enabled:
+                  default: true
+                  type: boolean
+                actions:
+                  default:
+                    - review
+                    - block
+                  minItems: 1
+                  maxItems: 3
+                  type: array
+                  items:
+                    type: string
+                    enum:
+                      - allow
+                      - review
+                      - block
+                profileIds:
+                  default: []
+                  maxItems: 100
+                  type: array
+                  items:
+                    type: string
+                    minLength: 1
+                    maxLength: 64
+                appIds:
+                  default: []
+                  maxItems: 100
+                  type: array
+                  items:
+                    type: string
+                    minLength: 1
+                    maxLength: 64
+                minimumRisk:
+                  default: 0
+                  type: number
+                  minimum: 0
+                  maximum: 1
+                allowPrivateNetwork:
+                  default: false
+                  type: boolean
+                url:
+                  type: string
+                  format: uri
+                  description: Encrypted at rest. Omit or empty on update to preserve.
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IntegrationResult"
+        "400":
+          description: Invalid configuration
+        "401":
+          description: Session required
+        "404":
+          description: Resource not found
+        "409":
+          description: Conflict or invalid state transition
+    delete:
+      summary: Delete an integration
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Success
+        "400":
+          description: Invalid configuration
+        "401":
+          description: Session required
+        "404":
+          description: Resource not found
+        "409":
+          description: Conflict or invalid state transition
+  /api/integrations/{id}/test:
+    post:
+      summary: Queue a synthetic notification
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "202":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  delivery:
+                    $ref: "#/components/schemas/Delivery"
+        "400":
+          description: Invalid configuration
+        "401":
+          description: Session required
+        "404":
+          description: Resource not found
+        "409":
+          description: Conflict or invalid state transition
+  /api/integrations/{id}/rotate-secret:
+    post:
+      summary: Rotate a webhook signing key
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  signingSecret:
+                    type: string
+        "400":
+          description: Invalid configuration
+        "401":
+          description: Session required
+        "404":
+          description: Resource not found
+        "409":
+          description: Conflict or invalid state transition
+  /api/integration-deliveries:
+    get:
+      summary: List latest 100 delivery records
+      parameters:
+        - name: integrationId
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deliveries:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Delivery"
+        "400":
+          description: Invalid configuration
+        "401":
+          description: Session required
+        "404":
+          description: Resource not found
+        "409":
+          description: Conflict or invalid state transition
+  /api/integration-deliveries/{id}/retry:
+    post:
+      summary: Requeue only a failed delivery
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "202":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+        "400":
+          description: Invalid configuration
+        "401":
+          description: Session required
+        "404":
+          description: Resource not found
+        "409":
+          description: Conflict or invalid state transition
+components:
+  securitySchemes:
+    session:
+      type: apiKey
+      in: cookie
+      name: pf_session
+  schemas:
+    Profile:
+      type: object
+      properties:
+        id:
+          type: string
+          pattern: ^[a-z0-9][a-z0-9_-]{1,63}$
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        description:
+          type: string
+          maxLength: 500
+        model:
+          type: string
+          minLength: 1
+          maxLength: 200
+        reviewThreshold:
+          type: number
+          minimum: 0
+          maximum: 1
+        blockThreshold:
+          type: number
+          minimum: 0
+          maximum: 1
+        decisionStrategy:
+          default: maximum
+          type: string
+          enum:
+            - maximum
+            - weighted_average
+            - signal_count
+        minimumReviewSignals:
+          default: 1
+          type: integer
+          minimum: 1
+          maximum: 32
+        minimumBlockSignals:
+          default: 1
+          type: integer
+          minimum: 1
+          maximum: 32
+        failMode:
+          type: string
+          enum:
+            - open
+            - closed
+        maxInputChars:
+          type: integer
+          minimum: 128
+          maximum: 1000000
+        timeoutMs:
+          type: integer
+          minimum: 250
+          maximum: 120000
+        persistInputs:
+          type: boolean
+        notifyOn:
+          type: array
+          items:
+            type: string
+            enum:
+              - allow
+              - review
+              - block
+        shadowProfileIds:
+          default: []
+          maxItems: 3
+          type: array
+          items:
+            type: string
+        localRules:
+          default: []
+          maxItems: 100
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                pattern: ^[a-z0-9][a-z0-9_-]{1,63}$
+              name:
+                type: string
+                minLength: 1
+                maxLength: 100
+              description:
+                default: ""
+                type: string
+                maxLength: 500
+              enabled:
+                type: boolean
+              scope:
+                type: string
+                enum:
+                  - all_text
+                  - raw_json
+                  - tool_name
+              match:
+                type: string
+                enum:
+                  - contains
+                  - equals
+                  - regex
+              pattern:
+                type: string
+                minLength: 1
+                maxLength: 500
+              caseSensitive:
+                default: false
+                type: boolean
+              action:
+                type: string
+                enum:
+                  - review
+                  - block
+              risk:
+                type: number
+                minimum: 0
+                maximum: 1
+            required:
+              - id
+              - name
+              - description
+              - enabled
+              - scope
+              - match
+              - pattern
+              - caseSensitive
+              - action
+              - risk
+            additionalProperties: false
+        detectors:
+          maxItems: 32
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                pattern: ^[a-z0-9][a-z0-9_-]{1,63}$
+              name:
+                type: string
+                minLength: 1
+                maxLength: 100
+              description:
+                type: string
+                maxLength: 500
+              question:
+                type: string
+                minLength: 8
+                maxLength: 2000
+              enabled:
+                type: boolean
+              weight:
+                type: number
+                minimum: 0.1
+                maximum: 2
+              reviewThreshold:
+                type: number
+                minimum: 0
+                maximum: 1
+              blockThreshold:
+                type: number
+                minimum: 0
+                maximum: 1
+            required:
+              - id
+              - name
+              - description
+              - question
+              - enabled
+              - weight
+            additionalProperties: false
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - name
+        - description
+        - model
+        - reviewThreshold
+        - blockThreshold
+        - decisionStrategy
+        - minimumReviewSignals
+        - minimumBlockSignals
+        - failMode
+        - maxInputChars
+        - timeoutMs
+        - persistInputs
+        - notifyOn
+        - shadowProfileIds
+        - localRules
+        - detectors
+        - createdAt
+        - updatedAt
+      additionalProperties: false
+    LocalRule:
+      type: object
+      properties:
+        id:
+          type: string
+          pattern: ^[a-z0-9][a-z0-9_-]{1,63}$
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        description:
+          default: ""
+          type: string
+          maxLength: 500
+        enabled:
+          type: boolean
+        scope:
+          type: string
+          enum:
+            - all_text
+            - raw_json
+            - tool_name
+        match:
+          type: string
+          enum:
+            - contains
+            - equals
+            - regex
+        pattern:
+          type: string
+          minLength: 1
+          maxLength: 500
+        caseSensitive:
+          default: false
+          type: boolean
+        action:
+          type: string
+          enum:
+            - review
+            - block
+        risk:
+          type: number
+          minimum: 0
+          maximum: 1
+      required:
+        - id
+        - name
+        - description
+        - enabled
+        - scope
+        - match
+        - pattern
+        - caseSensitive
+        - action
+        - risk
+      additionalProperties: false
+    PublicIntegration:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        type:
+          type: string
+          enum:
+            - webhook
+        enabled:
+          default: true
+          type: boolean
+        actions:
+          default:
+            - review
+            - block
+          minItems: 1
+          maxItems: 3
+          type: array
+          items:
+            type: string
+            enum:
+              - allow
+              - review
+              - block
+        profileIds:
+          default: []
+          maxItems: 100
+          type: array
+          items:
+            type: string
+            minLength: 1
+            maxLength: 64
+        appIds:
+          default: []
+          maxItems: 100
+          type: array
+          items:
+            type: string
+            minLength: 1
+            maxLength: 64
+        minimumRisk:
+          default: 0
+          type: number
+          minimum: 0
+          maximum: 1
+        allowPrivateNetwork:
+          default: false
+          type: boolean
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+        destinationHost:
+          type: string
+        hasSigningSecret:
+          type: boolean
+      required:
+        - id
+        - name
+        - type
+        - enabled
+        - actions
+        - profileIds
+        - appIds
+        - minimumRisk
+        - allowPrivateNetwork
+        - createdAt
+        - updatedAt
+      additionalProperties: false
+    IntegrationResult:
+      type: object
+      properties:
+        integration:
+          $ref: "#/components/schemas/PublicIntegration"
+        signingSecret:
+          type: string
+          description: Returned once when creating or rotating a generic webhook.
+    WebhookEvent:
+      type: object
+      required:
+        - id
+        - type
+        - createdAt
+        - data
+      properties:
+        id:
+          type: string
+        type:
+          enum:
+            - decision.created
+            - integration.test
+        createdAt:
+          type: string
+          format: date-time
+        data:
+          type: object
+          properties:
+            id:
+              type: string
+            profileId:
+              type: string
+            appId:
+              type: string
+            action:
+              enum:
+                - allow
+                - review
+                - block
+            verdict:
+              enum:
+                - safe
+                - suspicious
+                - unsafe
+                - indeterminate
+            risk:
+              type: number
+            provider:
+              type: string
+            latencyMs:
+              type: number
+            traceId:
+              type: string
+            failed:
+              type: boolean
+    Delivery:
+      type: object
+      properties:
+        id:
+          type: string
+        integrationId:
+          type: string
+        eventId:
+          type: string
+        status:
+          enum:
+            - pending
+            - delivering
+            - delivered
+            - failed
+        attempts:
+          type: integer
+        createdAt:
+          type: string
+        nextAttemptAt:
+          type: string
+        lastStatus:
+          type: integer
+        error:
+          type: string
+        payload:
+          $ref: "#/components/schemas/WebhookEvent"

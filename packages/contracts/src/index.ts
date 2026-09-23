@@ -1,11 +1,12 @@
 import { z } from "zod";
+import { RE2JS } from "re2js";
 
 export const VerdictSchema = z.enum(["safe", "suspicious", "unsafe", "indeterminate"]);
 export const PolicyActionSchema = z.enum(["allow", "review", "block"]);
 export const DecisionStrategySchema = z.enum(["maximum", "weighted_average", "signal_count"]);
 export const LocalRuleActionSchema = z.enum(["review", "block"]);
 export const LocalRuleScopeSchema = z.enum(["all_text", "raw_json", "tool_name"]);
-export const LocalRuleMatchSchema = z.enum(["contains", "equals"]);
+export const LocalRuleMatchSchema = z.enum(["contains", "equals", "regex"]);
 
 export const LocalRuleSchema = z.object({
   id: z.string().regex(/^[a-z0-9][a-z0-9_-]{1,63}$/),
@@ -18,7 +19,16 @@ export const LocalRuleSchema = z.object({
   caseSensitive: z.boolean().default(false),
   action: LocalRuleActionSchema,
   risk: z.number().min(0).max(1),
+}).superRefine((rule, ctx) => {
+  if (rule.match !== "regex") return;
+  try { RE2JS.compile(rule.pattern, rule.caseSensitive ? 0 : RE2JS.CASE_INSENSITIVE); }
+  catch { ctx.addIssue({ code: "custom", path: ["pattern"], message: "Invalid RE2 regular expression. Lookaround and backreferences are not supported." }); }
 });
+
+export const LocalRulesSchema = z.array(LocalRuleSchema).max(100).default([]).refine(
+  (rules) => new Set(rules.map((rule) => rule.id)).size === rules.length,
+  "Local rule IDs must be unique within their scope.",
+);
 
 export const AppSchema = z.object({
   id: z.string().regex(/^[a-z0-9][a-z0-9_-]{1,63}$/),
@@ -28,7 +38,7 @@ export const AppSchema = z.object({
   defaultProfileId: z.string().regex(/^[a-z0-9][a-z0-9_-]{1,63}$/),
   allowedProfileIds: z.array(z.string()).max(100).default([]),
   rateLimitPerMinute: z.number().int().min(1).max(1_000_000).optional(),
-  localRules: z.array(LocalRuleSchema).max(100).default([]),
+  localRules: LocalRulesSchema,
   createdAt: z.string(),
   updatedAt: z.string(),
 });
@@ -68,10 +78,13 @@ export const ProfileSchema = z
     persistInputs: z.boolean(),
     notifyOn: z.array(PolicyActionSchema),
     shadowProfileIds: z.array(z.string()).max(3).default([]),
-    detectors: z.array(DetectorSchema).min(1).max(32),
+    localRules: LocalRulesSchema,
+    detectors: z.array(DetectorSchema).max(32),
     createdAt: z.string(),
     updatedAt: z.string(),
   })
+  .refine((profile) => profile.detectors.length + profile.localRules.length > 0, { message: "Add at least one detector or local rule", path: ["detectors"] })
+  .refine((profile) => new Set(profile.detectors.map((d) => d.id)).size === profile.detectors.length, { message: "Detector IDs must be unique", path: ["detectors"] })
   .refine((profile) => profile.reviewThreshold <= profile.blockThreshold, {
     message: "reviewThreshold must be less than or equal to blockThreshold",
     path: ["reviewThreshold"],
@@ -379,4 +392,46 @@ export function createDefaultProviderSettings(now = new Date().toISOString()): P
     circuitBreakerResetMs: 30_000,
     updatedAt: now,
   };
+}
+
+export const IntegrationSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string().trim().min(1).max(100),
+  type: z.literal("webhook").default("webhook"),
+  enabled: z.boolean().default(true),
+  actions: z.array(PolicyActionSchema).min(1).max(3).default(["review", "block"]),
+  profileIds: z.array(z.string().min(1).max(64)).max(100).default([]),
+  appIds: z.array(z.string().min(1).max(64)).max(100).default([]),
+  minimumRisk: z.number().min(0).max(1).default(0),
+  allowPrivateNetwork: z.boolean().default(false),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+export type Integration = z.infer<typeof IntegrationSchema>;
+export interface StoredIntegration extends Integration {
+  destination: StoredSecret;
+  signingSecret?: StoredSecret;
+  destinationHost: string;
+}
+export interface WebhookEvent {
+  id: string;
+  type: "decision.created" | "integration.test";
+  createdAt: string;
+  data: {
+    id: string; profileId: string; appId?: string; action: PolicyAction; verdict: Verdict;
+    risk: number; provider: string; latencyMs: number; traceId?: string; failed: boolean;
+  };
+}
+export interface Delivery {
+  id: string;
+  integrationId: string;
+  eventId: string;
+  createdAt: string;
+  status: "pending" | "delivering" | "delivered" | "failed";
+  attempts: number;
+  nextAttemptAt: string;
+  leaseToken?: string;
+  lastStatus?: number;
+  error?: string;
+  payload: WebhookEvent;
 }
