@@ -27,9 +27,11 @@
     "ws": "^8.18.3"
   },
   "devDependencies": {
+    "@pyro/contracts": "workspace:*",
     "@types/ws": "^8.18.1",
     "tsx": "^4.20.6",
-    "yaml": "^2.9.1"
+    "yaml": "^2.9.1",
+    "zod": "^4.1.11"
   },
   "publishConfig": {
     "access": "public",

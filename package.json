@@ -8,7 +8,7 @@
     "build": "pnpm -r run build",
     "check": "pnpm run typecheck && pnpm test && pnpm run build",
     "dev": "concurrently -n gateway,control,dashboard -c blue,magenta,green \"pnpm --filter @pyro/gateway dev\" \"pnpm --filter @pyro/control-plane dev\" \"pnpm --filter @pyro/dashboard dev\"",
-    "test": "pnpm -r --workspace-concurrency=1 run test",
+    "test": "pnpm -r --stream --workspace-concurrency=1 run test",
     "typecheck": "pnpm run build:packages && pnpm -r run typecheck",
     "webhook:receiver": "node scripts/webhook-receiver.mjs",
     "test:webhook": "node scripts/test-webhook.mjs",
