@@ -1,6 +1,6 @@
 openapi: 3.1.0
 info:
-  title: Pyro profiles and integrations API
+  title: Pyro control-plane API
   version: 0.2.0
   description: Authenticated control-plane endpoints. Use pf_session from
     /api/auth/login. Gateway bearer keys are not accepted. See integrations.md
@@ -38,6 +38,8 @@ paths:
           description: Resource not found
         "409":
           description: Conflict or invalid state transition
+      operationId: listProfilePresets
+      x-cli-command: profiles presets
   /api/profiles/preview:
     post:
       summary: Validate YAML without saving
@@ -72,6 +74,9 @@ paths:
           description: Resource not found
         "409":
           description: Conflict or invalid state transition
+      operationId: previewProfile
+      x-cli-command: profiles preview
+      x-cli-input: profile-yaml
   /api/profiles/import:
     post:
       summary: Import YAML preserving its ID; never overwrite
@@ -106,6 +111,9 @@ paths:
           description: Resource not found
         "409":
           description: Conflict or invalid state transition
+      operationId: importProfile
+      x-cli-command: profiles import
+      x-cli-input: profile-yaml
   /api/profiles/{id}/export:
     get:
       summary: Export YAML without timestamps or shadow references
@@ -130,6 +138,8 @@ paths:
           description: Resource not found
         "409":
           description: Conflict or invalid state transition
+      operationId: exportProfile
+      x-cli-command: profiles export
   /api/integrations:
     get:
       summary: List redacted integrations
@@ -153,6 +163,8 @@ paths:
           description: Resource not found
         "409":
           description: Conflict or invalid state transition
+      operationId: listWebhooks
+      x-cli-command: webhooks list
     post:
       summary: Create an outgoing webhook and return its signing key once
       requestBody:
@@ -232,6 +244,8 @@ paths:
           description: Resource not found
         "409":
           description: Conflict or invalid state transition
+      operationId: createWebhook
+      x-cli-command: webhooks create
   /api/integrations/{id}:
     put:
       summary: Update outgoing webhook settings
@@ -316,6 +330,8 @@ paths:
           description: Resource not found
         "409":
           description: Conflict or invalid state transition
+      operationId: updateWebhook
+      x-cli-command: webhooks update
     delete:
       summary: Delete an integration
       parameters:
@@ -335,6 +351,8 @@ paths:
           description: Resource not found
         "409":
           description: Conflict or invalid state transition
+      operationId: deleteWebhook
+      x-cli-command: webhooks delete
   /api/integrations/{id}/test:
     post:
       summary: Queue a synthetic notification
@@ -362,6 +380,8 @@ paths:
           description: Resource not found
         "409":
           description: Conflict or invalid state transition
+      operationId: testWebhook
+      x-cli-command: webhooks test
   /api/integrations/{id}/rotate-secret:
     post:
       summary: Rotate a webhook signing key
@@ -389,6 +409,8 @@ paths:
           description: Resource not found
         "409":
           description: Conflict or invalid state transition
+      operationId: rotateWebhookSecret
+      x-cli-command: webhooks rotate-secret
   /api/integration-deliveries:
     get:
       summary: List latest 100 delivery records
@@ -417,6 +439,8 @@ paths:
           description: Resource not found
         "409":
           description: Conflict or invalid state transition
+      operationId: listWebhookDeliveries
+      x-cli-command: webhooks deliveries
   /api/integration-deliveries/{id}/retry:
     post:
       summary: Requeue only a failed delivery
@@ -444,6 +468,680 @@ paths:
           description: Resource not found
         "409":
           description: Conflict or invalid state transition
+      operationId: retryWebhookDelivery
+      x-cli-command: webhooks retry
+  /health:
+    get:
+      operationId: getControlHealth
+      x-cli-command: control health
+      summary: Control-plane and database health
+      security: []
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  database:
+                    type: string
+  /api/auth/login:
+    post:
+      operationId: login
+      x-cli-command: auth login
+      summary: Sign in with the dashboard administrator password
+      x-cli-input: login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                password:
+                  type: string
+              required:
+                - password
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      username:
+                        type: string
+          headers:
+            Set-Cookie:
+              description: pf_session cookie; valid for 24 hours
+              schema:
+                type: string
+        "401":
+          description: Session required
+        "429":
+          description: Too many failed attempts
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+  /api/auth/logout:
+    post:
+      operationId: logout
+      x-cli-command: auth logout
+      summary: Invalidate the saved dashboard session
+      x-cli-input: logout
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+        "401":
+          description: Session required
+  /api/auth/me:
+    get:
+      operationId: getCurrentUser
+      x-cli-command: auth status
+      summary: Show the signed-in dashboard user
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      username:
+                        type: string
+                      role:
+                        type: string
+        "401":
+          description: Session required
+  /api/overview:
+    get:
+      operationId: getOverview
+      x-cli-command: overview
+      summary: Dashboard overview and gateway health
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Session required
+  /api/usage:
+    get:
+      operationId: getUsage
+      x-cli-command: usage
+      summary: Usage by application and time window
+      parameters:
+        - name: range
+          in: query
+          schema:
+            type: string
+            enum:
+              - 24h
+              - 7d
+              - 30d
+            default: 7d
+        - name: appId
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Session required
+  /api/activity:
+    get:
+      operationId: listActivity
+      x-cli-command: activity list
+      summary: Filter activity; use --format json or csv to export all matches
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 500
+            default: 100
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: action
+          in: query
+          schema:
+            type: string
+        - name: verdict
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: profile
+          in: query
+          schema:
+            type: string
+        - name: provider
+          in: query
+          schema:
+            type: string
+        - name: apiKey
+          in: query
+          schema:
+            type: string
+        - name: appId
+          in: query
+          schema:
+            type: string
+        - name: from
+          in: query
+          schema:
+            type: string
+        - name: to
+          in: query
+          schema:
+            type: string
+        - name: labelKey
+          in: query
+          schema:
+            type: string
+        - name: labelValue
+          in: query
+          schema:
+            type: string
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: minimumRisk
+          in: query
+          schema:
+            type: number
+            minimum: 0
+            maximum: 1
+        - name: format
+          in: query
+          schema:
+            type: string
+            enum:
+              - json
+              - csv
+            description: Export all matching events without pagination
+      responses:
+        "200":
+          description: Paginated events, a JSON array export, or CSV export
+          content:
+            application/json:
+              schema:
+                anyOf:
+                  - type: object
+                    properties:
+                      events:
+                        type: array
+                        items:
+                          type: object
+                      total:
+                        type: integer
+                      hasMore:
+                        type: boolean
+                      labelKeys:
+                        type: array
+                        items:
+                          type: string
+                  - type: array
+                    items:
+                      type: object
+            text/csv:
+              schema:
+                type: string
+        "401":
+          description: Session required
+  /api/activity/{id}:
+    get:
+      operationId: getActivity
+      x-cli-command: activity get
+      summary: Read one activity trace
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  event:
+                    type: object
+        "401":
+          description: Session required
+        "404":
+          description: Resource not found
+  /api/classify:
+    post:
+      operationId: playgroundClassify
+      x-cli-command: playground
+      summary: Classify using the dashboard session and configured gateway key
+      x-cli-input: classification
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Envelope"
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Decision"
+        "400":
+          description: Invalid request
+        "401":
+          description: Session required
+        "502":
+          description: Gateway unavailable
+  /ws:
+    get:
+      operationId: streamActivity
+      x-cli-command: activity watch
+      summary: Stream dashboard activity
+      x-websocket: true
+      description: WebSocket upgrade authenticated with the pf_session cookie. Emits
+        connected and decision messages; closes with code 1008 if
+        unauthenticated.
+      responses:
+        "101":
+          description: WebSocket established
+  /api/profiles:
+    get:
+      operationId: listProfiles
+      x-cli-command: profiles list
+      summary: List profiles
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  profiles:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Profile"
+        "401":
+          description: Session required
+    post:
+      operationId: createProfile
+      x-cli-command: profiles create
+      summary: Create a profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProfileInput"
+      responses:
+        "201":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  profile:
+                    $ref: "#/components/schemas/Profile"
+        "400":
+          description: Invalid request
+        "401":
+          description: Session required
+        "404":
+          description: Resource not found
+        "409":
+          description: Conflict
+  /api/profiles/{id}:
+    put:
+      operationId: updateProfile
+      x-cli-command: profiles update
+      summary: Replace the full profile configuration
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProfileInput"
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  profile:
+                    $ref: "#/components/schemas/Profile"
+        "400":
+          description: Invalid request
+        "401":
+          description: Session required
+        "404":
+          description: Resource not found
+        "409":
+          description: Conflict
+    delete:
+      operationId: deleteProfile
+      x-cli-command: profiles delete
+      summary: Delete an unreferenced profile; the default cannot be deleted
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+        "400":
+          description: Invalid request
+        "401":
+          description: Session required
+        "404":
+          description: Resource not found
+        "409":
+          description: Conflict
+  /api/apps:
+    get:
+      operationId: listApplications
+      x-cli-command: apps list
+      summary: List applications
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  apps:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Application"
+        "401":
+          description: Session required
+    post:
+      operationId: createApplication
+      x-cli-command: apps create
+      summary: Create an application
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateApplication"
+      responses:
+        "201":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  app:
+                    $ref: "#/components/schemas/Application"
+        "400":
+          description: Invalid request
+        "401":
+          description: Session required
+        "404":
+          description: Resource not found
+        "409":
+          description: Conflict
+  /api/apps/{id}:
+    put:
+      operationId: updateApplication
+      x-cli-command: apps update
+      summary: Replace the full application configuration
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApplicationInput"
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  app:
+                    $ref: "#/components/schemas/Application"
+        "400":
+          description: Invalid request
+        "401":
+          description: Session required
+        "404":
+          description: Resource not found
+        "409":
+          description: Conflict
+    delete:
+      operationId: deleteApplication
+      x-cli-command: apps delete
+      summary: Delete an application without active keys; the default cannot be deleted
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+        "400":
+          description: Invalid request
+        "401":
+          description: Session required
+        "404":
+          description: Resource not found
+        "409":
+          description: Conflict
+  /api/keys:
+    get:
+      operationId: listApiKeys
+      x-cli-command: keys list
+      summary: List API keys, including revoked keys; secrets are redacted
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  keys:
+                    type: array
+                    items:
+                      type: object
+        "401":
+          description: Session required
+    post:
+      operationId: createApiKey
+      x-cli-command: keys create
+      summary: Create an application API key; the secret is returned only once
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 100
+                appId:
+                  type: string
+                defaultProfileId:
+                  type: string
+                allowedProfileIds:
+                  type: array
+                  items:
+                    type: string
+                rateLimitPerMinute:
+                  type: integer
+                  minimum: 1
+                  maximum: 1000000
+              required:
+                - name
+      responses:
+        "201":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  key:
+                    type: string
+                  record:
+                    type: object
+                  warning:
+                    type: string
+        "400":
+          description: Invalid request
+        "401":
+          description: Session required
+  /api/keys/{id}:
+    delete:
+      operationId: revokeApiKey
+      x-cli-command: keys revoke
+      summary: Revoke an API key
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+        "401":
+          description: Session required
+        "404":
+          description: Resource not found
+  /api/settings/provider:
+    get:
+      operationId: getProviderSettings
+      x-cli-command: settings provider get
+      summary: Read provider settings and API-key status
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  settings:
+                    type: object
+                  apiKeyConfigured:
+                    type: boolean
+                  apiKeySource:
+                    type:
+                      - string
+                      - "null"
+                    enum:
+                      - environment
+                      - dashboard
+                      - null
+        "401":
+          description: Session required
+    put:
+      operationId: updateProviderSettings
+      x-cli-command: settings provider update
+      summary: Replace provider settings; omit apiKey to keep the stored key
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProviderSettingsInput"
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  settings:
+                    type: object
+                  apiKeyConfigured:
+                    type: boolean
+        "400":
+          description: Invalid request
+        "401":
+          description: Session required
 components:
   securitySchemes:
     session:
@@ -863,3 +1561,662 @@ components:
           type: string
         payload:
           $ref: "#/components/schemas/WebhookEvent"
+    ProfileInput:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        description:
+          type: string
+          maxLength: 500
+        model:
+          type: string
+          minLength: 1
+          maxLength: 200
+        reviewThreshold:
+          type: number
+          minimum: 0
+          maximum: 1
+        blockThreshold:
+          type: number
+          minimum: 0
+          maximum: 1
+        decisionStrategy:
+          default: maximum
+          type: string
+          enum:
+            - maximum
+            - weighted_average
+            - signal_count
+        minimumReviewSignals:
+          default: 1
+          type: integer
+          minimum: 1
+          maximum: 32
+        minimumBlockSignals:
+          default: 1
+          type: integer
+          minimum: 1
+          maximum: 32
+        failMode:
+          type: string
+          enum:
+            - open
+            - closed
+        maxInputChars:
+          type: integer
+          minimum: 128
+          maximum: 1000000
+        timeoutMs:
+          type: integer
+          minimum: 250
+          maximum: 120000
+        persistInputs:
+          type: boolean
+        notifyOn:
+          type: array
+          items:
+            type: string
+            enum:
+              - allow
+              - review
+              - block
+        shadowProfileIds:
+          default: []
+          maxItems: 3
+          type: array
+          items:
+            type: string
+        localRules:
+          default: []
+          maxItems: 100
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                pattern: ^[a-z0-9][a-z0-9_-]{1,63}$
+              name:
+                type: string
+                minLength: 1
+                maxLength: 100
+              description:
+                default: ""
+                type: string
+                maxLength: 500
+              enabled:
+                type: boolean
+              scope:
+                type: string
+                enum:
+                  - all_text
+                  - raw_json
+                  - tool_name
+              match:
+                type: string
+                enum:
+                  - contains
+                  - equals
+                  - regex
+              pattern:
+                type: string
+                minLength: 1
+                maxLength: 500
+              caseSensitive:
+                default: false
+                type: boolean
+              action:
+                type: string
+                enum:
+                  - review
+                  - block
+              risk:
+                type: number
+                minimum: 0
+                maximum: 1
+            required:
+              - id
+              - name
+              - enabled
+              - scope
+              - match
+              - pattern
+              - action
+              - risk
+        detectors:
+          maxItems: 32
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                pattern: ^[a-z0-9][a-z0-9_-]{1,63}$
+              name:
+                type: string
+                minLength: 1
+                maxLength: 100
+              description:
+                type: string
+                maxLength: 500
+              question:
+                type: string
+                minLength: 8
+                maxLength: 2000
+              enabled:
+                type: boolean
+              weight:
+                type: number
+                minimum: 0.1
+                maximum: 2
+              reviewThreshold:
+                type: number
+                minimum: 0
+                maximum: 1
+              blockThreshold:
+                type: number
+                minimum: 0
+                maximum: 1
+            required:
+              - id
+              - name
+              - description
+              - question
+              - enabled
+              - weight
+      required:
+        - name
+        - description
+        - model
+        - reviewThreshold
+        - blockThreshold
+        - failMode
+        - maxInputChars
+        - timeoutMs
+        - persistInputs
+        - notifyOn
+        - detectors
+    Application:
+      type: object
+      properties:
+        id:
+          type: string
+          pattern: ^[a-z0-9][a-z0-9_-]{1,63}$
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        description:
+          default: ""
+          type: string
+          maxLength: 500
+        enabled:
+          type: boolean
+        defaultProfileId:
+          type: string
+          pattern: ^[a-z0-9][a-z0-9_-]{1,63}$
+        allowedProfileIds:
+          default: []
+          maxItems: 100
+          type: array
+          items:
+            type: string
+        rateLimitPerMinute:
+          type: integer
+          minimum: 1
+          maximum: 1000000
+        localRules:
+          default: []
+          maxItems: 100
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                pattern: ^[a-z0-9][a-z0-9_-]{1,63}$
+              name:
+                type: string
+                minLength: 1
+                maxLength: 100
+              description:
+                default: ""
+                type: string
+                maxLength: 500
+              enabled:
+                type: boolean
+              scope:
+                type: string
+                enum:
+                  - all_text
+                  - raw_json
+                  - tool_name
+              match:
+                type: string
+                enum:
+                  - contains
+                  - equals
+                  - regex
+              pattern:
+                type: string
+                minLength: 1
+                maxLength: 500
+              caseSensitive:
+                default: false
+                type: boolean
+              action:
+                type: string
+                enum:
+                  - review
+                  - block
+              risk:
+                type: number
+                minimum: 0
+                maximum: 1
+            required:
+              - id
+              - name
+              - enabled
+              - scope
+              - match
+              - pattern
+              - action
+              - risk
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - name
+        - enabled
+        - defaultProfileId
+        - createdAt
+        - updatedAt
+    ApplicationInput:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        description:
+          default: ""
+          type: string
+          maxLength: 500
+        enabled:
+          type: boolean
+        defaultProfileId:
+          type: string
+          pattern: ^[a-z0-9][a-z0-9_-]{1,63}$
+        allowedProfileIds:
+          default: []
+          maxItems: 100
+          type: array
+          items:
+            type: string
+        rateLimitPerMinute:
+          type: integer
+          minimum: 1
+          maximum: 1000000
+        localRules:
+          default: []
+          maxItems: 100
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                pattern: ^[a-z0-9][a-z0-9_-]{1,63}$
+              name:
+                type: string
+                minLength: 1
+                maxLength: 100
+              description:
+                default: ""
+                type: string
+                maxLength: 500
+              enabled:
+                type: boolean
+              scope:
+                type: string
+                enum:
+                  - all_text
+                  - raw_json
+                  - tool_name
+              match:
+                type: string
+                enum:
+                  - contains
+                  - equals
+                  - regex
+              pattern:
+                type: string
+                minLength: 1
+                maxLength: 500
+              caseSensitive:
+                default: false
+                type: boolean
+              action:
+                type: string
+                enum:
+                  - review
+                  - block
+              risk:
+                type: number
+                minimum: 0
+                maximum: 1
+            required:
+              - id
+              - name
+              - enabled
+              - scope
+              - match
+              - pattern
+              - action
+              - risk
+      required:
+        - name
+        - enabled
+        - defaultProfileId
+    CreateApplication:
+      type: object
+      properties:
+        id:
+          type: string
+          pattern: ^[a-z0-9][a-z0-9_-]{1,63}$
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        description:
+          default: ""
+          type: string
+          maxLength: 500
+        enabled:
+          type: boolean
+        defaultProfileId:
+          type: string
+          pattern: ^[a-z0-9][a-z0-9_-]{1,63}$
+        allowedProfileIds:
+          default: []
+          maxItems: 100
+          type: array
+          items:
+            type: string
+        rateLimitPerMinute:
+          type: integer
+          minimum: 1
+          maximum: 1000000
+        localRules:
+          default: []
+          maxItems: 100
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                pattern: ^[a-z0-9][a-z0-9_-]{1,63}$
+              name:
+                type: string
+                minLength: 1
+                maxLength: 100
+              description:
+                default: ""
+                type: string
+                maxLength: 500
+              enabled:
+                type: boolean
+              scope:
+                type: string
+                enum:
+                  - all_text
+                  - raw_json
+                  - tool_name
+              match:
+                type: string
+                enum:
+                  - contains
+                  - equals
+                  - regex
+              pattern:
+                type: string
+                minLength: 1
+                maxLength: 500
+              caseSensitive:
+                default: false
+                type: boolean
+              action:
+                type: string
+                enum:
+                  - review
+                  - block
+              risk:
+                type: number
+                minimum: 0
+                maximum: 1
+            required:
+              - id
+              - name
+              - enabled
+              - scope
+              - match
+              - pattern
+              - action
+              - risk
+      required:
+        - name
+    ProviderSettingsInput:
+      type: object
+      properties:
+        mode:
+          type: string
+          enum:
+            - jev
+            - mock
+        endpoint:
+          type: string
+          format: uri
+        model:
+          type: string
+          minLength: 1
+          maxLength: 200
+        maxRetries:
+          default: 1
+          type: integer
+          minimum: 0
+          maximum: 5
+        retryBackoffMs:
+          default: 150
+          type: integer
+          minimum: 0
+          maximum: 10000
+        circuitBreakerFailureThreshold:
+          default: 5
+          type: integer
+          minimum: 1
+          maximum: 100
+        circuitBreakerResetMs:
+          default: 30000
+          type: integer
+          minimum: 1000
+          maximum: 600000
+        apiKey:
+          type: string
+          description: Provider API key. Omit to keep the stored key.
+        clearApiKey:
+          type: boolean
+      required:
+        - mode
+        - endpoint
+        - model
+    Envelope:
+      type: object
+      required:
+        - input
+      properties:
+        input: {}
+        profile:
+          type: string
+          default: default
+        metadata:
+          type: object
+          additionalProperties: true
+        labels:
+          type: object
+          maxProperties: 20
+          description: Searchable request context such as a session URL, tenant, or
+            environment.
+          propertyNames:
+            pattern: ^[A-Za-z0-9_.-]{1,64}$
+          additionalProperties:
+            type: string
+            maxLength: 2048
+    Decision:
+      type: object
+      required:
+        - id
+        - createdAt
+        - profileId
+        - verdict
+        - action
+        - risk
+        - confidence
+        - reason
+        - detectors
+        - model
+        - provider
+        - latencyMs
+        - queueMs
+      properties:
+        id:
+          type: string
+          description: Server-generated decision identifier
+        requestId:
+          type: string
+          description: Valid incoming X-Request-Id or a generated request identifier
+        createdAt:
+          type: string
+          format: date-time
+        traceId:
+          type: string
+          description: W3C trace identifier
+        profileId:
+          type: string
+        verdict:
+          enum:
+            - safe
+            - suspicious
+            - unsafe
+            - indeterminate
+        action:
+          enum:
+            - allow
+            - review
+            - block
+        risk:
+          type: number
+          minimum: 0
+          maximum: 1
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+        reason:
+          type: string
+        detectors:
+          type: array
+          items:
+            $ref: "#/components/schemas/DetectorResult"
+        model:
+          type: string
+        provider:
+          type: string
+        latencyMs:
+          type: number
+        queueMs:
+          type: number
+        labels:
+          type: object
+          additionalProperties:
+            type: string
+        timings:
+          type: object
+          properties:
+            providerMs:
+              type: number
+            policyMs:
+              type: number
+            totalMs:
+              type: number
+        usage:
+          type: object
+          description: Provider token usage and actual billed cost when reported. Local
+            decisions report zero cost.
+          properties:
+            inputTokens:
+              type: integer
+              minimum: 0
+            outputTokens:
+              type: integer
+              minimum: 0
+            cost:
+              type: object
+              required:
+                - amount
+                - currency
+              properties:
+                amount:
+                  type: number
+                  minimum: 0
+                currency:
+                  type: string
+                  pattern: ^[A-Z]{3}$
+        shadows:
+          type: array
+          description: Non-enforcing results from configured shadow policies.
+          items:
+            type: object
+            properties:
+              profileId:
+                type: string
+              verdict:
+                enum:
+                  - safe
+                  - suspicious
+                  - unsafe
+                  - indeterminate
+              action:
+                enum:
+                  - allow
+                  - review
+                  - block
+              risk:
+                type: number
+              changed:
+                type: boolean
+    DetectorResult:
+      type: object
+      required:
+        - id
+        - name
+        - probability
+        - weightedProbability
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        probability:
+          type: number
+          minimum: 0
+          maximum: 1
+        weightedProbability:
+          type: number
+          minimum: 0
+          maximum: 1

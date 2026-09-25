@@ -5,6 +5,7 @@ dist/
 npm-debug.log*
 .DS_Store
 coverage/
+artifacts/
 *.tsbuildinfo
 apps/dashboard/vite.config.js
 apps/dashboard/vite.config.d.ts

@@ -10,6 +10,7 @@ COPY packages/queue/package.json packages/queue/package.json
 COPY packages/classifiers/package.json packages/classifiers/package.json
 COPY packages/integrations/package.json packages/integrations/package.json
 COPY packages/sdk/package.json packages/sdk/package.json
+COPY packages/cli/package.json packages/cli/package.json
 RUN npm ci
 COPY . .
 RUN npm run build

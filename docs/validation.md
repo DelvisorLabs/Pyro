@@ -55,4 +55,4 @@ Earlier verification for the unchanged SDK/profile work:
 - TypeScript SDK/contracts packed and installed in a separate temporary consumer; imports and a request succeeded.
 - Website desktop/mobile layouts, interactive examples, documentation navigation and YAML downloads checked.
 
-The optional observability overlay and non-webhook adapter have been removed. Neither SDK has been published. The website remains a separate localhost-only project in the sibling `pyro-website` directory.
+The optional observability overlay and non-webhook adapter have been removed. Neither SDK has been published. The website now lives in the sibling `website` directory alongside Delvisor's homepage, with Pyro at `/pyro` and its quickstart at `/pyro/docs`.

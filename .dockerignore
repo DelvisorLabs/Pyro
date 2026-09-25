@@ -7,6 +7,7 @@ node_modules
 data
 npm-debug.log
 coverage
+artifacts
 **/__pycache__
 **/*.py[cod]
 **/.pytest_cache

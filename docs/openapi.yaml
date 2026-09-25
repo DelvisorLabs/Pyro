@@ -17,7 +17,7 @@ paths:
         content:
           application/json:
             schema:
-              oneOf:
+              anyOf:
                 - $ref: "#/components/schemas/Envelope"
                 - type: object
                   additionalProperties: true
@@ -35,6 +35,17 @@ paths:
         "403": { description: Application is disabled or the key/app cannot use the requested policy }
         "413": { description: Input exceeds the selected profile limit }
         "429": { description: Queue capacity or effective application/API-key rate limit has been reached }
+      x-cli-command: classify
+      x-cli-input: classification
+      parameters:
+        - name: X-Request-Id
+          in: header
+          schema:
+            type: string
+        - name: traceparent
+          in: header
+          schema:
+            type: string
   /v1/jobs:
     post:
       summary: Enqueue a classification and return immediately
@@ -48,6 +59,17 @@ paths:
       responses:
         "202":
           description: Job accepted
+      x-cli-command: jobs create
+      x-cli-input: classification
+      parameters:
+        - name: X-Request-Id
+          in: header
+          schema:
+            type: string
+        - name: traceparent
+          in: header
+          schema:
+            type: string
   /v1/jobs/{id}:
     get:
       summary: Read an asynchronous job
@@ -60,11 +82,14 @@ paths:
       responses:
         "200": { description: Current job state }
         "404": { description: Job is unknown or expired }
+      x-cli-command: jobs get
   /v1/profiles:
     get:
       summary: List public profile identifiers
       responses:
         "200": { description: Available profiles }
+      operationId: listGatewayProfiles
+      x-cli-command: gateway profiles
   /v1/events:
     get:
       summary: Open a real-time classification event stream
@@ -74,12 +99,15 @@ paths:
       responses:
         "101": { description: WebSocket connection established }
         "401": { description: Authentication failed }
+      x-cli-command: events
   /v1/health:
     get:
       security: []
       summary: Liveness and queue state
       responses:
         "200": { description: Service is alive }
+      operationId: getGatewayHealth
+      x-cli-command: health
   /v1/ready:
     get:
       security: []
@@ -87,12 +115,30 @@ paths:
       responses:
         "200": { description: Ready }
         "503": { description: Provider credentials are missing }
+      operationId: getGatewayReadiness
+      x-cli-command: ready
   /metrics:
     get:
       security: []
       summary: Prometheus metrics
       responses:
-        "200": { description: Prometheus exposition format }
+        "200": { description: Prometheus exposition format, content: { text/plain: { schema: { type: string } } } }
+      operationId: getMetrics
+      x-cli-command: metrics
+  /:
+    get:
+      operationId: getGatewayInfo
+      x-cli-command: gateway info
+      summary: Gateway discovery
+      security: []
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: {}
 components:
   securitySchemes:
     bearerAuth:
@@ -101,7 +147,7 @@ components:
   schemas:
     Envelope:
       type: object
-      required: [input]
+      required: [ input ]
       properties:
         input: {}
         profile: { type: string, default: default }
@@ -116,7 +162,7 @@ components:
           additionalProperties: { type: string, maxLength: 2048 }
     DetectorResult:
       type: object
-      required: [id, name, probability, weightedProbability]
+      required: [ id, name, probability, weightedProbability ]
       properties:
         id: { type: string }
         name: { type: string }
@@ -124,15 +170,15 @@ components:
         weightedProbability: { type: number, minimum: 0, maximum: 1 }
     Decision:
       type: object
-      required: [id, createdAt, profileId, verdict, action, risk, confidence, reason, detectors, model, provider, latencyMs, queueMs]
+      required: [ id, createdAt, profileId, verdict, action, risk, confidence, reason, detectors, model, provider, latencyMs, queueMs ]
       properties:
         id: { type: string, description: Server-generated decision identifier }
         requestId: { type: string, description: Valid incoming X-Request-Id or a generated request identifier }
         createdAt: { type: string, format: date-time }
         traceId: { type: string, description: W3C trace identifier }
         profileId: { type: string }
-        verdict: { enum: [safe, suspicious, unsafe, indeterminate] }
-        action: { enum: [allow, review, block] }
+        verdict: { enum: [ safe, suspicious, unsafe, indeterminate ] }
+        action: { enum: [ allow, review, block ] }
         risk: { type: number, minimum: 0, maximum: 1 }
         confidence: { type: number, minimum: 0, maximum: 1 }
         reason: { type: string }
@@ -160,7 +206,7 @@ components:
             outputTokens: { type: integer, minimum: 0 }
             cost:
               type: object
-              required: [amount, currency]
+              required: [ amount, currency ]
               properties:
                 amount: { type: number, minimum: 0 }
                 currency: { type: string, pattern: "^[A-Z]{3}$" }
@@ -171,7 +217,7 @@ components:
             type: object
             properties:
               profileId: { type: string }
-              verdict: { enum: [safe, suspicious, unsafe, indeterminate] }
-              action: { enum: [allow, review, block] }
+              verdict: { enum: [ safe, suspicious, unsafe, indeterminate ] }
+              action: { enum: [ allow, review, block ] }
               risk: { type: number }
               changed: { type: boolean }

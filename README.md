@@ -209,6 +209,26 @@ Route decisions to signed outgoing webhooks from **Webhooks**. Filter by applica
 
 Run `npm run test:webhook` against your local running stack for a signed delivery and retry smoke test. For manual testing, run `npm run webhook:receiver` and follow the [webhook guide](./docs/integrations.md).
 
+## Command line
+
+The CLI uses the same profiles, applications, activity, API keys, webhooks and
+provider settings as the dashboard. It covers every operation in both OpenAPI
+specifications, including background jobs and live event streams.
+
+```sh
+npm ci
+npm run build -w @delvisor/pyro
+npm link -w @delvisor/pyro
+pyro auth login
+pyro profiles list
+pyro playground 'Summarize this document.'
+```
+
+Use `PYRO_API_KEY=YOUR_KEY pyro classify 'hello'` for application-scoped gateway
+access. See the [CLI guide](./packages/cli/README.md) for standalone installation,
+all commands, YAML/CSV exports, scripting and tests. The npm package is ready to
+pack locally; it has not been published.
+
 ## Use it from code
 
 ### TypeScript

@@ -1,0 +1,38 @@
+{
+  "name": "@delvisor/pyro",
+  "version": "0.1.0",
+  "description": "The Pyro command line: classify inputs and manage your firewall.",
+  "type": "module",
+  "license": "Apache-2.0",
+  "bin": {
+    "pyro": "dist/bin.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json && node scripts/bundle-specs.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "npm run build && node --import tsx --test test/*.test.ts",
+    "prepack": "npm run build",
+    "test:install": "npm run build && node scripts/test-install.mjs"
+  },
+  "dependencies": {
+    "commander": "^14.0.0",
+    "ws": "^8.18.3"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.18.1",
+    "tsx": "^4.20.6",
+    "yaml": "^2.9.1"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  }
+}

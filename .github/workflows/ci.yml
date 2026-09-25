@@ -37,6 +37,8 @@ jobs:
       - run: npm ci
       - run: npm audit --audit-level=high
       - run: npm run check
+      - name: Install CLI from its packed release outside the repository
+        run: npm run test:install -w @delvisor/pyro
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
