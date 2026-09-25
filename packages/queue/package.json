@@ -14,5 +14,8 @@
   "devDependencies": {
     "@types/node": "^22.0.0",
     "tsx": "^4.20.6"
-  }
+  },
+  "files": [
+    "dist"
+  ]
 }

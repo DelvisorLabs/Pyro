@@ -1,6 +1,6 @@
 # Dashboard UI
 
-Run from the repository root with `npm run dev -w @pyro/dashboard`. The local dashboard uses port 3000.
+Run from the repository root with `pnpm --filter @pyro/dashboard run dev`. The local dashboard uses port 3000.
 
 ## Shared components and styling
 
@@ -28,8 +28,8 @@ The editor adds a separate `editorKey` to each detector, independent of its edit
 From the repository root:
 
 ```sh
-npm run test -w @pyro/dashboard
-npm run build -w @pyro/dashboard
+pnpm --filter @pyro/dashboard run test
+pnpm --filter @pyro/dashboard run build
 ```
 
 Browser regression checks on localhost:

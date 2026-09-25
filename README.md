@@ -207,18 +207,20 @@ Local rules can belong to a profile or an application. Both sets run together: b
 
 Route decisions to signed outgoing webhooks from **Webhooks**. Filter by application, profile, action and minimum risk; test destinations and inspect or retry deliveries. PostgreSQL stores the event and outbound delivery atomically, and the gateway delivers asynchronously with bounded retries. Destination URLs and signing keys are encrypted.
 
-Run `npm run test:webhook` against your local running stack for a signed delivery and retry smoke test. For manual testing, run `npm run webhook:receiver` and follow the [webhook guide](./docs/integrations.md).
+Run `pnpm run test:webhook` against your local running stack for a signed delivery and retry smoke test. For manual testing, run `pnpm run webhook:receiver` and follow the [webhook guide](./docs/integrations.md).
 
 ## Command line
+
+Source builds use Node.js 22.13 or newer and pnpm 11.10.0 (pinned in `package.json`).
 
 The CLI uses the same profiles, applications, activity, API keys, webhooks and
 provider settings as the dashboard. It covers every operation in both OpenAPI
 specifications, including background jobs and live event streams.
 
 ```sh
-npm ci
-npm run build -w @delvisor/pyro
-npm link -w @delvisor/pyro
+pnpm install --frozen-lockfile
+pnpm --filter @delvisor/pyro run build
+pnpm add --global ./packages/cli
 pyro auth login
 pyro profiles list
 pyro playground 'Summarize this document.'
@@ -296,7 +298,7 @@ Configuration, policies, sessions, and activity are stored in PostgreSQL. Provid
 Development setup and contribution checks are documented in [`CONTRIBUTING.md`](./CONTRIBUTING.md). Before opening a pull request, run:
 
 ```bash
-npm run check
+pnpm run check
 PYTHONPATH=sdks/python/src python3 -m unittest discover -s sdks/python/tests -v
 ```
 

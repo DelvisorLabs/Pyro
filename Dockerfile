@@ -1,6 +1,8 @@
 FROM node:26-alpine AS build
 WORKDIR /app
-COPY package.json package-lock.json* ./
+# npm is only used to bootstrap the pinned package manager in the Node image.
+RUN npm install --global pnpm@11.10.0
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/gateway/package.json apps/gateway/package.json
 COPY apps/control-plane/package.json apps/control-plane/package.json
 COPY apps/dashboard/package.json apps/dashboard/package.json
@@ -11,30 +13,18 @@ COPY packages/classifiers/package.json packages/classifiers/package.json
 COPY packages/integrations/package.json packages/integrations/package.json
 COPY packages/sdk/package.json packages/sdk/package.json
 COPY packages/cli/package.json packages/cli/package.json
-RUN npm ci
+RUN pnpm install --frozen-lockfile
 COPY . .
-RUN npm run build
+RUN pnpm run build
 
 FROM build AS production-deps
-RUN npm prune --omit=dev
+RUN pnpm --filter @pyro/gateway deploy --prod /prod/gateway \
+  && pnpm --filter @pyro/control-plane deploy --prod /prod/control-plane
 
 FROM node:26-alpine AS gateway
 WORKDIR /app
 ENV NODE_ENV=production
-COPY --from=production-deps --chown=node:node /app/node_modules ./node_modules
-COPY --from=build --chown=node:node /app/package.json ./package.json
-COPY --from=build --chown=node:node /app/apps/gateway/package.json ./apps/gateway/package.json
-COPY --from=build --chown=node:node /app/apps/gateway/dist ./apps/gateway/dist
-COPY --from=build --chown=node:node /app/packages/contracts/package.json ./packages/contracts/package.json
-COPY --from=build --chown=node:node /app/packages/contracts/dist ./packages/contracts/dist
-COPY --from=build --chown=node:node /app/packages/storage/package.json ./packages/storage/package.json
-COPY --from=build --chown=node:node /app/packages/storage/dist ./packages/storage/dist
-COPY --from=build --chown=node:node /app/packages/queue/package.json ./packages/queue/package.json
-COPY --from=build --chown=node:node /app/packages/queue/dist ./packages/queue/dist
-COPY --from=build --chown=node:node /app/packages/classifiers/package.json ./packages/classifiers/package.json
-COPY --from=build --chown=node:node /app/packages/classifiers/dist ./packages/classifiers/dist
-COPY --from=build --chown=node:node /app/packages/integrations/package.json ./packages/integrations/package.json
-COPY --from=build --chown=node:node /app/packages/integrations/dist ./packages/integrations/dist
+COPY --from=production-deps --chown=node:node /prod/gateway ./apps/gateway
 COPY --from=build --chown=node:node /app/profiles ./profiles
 USER node
 EXPOSE 8080
@@ -43,16 +33,7 @@ CMD ["node", "apps/gateway/dist/server.js"]
 FROM node:26-alpine AS control-plane
 WORKDIR /app
 ENV NODE_ENV=production
-COPY --from=production-deps --chown=node:node /app/node_modules ./node_modules
-COPY --from=build --chown=node:node /app/package.json ./package.json
-COPY --from=build --chown=node:node /app/apps/control-plane/package.json ./apps/control-plane/package.json
-COPY --from=build --chown=node:node /app/apps/control-plane/dist ./apps/control-plane/dist
-COPY --from=build --chown=node:node /app/packages/contracts/package.json ./packages/contracts/package.json
-COPY --from=build --chown=node:node /app/packages/contracts/dist ./packages/contracts/dist
-COPY --from=build --chown=node:node /app/packages/storage/package.json ./packages/storage/package.json
-COPY --from=build --chown=node:node /app/packages/storage/dist ./packages/storage/dist
-COPY --from=build --chown=node:node /app/packages/integrations/package.json ./packages/integrations/package.json
-COPY --from=build --chown=node:node /app/packages/integrations/dist ./packages/integrations/dist
+COPY --from=production-deps --chown=node:node /prod/control-plane ./apps/control-plane
 COPY --from=build --chown=node:node /app/profiles ./profiles
 USER node
 EXPOSE 8081

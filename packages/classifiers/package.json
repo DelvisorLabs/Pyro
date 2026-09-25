@@ -12,10 +12,13 @@
     "test": "node --import tsx --test test/*.test.ts"
   },
   "dependencies": {
-    "@pyro/contracts": "*",
+    "@pyro/contracts": "workspace:*",
     "re2js": "^2.8.6"
   },
   "devDependencies": {
     "tsx": "^4.20.6"
-  }
+  },
+  "files": [
+    "dist"
+  ]
 }

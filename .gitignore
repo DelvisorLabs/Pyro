@@ -18,3 +18,6 @@ sdks/python/build/
 sdks/python/dist/
 
 sdks/rust/target/
+
+.pnpm-store/
+pnpm-debug.log*

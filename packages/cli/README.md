@@ -6,12 +6,12 @@ running Pyro server. The CLI does not start services.
 
 ## Install
 
-From the Pyro repository:
+With Node.js 22.13 or newer and pnpm 11.10.0, run from the Pyro repository:
 
 ```sh
-npm ci
-npm run build -w @delvisor/pyro
-npm link -w @delvisor/pyro
+pnpm install --frozen-lockfile
+pnpm --filter @delvisor/pyro run build
+pnpm add --global ./packages/cli
 pyro --help
 ```
 
@@ -20,12 +20,12 @@ contracts and has no dependency on other Pyro packages or the source checkout:
 
 ```sh
 mkdir -p artifacts
-npm pack -w @delvisor/pyro --pack-destination artifacts
-npm install -g ./artifacts/delvisor-pyro-0.1.0.tgz
+pnpm --filter @delvisor/pyro pack --pack-destination artifacts
+pnpm add --global ./artifacts/delvisor-pyro-0.1.0.tgz
 ```
 
 The package is prepared as `@delvisor/pyro`; it has not been published to npm. A registry
-install with `npm install -g @delvisor/pyro` will be available after publication.
+install with `pnpm add --global @delvisor/pyro` will be available after publication.
 
 ## Start with your dashboard
 
@@ -193,10 +193,10 @@ successful classification request itself exits 0.
 ## Development and verification
 
 ```sh
-npm run build:packages
-npm run test -w @delvisor/pyro
-npm run test:install -w @delvisor/pyro
-npm run check
+pnpm run build:packages
+pnpm --filter @delvisor/pyro run test
+pnpm --filter @delvisor/pyro run test:install
+pnpm run check
 ```
 
 Tests exercise the executable against every documented HTTP operation, both

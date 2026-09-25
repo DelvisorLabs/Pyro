@@ -12,12 +12,15 @@
     "test": "node --import tsx --test test/*.test.ts"
   },
   "dependencies": {
-    "@pyro/contracts": "*",
-    "@pyro/storage": "*",
+    "@pyro/contracts": "workspace:*",
+    "@pyro/storage": "workspace:*",
     "ipaddr.js": "^2.2.0"
   },
   "devDependencies": {
     "@types/node": "^26.6.2",
     "tsx": "^4.20.6"
-  }
+  },
+  "files": [
+    "dist"
+  ]
 }

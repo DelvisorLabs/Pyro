@@ -16,3 +16,6 @@ artifacts
 
 **/target
 **/*.tsbuildinfo
+
+.pnpm-store/
+pnpm-debug.log*

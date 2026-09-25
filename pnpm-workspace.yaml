@@ -1,0 +1,12 @@
+packages:
+  - apps/*
+  - packages/*
+
+# Keep production deployments self-contained and refresh built workspace files.
+injectWorkspacePackages: true
+syncInjectedDepsAfterScripts:
+  - build
+
+allowBuilds:
+  esbuild: true
+  fsevents: true

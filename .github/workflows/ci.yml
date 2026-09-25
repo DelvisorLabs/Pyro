@@ -30,15 +30,16 @@ jobs:
       TEST_DATABASE_URL: postgresql://pyro:pyro-ci-password@127.0.0.1:5432/pyro_test
     steps:
       - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v7
         with:
           node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npm audit --audit-level=high
-      - run: npm run check
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm audit --audit-level=high
+      - run: pnpm run check
       - name: Install CLI from its packed release outside the repository
-        run: npm run test:install -w @delvisor/pyro
+        run: pnpm --filter @delvisor/pyro run test:install
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"

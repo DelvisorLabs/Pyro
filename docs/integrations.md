@@ -53,7 +53,7 @@ Delivery history is durable and currently has no automatic retention cleanup. Es
 With the gateway and control plane running on localhost, run from the Pyro repository:
 
 ```sh
-npm run test:webhook
+pnpm run test:webhook
 ```
 
 The smoke test reads your existing `.env` credentials without printing them. It starts a temporary receiver on `127.0.0.1:9091`, creates a temporary outgoing webhook and local-rule profile, verifies HMAC signatures, deliberately returns HTTP 503 once to check automatic retries, and checks a real `decision.created` delivery. It removes the temporary webhook/profile afterward. The test decision and delivery history remain as audit records. Success ends with `PASS`.
@@ -61,19 +61,19 @@ The smoke test reads your existing `.env` credentials without printing them. It 
 The default receiver URL is `http://host.docker.internal:9091/events`, for the Docker gateway on macOS/Windows. If your gateway is a local Node process, use:
 
 ```sh
-WEBHOOK_RECEIVER_URL=http://127.0.0.1:9091/events npm run test:webhook
+WEBHOOK_RECEIVER_URL=http://127.0.0.1:9091/events pnpm run test:webhook
 ```
 
 `WEBHOOK_TEST_PORT` changes the receiver port. Stop any manual receiver before running the smoke test. On Linux Docker, configure `host.docker.internal:host-gateway` in the gateway's `extra_hosts` and bind the receiver to the Docker bridge address using `WEBHOOK_TEST_HOST`; use that reachable address in the destination URL. The receiver binds only to loopback by default.
 
 ### Test from the dashboard
 
-1. Run `npm run webhook:receiver` from the Pyro repository.
+1. Run `pnpm run webhook:receiver` from the Pyro repository.
 2. Open **Webhooks → Add webhook**. Name it “Local test”. Set the destination to `http://host.docker.internal:9091/events` for Docker, or `http://127.0.0.1:9091/events` for a Node gateway. Enable **Allow private network / HTTP**, then save.
 3. Save the signing secret shown once. To verify signatures, stop the receiver and restart it with that secret:
 
    ```sh
-   PYRO_WEBHOOK_SECRET='paste-the-signing-secret' npm run webhook:receiver
+   PYRO_WEBHOOK_SECRET='paste-the-signing-secret' pnpm run webhook:receiver
    ```
 
 4. Click **Send test**. Within a few seconds, the terminal should print `integration.test` with `"signature": "verified"`. **Recent deliveries** should show **delivered**, one attempt, and HTTP **204**. Test events bypass action/risk/profile/application filters.

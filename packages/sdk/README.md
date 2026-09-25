@@ -25,11 +25,11 @@ Node.js 22 or newer is supported. Keep API keys on the server. This change does 
 
 ```sh
 # From the Pyro repository:
-npm ci
-npm run build:packages
-npm pack -w @pyro/contracts
-npm pack -w @pyro/sdk
-# In your application, npm install both generated tarballs by absolute path.
+pnpm install --frozen-lockfile
+pnpm run build:packages
+pnpm --filter @pyro/contracts pack
+pnpm --filter @pyro/sdk pack
+# In your application, pnpm add both generated tarballs by absolute path.
 ```
 
 The SDK exports `ClassificationDecision`, `ClassifyOptions`, `Job`, `JobReceipt`, `ProfileSummary`, `PolicyAction`, `Verdict`, and `WebhookEvent` types. Use `PyroError.status`, `requestId`, `details`, and `retryAfterSeconds` for HTTP error handling. The SDK does not automatically retry billable POSTs or follow redirects.

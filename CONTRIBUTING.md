@@ -4,16 +4,16 @@ Issues and pull requests are welcome. For security vulnerabilities, follow [SECU
 
 ## Development
 
-1. Install Node.js 22 and Docker.
-2. Run `npm install`.
+1. Install Node.js 22.13 or newer, pnpm 11.10.0, and Docker.
+2. Run `pnpm install --frozen-lockfile`.
 3. Copy `.env.example` to `.env` and generate every required credential.
 4. Start PostgreSQL with `docker compose up -d postgres`.
-5. Export `DATABASE_URL` and the required application secrets, then run `npm run dev`.
+5. Export `DATABASE_URL` and the required application secrets, then run `pnpm run build:packages` followed by `pnpm run dev`.
 
 Before opening a pull request, run:
 
 ```bash
-npm run check
+pnpm run check
 PYTHONPATH=sdks/python/src python3 -m unittest discover -s sdks/python/tests -v
 cargo test --manifest-path sdks/rust/Cargo.toml
 docker compose config --quiet

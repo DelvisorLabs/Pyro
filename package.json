@@ -3,26 +3,24 @@
   "version": "0.2.1",
   "private": true,
   "type": "module",
-  "workspaces": [
-    "apps/*",
-    "packages/*"
-  ],
   "scripts": {
-    "build:packages": "npm run build -w @pyro/contracts && npm run build -w @pyro/storage && npm run build -w @pyro/integrations && npm run build -w @pyro/queue && npm run build -w @pyro/classifiers && npm run build -w @pyro/sdk && npm run build -w @delvisor/pyro",
-    "build": "npm run build:packages && npm run build -w @pyro/gateway && npm run build -w @pyro/control-plane && npm run build -w @pyro/dashboard",
-    "check": "npm run typecheck && npm test && npm run build",
-    "dev": "concurrently -n gateway,control,dashboard -c blue,magenta,green \"npm run dev -w @pyro/gateway\" \"npm run dev -w @pyro/control-plane\" \"npm run dev -w @pyro/dashboard\"",
-    "test": "npm run test -w @pyro/storage && npm run test -w @pyro/integrations && npm run test -w @pyro/queue && npm run test -w @pyro/classifiers && npm run test -w @pyro/sdk && npm run test -w @pyro/gateway && npm run test -w @pyro/control-plane && npm run test -w @pyro/dashboard && npm run test -w @delvisor/pyro",
-    "typecheck": "npm run build:packages && npm run typecheck --workspaces --if-present",
+    "build:packages": "pnpm --filter \"./packages/*\" -r run build",
+    "build": "pnpm -r run build",
+    "check": "pnpm run typecheck && pnpm test && pnpm run build",
+    "dev": "concurrently -n gateway,control,dashboard -c blue,magenta,green \"pnpm --filter @pyro/gateway dev\" \"pnpm --filter @pyro/control-plane dev\" \"pnpm --filter @pyro/dashboard dev\"",
+    "test": "pnpm -r --workspace-concurrency=1 run test",
+    "typecheck": "pnpm run build:packages && pnpm -r run typecheck",
     "webhook:receiver": "node scripts/webhook-receiver.mjs",
     "test:webhook": "node scripts/test-webhook.mjs",
     "pyro": "node packages/cli/dist/bin.js"
   },
   "devDependencies": {
     "concurrently": "^9.2.1",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "@types/node": "^26.6.2"
   },
   "engines": {
-    "node": ">=22.0.0"
-  }
+    "node": ">=22.13.0"
+  },
+  "packageManager": "pnpm@11.10.0"
 }

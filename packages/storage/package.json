@@ -12,11 +12,14 @@
     "test": "node --import tsx --test src/*.test.ts"
   },
   "dependencies": {
-    "@pyro/contracts": "*",
+    "@pyro/contracts": "workspace:*",
     "pg": "^8.23.0"
   },
   "devDependencies": {
     "@types/pg": "^8.23.1",
     "tsx": "^4.20.6"
-  }
+  },
+  "files": [
+    "dist"
+  ]
 }
