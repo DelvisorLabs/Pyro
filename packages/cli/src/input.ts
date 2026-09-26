@@ -39,7 +39,7 @@ export async function parseValue(value: string, schema: Schema, flag: string): P
 
 export async function passwordPrompt(): Promise<string> {
   if (!process.stdin.isTTY) throw new Error("Use --password-stdin to sign in from a pipe.");
-  process.stderr.write("Administrator password: ");
+  process.stderr.write("Password: ");
   process.stdin.setRawMode(true);
   process.stdin.resume();
   return new Promise((resolve, reject) => {

@@ -28,3 +28,39 @@ shorter deadlines above, independent of `persistInputs`. Labels, caller metadata
 and opt-in previews are event data: never put credentials in them. Review and
 evaluation retention are documented with those features. Audit and policy
 history are retained until an administrator removes the deployment database.
+
+## Team access and SSO
+
+Keep the bootstrap `admin` password for recovery; use individual accounts for
+normal work. Administrators can provision users in **Team & audit**, grant
+applications, disable accounts, and revoke sessions. Passwords use salted scrypt.
+Sessions expire after 24 hours; grants and disabled state are checked on each
+request and every live-notification poll. Changing access revokes existing
+sessions. Raw input previews and caller metadata need a separate grant.
+
+Admins manage global policies, provider secrets, integrations and team settings.
+Operators manage keys, evaluations and reviews within their granted applications;
+reviewers triage reviews; viewers inspect scoped activity and usage. Gateway API
+keys are application-scoped service credentials, shown once and revocable. Rotate
+by creating a replacement key, deploying it, then revoking the old key.
+
+For OIDC, set `OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, and
+`OIDC_REDIRECT_URI=https://YOUR_HOST/control/api/auth/oidc/callback`, then restart
+the control plane. Both issuer and callback require HTTPS. Register that exact
+callback with your provider. Provision each user's **exact issuer/subject pair**
+in Team & audit; email addresses and domain membership never grant access.
+No just-in-time accounts or implicit administrator grants are created.
+
+The [openid-client library](https://github.com/panva/openid-client) verifies the
+code flow with PKCE, nonce, browser-bound single-use state and signed ID tokens.
+Tests cover valid signed tokens, nonce mismatch, state replay and unprovisioned
+subjects. A deployment still needs a smoke test against its actual identity
+provider and reverse proxy before enabling SSO for a team.
+
+Audit records contain actors, timestamps, operation paths, status and policy
+revision identifiers, without request bodies or secrets. Status 0 records an
+intent persisted before a privileged mutation; the following HTTP status records
+its outcome. An intent without an outcome means an interrupted operation that
+requires reconciliation. The API provides no edit/delete operation for audit
+history. PostgreSQL administrators remain trusted and can alter the database;
+use external backups or log shipping when tamper resistance is required.

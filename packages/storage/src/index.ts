@@ -15,7 +15,7 @@ export interface EventStore {
   query(options: EventQuery): Promise<EventQueryResult>;
   latestCursor(): Promise<EventCursor | undefined>;
   readAfter(cursor: EventCursor, limit?: number): Promise<ClassificationEvent[]>;
-  overview(now?: Date): Promise<EventOverview>;
+  overview(now?: Date, appIds?: string[]): Promise<EventOverview>;
   usage(options: EventUsageOptions): Promise<EventUsage>;
 }
 
@@ -31,12 +31,14 @@ export interface EventQuery {
   provider?: string;
   apiKey?: string;
   appId?: string;
+  appIds?: string[];
   from?: string;
   to?: string;
   minimumRisk?: number;
   labelKey?: string;
   labelValue?: string;
   search?: string;
+  excludeRawSearch?: boolean;
 }
 
 export interface EventQueryResult {
@@ -72,6 +74,7 @@ export interface EventUsageOptions {
   bucketMs: number;
   buckets: number;
   appId?: string;
+  appIds?: string[];
 }
 
 export interface EventUsage {
@@ -283,6 +286,7 @@ class PostgresEvents implements EventStore {
     if (options.profile) add((p) => `profile_id = ${p}`, options.profile);
     if (options.provider) add((p) => `provider = ${p}`, options.provider);
     if (options.apiKey) add((p) => `api_key_id = ${p}`, options.apiKey);
+    if (options.appIds) add((p) => `COALESCE(app_id, 'default') = ANY(${p}::text[])`, options.appIds);
     if (options.appId) add((p) => `COALESCE(app_id, 'default') = ${p}`, options.appId);
     if (options.from) add((p) => `created_at >= ${p}::timestamptz`, options.from);
     if (options.to) add((p) => `created_at <= ${p}::timestamptz`, options.to);
@@ -298,7 +302,7 @@ class PostgresEvents implements EventStore {
       }
     }
     if (options.search) {
-      add((p) => `concat_ws(' ', id, payload->>'requestId', payload->>'inputHash', payload->>'apiKeyName', payload->>'inputPreview', payload->>'reason', labels::text) ILIKE ${p}`, `%${options.search}%`);
+      add((p) => `concat_ws(' ', id, payload->>'requestId', payload->>'inputHash', payload->>'apiKeyName', ${options.excludeRawSearch ? "NULL" : "payload->>'inputPreview'"}, payload->>'reason', labels::text) ILIKE ${p}`, `%${options.search}%`);
     }
     return { sql: clauses.length ? `WHERE ${clauses.join(" AND ")}` : "", values };
   }
@@ -348,7 +352,7 @@ class PostgresEvents implements EventStore {
     const [rows, count, labels] = await Promise.all([
       this.pool.query<{ payload: ClassificationEvent }>(`SELECT payload FROM pyro_events ${where.sql} ORDER BY created_at DESC, id DESC${pageSql}`, pageValues),
       this.pool.query<{ total: number }>(`SELECT count(*)::int AS total FROM pyro_events ${where.sql}`, where.values),
-      this.pool.query<{ key: string }>("SELECT DISTINCT key FROM pyro_events CROSS JOIN LATERAL jsonb_object_keys(labels) AS key ORDER BY key"),
+      this.pool.query<{ key: string }>(`SELECT DISTINCT key FROM pyro_events CROSS JOIN LATERAL jsonb_object_keys(labels) AS key ${where.sql} ORDER BY key`, where.values),
     ]);
     return {
       events: rows.rows.map((row) => row.payload),
@@ -372,14 +376,14 @@ class PostgresEvents implements EventStore {
     return result.rows.map((row) => row.payload);
   }
 
-  async overview(now = new Date()): Promise<EventOverview> {
+  async overview(now = new Date(), appIds?: string[]): Promise<EventOverview> {
     const bucketMs = 2 * 60 * 60_000;
     const toMs = Math.ceil(now.getTime() / bucketMs) * bucketMs;
     const fromMs = toMs - 12 * bucketMs;
     const from = new Date(fromMs).toISOString();
     const to = new Date(toMs).toISOString();
-    const values = [from, to];
-    const windowSql = "WHERE created_at >= $1::timestamptz AND created_at < $2::timestamptz";
+    const values: unknown[] = [from, to, appIds ?? null];
+    const windowSql = "WHERE created_at >= $1::timestamptz AND created_at < $2::timestamptz AND ($3::text[] IS NULL OR COALESCE(app_id, 'default') = ANY($3))";
     const [totalsResult, actionsResult, detectorsResult, timelineResult] = await Promise.all([
       this.pool.query<{
         requests: number; blocked: number; reviewed: number; failed: number;
@@ -410,7 +414,7 @@ class PostgresEvents implements EventStore {
         GROUP BY detector->>'id'
         ORDER BY signals DESC`, values),
       this.pool.query<{ bucket: number; total: number; blocked: number; reviewed: number }>(`
-        SELECT floor((extract(epoch FROM created_at) * 1000 - $3) / $4)::int AS bucket,
+        SELECT floor((extract(epoch FROM created_at) * 1000 - $4) / $5)::int AS bucket,
           count(*)::int AS total,
           count(*) FILTER (WHERE action = 'block')::int AS blocked,
           count(*) FILTER (WHERE action = 'review')::int AS reviewed
@@ -448,6 +452,10 @@ class PostgresEvents implements EventStore {
     const fromMs = new Date(options.from).getTime();
     const whereValues: unknown[] = [options.from, options.to];
     let whereSql = "WHERE created_at >= $1::timestamptz AND created_at <= $2::timestamptz";
+    if (options.appIds) {
+      whereValues.push(options.appIds);
+      whereSql += ` AND COALESCE(app_id, 'default') = ANY($${whereValues.length}::text[])`;
+    }
     if (options.appId) {
       whereValues.push(options.appId);
       whereSql += ` AND COALESCE(app_id, 'default') = $${whereValues.length}`;
@@ -627,6 +635,7 @@ function quantile(values: number[], fraction: number): number {
 }
 
 function eventMatches(event: ClassificationEvent, options: EventQuery): boolean {
+  if (options.appIds && !options.appIds.includes(event.appId ?? "default")) return false;
   if (options.action && event.action !== options.action) return false;
   if (options.verdict && event.verdict !== options.verdict) return false;
   if (options.status === "flagged" && !["suspicious", "unsafe"].includes(event.verdict)) return false;
@@ -646,7 +655,7 @@ function eventMatches(event: ClassificationEvent, options: EventQuery): boolean 
     if (!values.some((value) => value?.toLowerCase().includes(options.labelValue!.toLowerCase()))) return false;
   }
   if (options.search) {
-    const haystack = `${event.id} ${event.requestId ?? ""} ${event.inputHash} ${event.apiKeyName ?? ""} ${event.inputPreview ?? ""} ${event.reason} ${JSON.stringify(event.labels ?? {})}`.toLowerCase();
+    const haystack = `${event.id} ${event.requestId ?? ""} ${event.inputHash} ${event.apiKeyName ?? ""} ${options.excludeRawSearch ? "" : event.inputPreview ?? ""} ${event.reason} ${JSON.stringify(event.labels ?? {})}`.toLowerCase();
     if (!haystack.includes(options.search.toLowerCase())) return false;
   }
   return true;
@@ -695,7 +704,7 @@ class MemoryDatabase implements Database {
       return {
         events: structuredClone(filtered.slice(offset, offset + limit)),
         total: filtered.length,
-        labelKeys: [...new Set(this.eventRows.flatMap((event) => Object.keys(event.labels ?? {})))].sort(),
+        labelKeys: [...new Set(filtered.flatMap((event) => Object.keys(event.labels ?? {})))].sort(),
       };
     },
     latestCursor: async () => {
@@ -706,11 +715,11 @@ class MemoryDatabase implements Database {
       .filter((event) => event.createdAt > cursor.createdAt || (event.createdAt === cursor.createdAt && event.id > cursor.id))
       .sort((left, right) => left.createdAt.localeCompare(right.createdAt) || left.id.localeCompare(right.id))
       .slice(0, limit)),
-    overview: async (now = new Date()) => {
+    overview: async (now = new Date(), appIds?: string[]) => {
       const bucketMs = 2 * 60 * 60_000;
       const toMs = Math.ceil(now.getTime() / bucketMs) * bucketMs;
       const fromMs = toMs - 12 * bucketMs;
-      const events = this.eventRows.filter((event) => { const time = new Date(event.createdAt).getTime(); return time >= fromMs && time < toMs; });
+      const events = this.eventRows.filter((event) => { const time = new Date(event.createdAt).getTime(); return time >= fromMs && time < toMs && (!appIds || appIds.includes(event.appId ?? "default")); });
       const detectors = new Map<string, { id: string; name: string; signals: number; probabilities: number[] }>();
       for (const event of events) for (const detector of event.detectors) {
         const item = detectors.get(detector.id) ?? { id: detector.id, name: detector.name, signals: 0, probabilities: [] };
@@ -738,7 +747,7 @@ class MemoryDatabase implements Database {
     },
     usage: async (options) => {
       const fromMs = new Date(options.from).getTime(); const toMs = new Date(options.to).getTime();
-      const events = this.eventRows.filter((event) => { const time = new Date(event.createdAt).getTime(); return time >= fromMs && time <= toMs && (!options.appId || (event.appId ?? "default") === options.appId); });
+      const events = this.eventRows.filter((event) => { const time = new Date(event.createdAt).getTime(); return time >= fromMs && time <= toMs && (!options.appId || (event.appId ?? "default") === options.appId) && (!options.appIds || options.appIds.includes(event.appId ?? "default")); });
       const group = (key: (event: ClassificationEvent) => string) => {
         const values = new Map<string, number>(); for (const event of events) values.set(key(event), (values.get(key(event)) ?? 0) + 1);
         return [...values].map(([id, requests]) => ({ id, requests })).sort((left, right) => right.requests - left.requests);

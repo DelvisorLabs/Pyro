@@ -1,0 +1,31 @@
+import { useEffect, useState } from "react";
+import type { UserRecord, AppRecord } from "@pyro/contracts";
+import { api } from "@/lib/api";
+import { PageHeader } from "@/components/shared";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent } from "@/components/ui/card";
+const roles = ["admin", "operator", "reviewer", "viewer"] as const;
+export function TeamPage() {
+  const [users, setUsers] = useState<UserRecord[]>([]), [apps, setApps] = useState<AppRecord[]>([]);
+  const [draft, setDraft] = useState<Partial<UserRecord>>({ username: "", role: "viewer", appIds: [] });
+  const [message, setMessage] = useState(""); const [password, setPassword] = useState("");
+  const [oidc, setOidc] = useState(false); const [busy, setBusy] = useState(false);
+  const [audit, setAudit] = useState<Array<{ id: string; at: string; actorId: string; action: string; resource: string; status: number; revision?: number }>>([]);
+  const load = async () => { const [team, applications, log] = await Promise.all([api.get<{ users: UserRecord[]; oidcConfigured: boolean }>("/api/team"), api.get<{ apps: AppRecord[] }>("/api/apps"), api.get<{ entries: typeof audit }>("/api/audit")]); setUsers(team.users); setOidc(team.oidcConfigured); setApps(applications.apps); setAudit(log.entries); };
+  useEffect(() => { void load().catch((e) => setMessage(e.message)); }, []);
+  const run = async (work: () => Promise<unknown>) => { setBusy(true); setMessage(""); setPassword(""); try { await work(); await load(); } catch (e) { setMessage(e instanceof Error ? e.message : "Save failed."); } finally { setBusy(false); } };
+  return <div className="space-y-6"><PageHeader title="Team & audit" description="Grant access to specific applications. Global policies, provider settings, webhooks and team management require an administrator." />
+    {message && <p role="status" className="border border-line p-3">{message}</p>}
+    {password && <div role="status" className="space-y-2 border border-line p-4"><p>Copy this password now and share it securely. It will not be shown again.</p><code className="break-all">{password}</code><Button variant="outline" onClick={() => setPassword("")}>Dismiss</Button></div>}
+    <Card><CardContent className="space-y-4 p-5"><h2 className="font-semibold">{draft.id ? "Edit account" : "Create account"}</h2><label className="block">Username<Input value={draft.username ?? ""} disabled={Boolean(draft.id)} onChange={(e) => setDraft({ ...draft, username: e.target.value })} /></label><label className="flex items-center gap-3">Role<select className="border border-line bg-surface p-2" value={draft.role} onChange={(e) => setDraft({ ...draft, role: e.target.value as UserRecord["role"] })}>{roles.map((r) => <option key={r}>{r}</option>)}</select></label><p className="text-sm text-muted">Operators manage application keys, evaluations and reviews. Reviewers triage decisions. Viewers can inspect activity and aggregate usage. Only administrators change shared configuration.</p>
+      {draft.role !== "admin" && <fieldset className="space-y-2"><legend>Applications</legend>{apps.map((a) => <label key={a.id} className="mr-4 inline-flex gap-2"><input type="checkbox" checked={draft.appIds?.includes(a.id) ?? false} onChange={(e) => setDraft({ ...draft, appIds: e.target.checked ? [...draft.appIds ?? [], a.id] : draft.appIds?.filter((id) => id !== a.id) })} />{a.name}</label>)}</fieldset>}
+      <label className="flex gap-2"><input type="checkbox" checked={draft.rawPreviews ?? false} onChange={(e) => setDraft({ ...draft, rawPreviews: e.target.checked })} />Allow raw input previews and caller metadata</label>
+      {oidc && <label className="block">SSO subject (optional; exact identity provider subject)<Input disabled={Boolean(draft.id)} value={draft.oidcSubject ?? ""} onChange={(e) => setDraft({ ...draft, oidcSubject: e.target.value || undefined })} /></label>}
+      {draft.id && <label className="flex gap-2"><input type="checkbox" checked={draft.disabled ?? false} onChange={(e) => setDraft({ ...draft, disabled: e.target.checked })} />Disable account and revoke sessions</label>}
+      <div className="flex gap-3"><Button disabled={busy || !draft.username} onClick={() => void run(async () => { const result = draft.id ? await api.put<{ password?: string }>(`/api/team/${draft.id}`, draft) : await api.post<{ password?: string }>("/api/team", draft); setPassword(result.password ?? ""); setMessage("Account saved. Existing sessions were revoked for changes."); setDraft({ username: "", role: "viewer", appIds: [] }); })}>Save account</Button><Button variant="outline" onClick={() => { setDraft({ username: "", role: "viewer", appIds: [] }); setPassword(""); }}>New account</Button></div>
+    </CardContent></Card>
+    <Card><CardContent className="overflow-auto p-4"><table className="w-full text-left text-sm"><thead><tr><th>User</th><th>Role</th><th>Applications</th><th>Access</th><th>Sessions</th></tr></thead><tbody>{users.map((u) => <tr className="border-t border-line" key={u.id}><td className="py-3"><button className="underline" disabled={u.username === "admin"} onClick={() => setDraft(u)}>{u.username}</button></td><td>{u.role}</td><td>{u.role === "admin" ? "All" : u.appIds?.join(", ") || "None"}</td><td>{u.disabled ? "Disabled" : u.oidcSubject ? "SSO" : "Password"}</td><td><Button variant="outline" size="sm" disabled={busy} onClick={() => void run(() => api.delete(`/api/team/${u.id}/sessions`))}>Revoke sessions</Button></td></tr>)}</tbody></table></CardContent></Card>
+    <h2 className="font-semibold">Audit log (latest 1,000 entries)</h2><Card><CardContent className="max-h-96 overflow-auto p-4"><table className="w-full text-left text-xs"><thead><tr><th>Time</th><th>Actor</th><th>Action</th><th>Resource</th><th>Result</th></tr></thead><tbody>{audit.map((a) => <tr className="border-t border-line" key={a.id}><td className="py-2">{new Date(a.at).toLocaleString()}</td><td>{users.find((u) => u.id === a.actorId)?.username ?? a.actorId}</td><td>{a.action}</td><td>{a.resource}{a.revision ? ` → revision ${a.revision}` : ""}</td><td>{a.status}</td></tr>)}</tbody></table></CardContent></Card>
+  </div>;
+}

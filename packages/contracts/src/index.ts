@@ -226,7 +226,13 @@ export interface ApiKeyRecord {
 export interface UserRecord {
   id: string;
   username: string;
-  role?: "admin" | "viewer";
+  role?: "admin" | "operator" | "reviewer" | "viewer";
+  appIds?: string[];
+  rawPreviews?: boolean;
+  disabled?: boolean;
+  passwordHash?: string;
+  oidcIssuer?: string;
+  oidcSubject?: string;
   lastLoginAt?: string;
   createdAt: string;
 }
