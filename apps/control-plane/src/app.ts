@@ -23,6 +23,7 @@ import { createSession, ensureAdmin, sessionUserId, sha256, verifyAdminPassword 
 import type { ControlPlaneConfig } from "./config.js";
 
 import { accessGuard, appScope, canAccessApp, visibleEvent, visibleUser, allowedProfiles } from "./access.js";
+import { registerReviews } from "./reviews.js";
 import { registerTeam, verifyPassword } from "./team.js";
 import { registerOidc } from "./oidc.js";
 import { registerPolicyHistory } from "./policies.js";
@@ -103,6 +104,7 @@ export async function buildControlPlane(config: ControlPlaneConfig): Promise<Fas
   const requireSession = accessGuard(database);
 
   app.decorateRequest("user", null);
+  registerReviews(app, database, requireSession);
   registerTeam(app, database, requireSession, config.oidc?.issuer);
   registerOidc(app, database, config);
   registerIntegrations(app, database, config.controlPlaneSecret, requireSession);

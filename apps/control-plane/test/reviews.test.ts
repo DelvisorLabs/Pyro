@@ -1,0 +1,21 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { randomUUID } from "node:crypto";
+import { openDatabase } from "@pyro/storage";
+import { buildControlPlane } from "../src/app.js";
+test("review resolution is attributed, immutable, concurrency-safe and does not change a decision", async (t) => {
+ const config = { host: "127.0.0.1", port: 0, databaseUrl: `memory://reviews-${randomUUID()}`, adminPassword: "correct-horse-battery-staple", controlPlaneSecret: "control-plane-test-secret", gatewayInternalUrl: "http://127.0.0.1:1", gatewayApiKey: "test-key", typesafeEndpoint: "https://api.typesafe.ai/v1/systemone", typesafeModel: "jev-latest" };
+ const app = await buildControlPlane(config); t.after(() => app.close()); const db = await openDatabase(config.databaseUrl);
+ const login = await app.inject({ method: "POST", url: "/api/auth/login", payload: { password: config.adminPassword } }); const cookie = login.headers["set-cookie"]!.split(";")[0]!;
+ const event = { id: "review-one", appId: "default", createdAt: new Date().toISOString(), profileId: "default", action: "review" as const, verdict: "suspicious" as const, risk: .7, confidence: .7, reason: "review", detectors: [], model: "local", provider: "local-rules", latencyMs: 0, queueMs: 0, inputHash: "hash" };
+ await db.events.append(event);
+ const edit = (disposition: string) => app.inject({ method: "PUT", url: "/api/reviews/review-one", headers: { cookie }, payload: { expectedRevision: 0, disposition, comment: "Redacted feedback" } });
+ const responses = await Promise.all([edit("true_positive"), edit("false_positive")]);
+ assert.deepEqual(responses.map((r) => r.statusCode).sort(), [200, 409]);
+ assert.deepEqual(await db.events.findById(event.id), event);
+ const review = (await app.inject({ method: "GET", url: "/api/reviews/review-one", headers: { cookie } })).json().review;
+ assert.equal(review.revision, 1); assert.equal(review.status, "resolved"); assert.equal(review.resolvedBy, login.json().user.id); assert.equal(review.comments.length, 1);
+ const viewer = (await app.inject({ method: "POST", url: "/api/team", headers: { cookie }, payload: { username: "viewer", role: "viewer", appIds: ["default"] } })).json();
+ const session = await app.inject({ method: "POST", url: "/api/auth/login", payload: { username: "viewer", password: viewer.password } });
+ assert.equal((await app.inject({ method: "PUT", url: "/api/reviews/review-one", headers: { cookie: session.headers["set-cookie"]!.split(";")[0]! }, payload: { expectedRevision: 1, disposition: "uncertain" } })).statusCode, 403);
+});
