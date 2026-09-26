@@ -29,18 +29,6 @@ tool-using agents. Call it before forwarding an untrusted prompt, retrieved
 passage, or tool payload. It returns `allow`, `review`, or `block`; your application
 must hold review decisions and reject blocked ones before executing work.
 
-Local rules run in the CLI process or on your server. Semantic detectors currently use **TypeSafe
-System One** and send inputs to that provider. Your application's LLM can be from
-any vendor, but the semantic classifier implementation is currently TypeSafe.
-Pyro does not automatically intercept a model or tool call and cannot guarantee
-that prompt injection will be detected. Keep authorization, tool permissions,
-sandboxing and output validation in the application.
-
-This is a beta for supervised pilots. The [evaluation guide](docs/evaluations/README.md)
-contains a reproducible 20-case local-rule smoke test and its report. There is no
-published independent semantic accuracy, false-positive or cross-vendor cost
-benchmark. Provider charges depend on actual traffic and the provider's billing.
-
 ## Operate and improve a policy
 
 - Immutable policy history, draft/publish, explicit application pins and canaries.
