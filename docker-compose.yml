@@ -13,7 +13,8 @@ services:
     ports:
       - "127.0.0.1:55432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U pyro -d pyro"]
+      # The temporary initialization server only accepts Unix-socket connections.
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "pyro", "-d", "pyro"]
       interval: 5s
       timeout: 3s
       retries: 20
@@ -35,6 +36,9 @@ services:
       GATEWAY_API_KEY: ${GATEWAY_API_KEY:?Set GATEWAY_API_KEY in .env}
     ports:
       - "127.0.0.1:8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/v1/health"]
       interval: 5s
@@ -60,6 +64,8 @@ services:
     ports:
       - "127.0.0.1:8081:8081"
     depends_on:
+      postgres:
+        condition: service_healthy
       gateway:
         condition: service_healthy
     healthcheck:

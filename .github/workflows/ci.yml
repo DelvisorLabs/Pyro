@@ -46,10 +46,27 @@ jobs:
       - run: PYTHONPATH=sdks/python/src python -m unittest discover -s sdks/python/tests -v
       - name: Rust SDK
         run: cargo test --locked --manifest-path sdks/rust/Cargo.toml
-      - name: Validate and build containers
+      - name: Validate containers and start with a fresh database
         env:
           ADMIN_PASSWORD: ci-admin-password-not-for-production
           CONTROL_PLANE_SECRET: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
           POSTGRES_PASSWORD: 0123456789abcdef0123456789abcdef
           GATEWAY_API_KEY: pf_0123456789abcdef0123456789abcdef0123456789abcdef
-        run: docker compose config --quiet && docker compose build
+        run: |
+          docker compose config --quiet
+          cleanup() {
+            compose_exit_status=$?
+            if [ "$compose_exit_status" -ne 0 ]; then
+              docker compose logs --no-color || true
+            fi
+            docker compose down --volumes || compose_exit_status=$?
+            exit "$compose_exit_status"
+          }
+          trap cleanup EXIT
+          docker compose up --build --wait --wait-timeout 120
+          curl --fail --silent --show-error http://127.0.0.1:8080/v1/health > /dev/null
+          curl --fail --silent --show-error http://127.0.0.1:8081/health > /dev/null
+          curl --fail --silent --show-error --retry 10 --retry-connrefused --retry-delay 1 http://127.0.0.1:3000/ > /dev/null
+          for container in $(docker compose ps -q); do
+            test "$(docker inspect --format '{{.RestartCount}}' "$container")" -eq 0
+          done
