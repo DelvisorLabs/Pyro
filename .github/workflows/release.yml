@@ -1,0 +1,77 @@
+name: Prepare release
+on:
+  workflow_dispatch:
+    inputs:
+      publish_images:
+        description: Publish versioned containers and create a draft GitHub release
+        type: boolean
+        default: false
+permissions:
+  contents: write
+  packages: write
+concurrency:
+  group: release
+  cancel-in-progress: false
+jobs:
+  prepare:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: release
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check
+      - run: pnpm evaluate
+      - run: pnpm --filter @delvisor/pyro test:install
+      - name: Read version
+        run: node -e 'const v=require("./package.json").version; if(!/^\d+\.\d+\.\d+(?:-[a-z0-9.]+)?$/.test(v)) process.exit(1); require("fs").appendFileSync(process.env.GITHUB_ENV,"RELEASE_VERSION="+v+"\n")'
+      - name: Refuse to overwrite an existing release
+        if: inputs.publish_images
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v$RELEASE_VERSION" > /dev/null 2>&1; then
+            echo "This release tag already exists. Use a new version."
+            exit 1
+          fi
+      - uses: docker/setup-qemu-action@v3
+      - name: Build versioned images
+        env:
+          PUBLISH_IMAGES: ${{ inputs.publish_images }}
+          REGISTRY_TOKEN: ${{ github.token }}
+        run: |
+          docker buildx create --use
+          if [ "$PUBLISH_IMAGES" = true ]; then
+            echo "$REGISTRY_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          fi
+          mkdir -p artifacts/image-metadata
+          for target in gateway control-plane dashboard; do
+            if [ "$PUBLISH_IMAGES" = true ]; then
+              docker buildx build --target "$target" --platform linux/amd64,linux/arm64 --push --provenance=mode=max --sbom=true --label "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" --label "org.opencontainers.image.revision=$GITHUB_SHA" --tag "ghcr.io/delvisorlabs/pyro-$target:$RELEASE_VERSION" --metadata-file "artifacts/image-metadata/$target.json" .
+            else
+              docker buildx build --target "$target" --load --tag "pyro-$target:release-test" .
+            fi
+          done
+      - name: Collect immutable image digests
+        if: inputs.publish_images
+        run: |
+          node --input-type=module -e 'import fs from "node:fs"; const d={}; for(const t of ["gateway","control-plane","dashboard"]) d[t]=JSON.parse(fs.readFileSync(`artifacts/image-metadata/${t}.json`))["containerimage.digest"]; fs.writeFileSync("artifacts/digests.json",JSON.stringify(d));'
+          echo "RELEASE_IMAGE_DIGESTS=artifacts/digests.json" >> "$GITHUB_ENV"
+      - run: pnpm release:prepare
+      - uses: actions/upload-artifact@v7
+        with:
+          name: pyro-release
+          path: artifacts/pyro-*
+          include-hidden-files: true
+      - name: Draft the release with verified artifacts
+        if: inputs.publish_images
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tar -czf "artifacts/pyro-$RELEASE_VERSION.tar.gz" -C artifacts "pyro-$RELEASE_VERSION"
+          gh release create "v$RELEASE_VERSION" --draft --prerelease --target "$GITHUB_SHA" --title "Pyro $RELEASE_VERSION" --notes-file CHANGELOG.md "artifacts/pyro-$RELEASE_VERSION.tar.gz" "artifacts/pyro-$RELEASE_VERSION/compose.yaml" "artifacts/pyro-$RELEASE_VERSION/.env.example" "artifacts/pyro-$RELEASE_VERSION/SHA256SUMS" artifacts/pyro-*/delvisor-pyro-*.tgz

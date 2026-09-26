@@ -18,105 +18,39 @@
 
 <p align="center">
   <a href="#quick-start">Quick start</a> ·
-  <a href="#why-pyro">Why Pyro?</a> ·
+  <a href="#what-pyro-does">How it works</a> ·
   <a href="./docs/openapi.yaml">API reference</a>
 </p>
 
 ## What Pyro does
-<img width="960" height="540" alt="pyro_readme" src="https://github.com/user-attachments/assets/bed043a4-d990-4315-9a53-b5e5d4068ae9" />
 
-<br />
+Pyro is a self-hosted policy API and dashboard for teams adding LLM features or
+tool-using agents. Call it before forwarding an untrusted prompt, retrieved
+passage, or tool payload. It returns `allow`, `review`, or `block`; your application
+must hold review decisions and reject blocked ones before executing work.
 
-Pyro turns untrusted user input into explicit decisions: <strong>allow, review, or block</strong>. You configure what is evaluated, what each signal means, and which thresholds cause an intervention.
+Local rules run on your server. Semantic detectors currently use **TypeSafe
+System One** and send inputs to that provider. Your application's LLM can be from
+any vendor, but the semantic classifier implementation is currently TypeSafe.
+Pyro does not automatically intercept a model or tool call and cannot guarantee
+that prompt injection will be detected. Keep authorization, tool permissions,
+sandboxing and output validation in the application.
 
-<br />
+This is a beta for supervised pilots. The [evaluation guide](docs/evaluations/README.md)
+contains a reproducible 20-case local-rule smoke test and its report. There is no
+published independent semantic accuracy, false-positive or cross-vendor cost
+benchmark. Provider charges depend on actual traffic and the provider's billing.
 
-Each request follows a simple path:
+## Operate and improve a policy
 
-1. Application and profile local rules handle known cases immediately. No model involved.
-2. If no local rule matches, Pyro evaluates enabled semantic detectors together in one System One request.
-3. The selected protection profile combines the returned probabilities using thresholds and a decision strategy you control.
-4. Pyro records the outcome, contributing signals, labels, and trace context so the decision can be understood later.
+- Immutable policy history, draft/publish, explicit application pins and canaries.
+- A labeled evaluation lab that compares published revisions using the gateway engine.
+- A review inbox with assignment, comments, dispositions and signed callbacks.
+- Individual accounts, OIDC, application-scoped roles and an audit history.
+- Encrypted durable jobs, shared quotas, bounded fair scheduling and data retention.
 
-The dashboard gives you one place to:
-
-- monitor prompt decisions in real time;
-- search activity by application, outcome, policy, or custom label;
-- define semantic detectors as plain-language questions;
-- tune review and block thresholds without changing application code;
-- compare new policies in shadow mode before enforcing them;
-- add fast local rules for known phrases, values, or tool names;
-- issue API keys and policies for different applications;
-- inspect the rule or detector behind a decision;
-- track model usage, cost, latency, and decision traces.
-
-Pyro records hashes and decision metadata unless raw storage is explicitly enabled.
-
-## Why Pyro?
-
-Most prompt-security products give you a fixed detector, a collection of scanners, or a framework that becomes part of the application runtime. Pyro focuses on: **visible, configurable protection that operators and developers can work on together**.
-
-A protection profile is not a hidden vendor policy. It is a configuration you can open and change: detectors, questions, weights, thresholds, decision strategy, failure behavior, notifications, and shadow profiles. Local rules are visible on the application or profile that owns them. Results show the signals that contributed to the final action.
-
-System One models are designed to return typed decisions and calibrated probabilities instead of generated prose. Pyro uses that shape directly: all enabled detectors are evaluated together, and the result is immediately usable by software and visible to operators.
-
-This creates a practical evaluation cascade:
-
-```text
-request
-  ├─ known local rule ───────────────→ decide locally (no model cost)
-  └─ no local match
-       └─ semantic detectors ────────→ one System One request
-            └─ profile thresholds ──→ allow, review, or block
-```
-
-You can keep simple checks fast and deterministic while reserving model analysis for ambiguity and context. The result is not merely a risk score: it is a decision tied to the exact configuration that produced it.
-
-### Cost of analyzing prompts
-
-Prompt monitoring becomes much less useful when cost forces you to sample only a small part of your traffic. Pyro sends all enabled detector questions in one System One request instead of making a separate generative-model call for every check.
-
-The following estimate uses public list prices checked on September 22, 2026. To make different billing units comparable, it assumes **1 million input analyses**, each containing **1,000 tokens (about 4,000 characters)**, with no response scanning. That is 1 billion analyzed input tokens in total.
-
-| Analyzer | Public billing basis | Estimated analysis cost | Cost vs. Pyro | What the estimate covers |
-| --- | --- | ---: | ---: | --- |
-| **Pyro with [Jev](https://typesafe.ai/)** | $0.042 per million input tokens; output decisions are not metered | **$42.00** + Pyro infrastructure | **1×** | One Jev request returning every enabled detector probability. The 1,000-token allowance must include Pyro's detector questions as well as the input. |
-| [Google Cloud Model Armor](https://cloud.google.com/security/products/model-armor) | First 2 million tokens each month are free, then $0.10 per million tokens | **$99.80** | **2.38×** | Input screening only. Google meters the combined prompt and response tokens when both are screened. |
-| [Amazon Bedrock Guardrails](https://aws.amazon.com/bedrock/pricing/) | Prompt-attack filter via `InvokeGuardrailChecks`: $0.08 per 1,000 text units; one text unit is up to 1,000 characters | **$320.00** | **7.62×** | The prompt-attack filter only. Content, sensitive-information, and other filters are charged separately. |
-| [Check Point AI Guardrails / Lakera Guard](https://docs.lakera.ai/docs/api) | Public product documentation; [pricing is sales-quoted](https://www.checkpoint.com/about-us/contact-us/) | **Not publicly calculable** | — | Managed prompt and agent screening. Check Point does not publish a self-serve usage rate. |
-| [Protect AI LLM Guard](https://protectai.github.io/llm-guard/) | Open-source software; you supply the compute for each configured scanner | **Deployment-dependent** | — | Model hosting, CPU/GPU time, and operations. Multiple scanners run individually, so cost depends on the selected set and hardware. |
-| [NVIDIA NeMo Guardrails](https://docs.nvidia.com/nemo/guardrails/latest/home) | Open-source framework; configured models and services supply the inference | **Deployment-dependent** | — | Model/API calls and infrastructure used by the selected rails. The framework itself is not a metered prompt-analysis service. |
-
-Under these assumptions, Pyro's external analysis charge is about **58% lower than Model Armor** and **87% lower than Bedrock's prompt-attack filter**.
-
-The arithmetic is based on each vendor's billing meter, not a claim that the products provide identical detection quality or coverage. [Google documents](https://docs.cloud.google.com/model-armor/overview#tokens) roughly four characters per token; AWS bills each 4,000-character input as four text units. The Google estimate subtracts its 2-million-token monthly free tier. Taxes, commitments, logging, networking, Pyro hosting, and storage are excluded. Prices change, so verify the linked vendor pages before budgeting.
-
-TypeSafe separately reports up to **444.6× lower cost** and **193.6× faster execution** in its [System One workflow evaluations](https://typesafe.ai/blog/introducing-system-one-models-and-jev). Those are vendor-run workflow benchmarks against generation models—not head-to-head tests against Google Model Armor, Bedrock Guardrails, or Lakera—so they are not used in the table above. No cross-vendor quality score is presented here because the available public results do not test every product against the same attacks, policy, traffic, and billing boundaries.
-
-### How the products differ
-
-| Existing approach | What it is designed for | When Pyro is the better fit |
-| --- | --- | --- |
-| [Lakera Guard / Check Point AI Guardrails](https://docs.lakera.ai/docs/prompt-defense) | A managed security product with built-in prompt-attack detection and enforcement. | You want to self-host the monitoring and policy layer, define organization-specific signals, and keep searchable history in your own PostgreSQL database. |
-| [Google Cloud Model Armor](https://cloud.google.com/security/products/model-armor) and [Amazon Bedrock Guardrails](https://aws.amazon.com/bedrock/guardrails/) | Managed cloud controls with vendor-defined detectors and integrations. | You want provider-independent application profiles, visible detector questions and thresholds, and a dashboard you operate yourself. |
-| [Protect AI LLM Guard](https://protectai.github.io/llm-guard/get_started/quickstart/) | A Python toolkit of individual input and output scanners for concerns such as prompt injection, toxicity, secrets, and anonymization. | You want a language-agnostic HTTP service, application-level policies, and operational history rather than coordinating scanner models inside a Python application. |
-| [NVIDIA NeMo Guardrails](https://docs.nvidia.com/nemo/guardrails/latest/home) | A broad Python framework for programmable input, output, retrieval, dialog, and execution rails. | You need focused prompt monitoring and explicit allow/review/block decisions without introducing a conversation runtime or guardrail configuration language. |
-
-These products are not exact substitutes. LLM Guard is a stronger match when you need local PII transformation or many specialized scanners. NeMo Guardrails is a stronger match when you need to control an entire conversation or agent workflow. A managed cloud service may be the easiest choice when all of your inference already lives with that provider. Pyro is strongest when prompt visibility, organization-specific detection, cost control, and editable policy are the priority.
-
-## Configurations are part of the product
-
-Pyro treats protection as configuration rather than magic hidden behind an API. New profiles begin empty, so an application receives only the checks its team deliberately chooses. Teams can start narrowly, inspect real decisions, adjust thresholds, and test a replacement profile in shadow mode before enforcing it.
-
-The **rule and profile library** in [`profiles/`](./profiles/README.md) provides four opt-in YAML presets. Import, export, inspect and edit them from Protection Profiles. Reusable protection packs remain:
-
-- opt-in rather than silently installed;
-- readable before they are enabled;
-- forkable and editable for each organization;
-- stored as readable YAML so changes can be reviewed in source control;
-- validated on import, with coverage evaluated against your own traffic.
-
-The goal is not a marketplace of opaque promises. It is a practical catalog of configurations that teams can understand, adapt, and improve.
+See [deployment and data retention](docs/deployment.md), [release/support notes](docs/releases.md),
+[security reporting](SECURITY.md), and [license notices](THIRD_PARTY_NOTICES.md).
 
 ## Quick start
 
@@ -245,7 +179,7 @@ const decision = await pyro.classify(
   { labels: { environment: "production" } },
 );
 
-if (decision.action === "block") {
+if (decision.action !== "allow") {
   throw new Error(decision.reason);
 }
 ```
@@ -268,7 +202,7 @@ decision = pyro.classify(
     labels={"environment": "production"},
 )
 
-if decision["action"] == "block":
+if decision["action"] != "allow":
     raise RuntimeError(decision["reason"])
 ```
 
@@ -286,7 +220,7 @@ An async Rust client is available in [`sdks/rust`](./sdks/rust/README.md), with 
 - Profiles and integrations contract: [`docs/control-plane.openapi.yaml`](./docs/control-plane.openapi.yaml)
 - Prometheus metrics: `http://localhost:8080/metrics`
 
-Configuration, policies, sessions, and activity are stored in PostgreSQL. Provider credentials entered through the dashboard are encrypted before storage. Prompt content sent for System One evaluation is transmitted to the configured model provider; review that provider's data terms for your deployment. Pyro does not store raw inputs unless a protection profile enables previews.
+Configuration, policies, sessions, and activity are stored in PostgreSQL. Provider credentials entered through the dashboard are encrypted before storage. Prompt content sent for System One evaluation is transmitted to the configured model provider; review that provider's data terms for your deployment. Synchronous classifications omit raw input previews unless the policy enables them. Durable jobs temporarily retain encrypted inputs, and evaluation datasets retain encrypted inputs for the explicitly selected period. Caller metadata and labels are also stored with events; keep secrets out of them. See the retention controls in the deployment guide.
 
 ## Development
 
@@ -299,9 +233,9 @@ PYTHONPATH=sdks/python/src python3 -m unittest discover -s sdks/python/tests -v
 
 Security issues should be reported privately as described in [`SECURITY.md`](./SECURITY.md).
 
-## Next features
+## Feature status
 
-See the [five-feature roadmap](./docs/roadmap.md) for versioned policies, an evaluation lab, a review inbox, team access, and durable execution/operational controls.
+See [feature status and follow-ups](./docs/roadmap.md) for the implemented beta workflows and remaining scale/measurement work.
 
 ## Scope
 

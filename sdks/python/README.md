@@ -17,7 +17,7 @@ decision = pyro.classify({
     "messages": [{"role": "user", "content": "Summarize this document."}]
 }, labels={"session_url": "https://support.example/chats/123", "tenant": "acme"})
 
-if decision["action"] == "block":
+if decision["action"] != "allow":
     raise RuntimeError(decision["reason"])
 ```
 

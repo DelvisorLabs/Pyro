@@ -90,3 +90,47 @@ removes stored inputs; an in-flight provider request can still finish. A selecte
 provider credential is encrypted in the run until completion or expiry so a
 resumed run uses the authorized account. Keep reports and dataset snapshots in
 your own controlled storage when longer retention is required.
+
+## Backup, restore and upgrades
+
+Use the same PostgreSQL major version for this procedure. Before an upgrade,
+pause incoming classification traffic and workers, save the deployment files,
+and copy `.env` into your encrypted secret backup. Keep `CONTROL_PLANE_SECRET`
+with that backup; the SQL dump alone cannot recover encrypted credentials or
+queued inputs. Run from the configured compose directory:
+
+```sh
+docker compose stop gateway control-plane dashboard
+# Restrict access to the resulting backup; it contains configuration and events.
+umask 077
+docker compose exec -T postgres pg_dump -U pyro -d pyro -Fc > pyro-backup.dump
+```
+
+Restore into a **separate empty database** and test it before replacing a running
+installation. The target command below restores into `pyro_restore`, never over
+the live `pyro` database:
+
+```sh
+docker compose exec -T postgres createdb -U pyro pyro_restore
+docker compose exec -T postgres pg_restore -U pyro -d pyro_restore --exit-on-error < pyro-backup.dump
+```
+
+Start an isolated stack pointed at the restored database with the matching
+secret and image versions. Verify sign-in, policy hashes, application keys,
+retained events and a local classification. Keep queues and webhook destinations
+paused or redirected during a restore drill to avoid replaying external work.
+After validating the new release, resume the original stack. Do not run
+`docker compose down --volumes` during an upgrade. Restoring older code requires
+the corresponding pre-upgrade database, not only an image rollback.
+
+## Pilot operating targets
+
+Use local-only load tests first. Measure p50/p95 latency, queue age, error rate,
+provider failures and webhook backlog on the actual deployment; no universal
+latency or throughput SLA is claimed. Alert on persistent job failures, growing
+queue age, a provider circuit staying open, or webhook failures. `/v1/health`
+reports durable queue counts and oldest age; `/metrics` exposes gateway metrics;
+Webhooks shows delivery history. Keep one gateway/control-plane replica for an
+initial pilot, then test shared PostgreSQL quotas and worker recovery before
+scaling. The bounded document queue and audit/history documents are deliberately
+suited to pilot volumes, not an unmeasured high-volume service.
