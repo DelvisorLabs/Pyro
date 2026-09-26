@@ -2,7 +2,9 @@ openapi: 3.1.0
 info:
   title: Pyro API
   version: 0.2.0
-  description: Typed prompt-injection classification for text, chats, and arbitrary JSON payloads. Each bearer key is scoped to one configured application.
+  description: Typed prompt-injection classification for text, chats, and
+    arbitrary JSON payloads. Each bearer key is scoped to one configured
+    application.
 servers:
   - url: http://localhost:8080
 security:
@@ -32,9 +34,17 @@ paths:
               schema:
                 $ref: "#/components/schemas/Decision"
         "401": { description: Invalid API key }
-        "403": { description: Application is disabled or the key/app cannot use the requested policy }
+        "403":
+          {
+            description: Application is disabled or the key/app cannot use the requested
+              policy
+          }
         "413": { description: Input exceeds the selected profile limit }
-        "429": { description: Queue capacity or effective application/API-key rate limit has been reached }
+        "429":
+          {
+            description: Queue capacity or effective application/API-key rate limit has been
+              reached
+          }
       x-cli-command: classify
       x-cli-input: classification
       parameters:
@@ -70,6 +80,17 @@ paths:
           in: header
           schema:
             type: string
+        - name: Idempotency-Key
+          in: header
+          required: false
+          schema:
+            type: string
+            maxLength: 128
+      description: Durable encrypted jobs survive gateway restarts. Optional
+        Idempotency-Key header deduplicates matching requests per application
+        until the result expires. Pending inputs expire after 15 minutes;
+        results expire 10 minutes after completion. Upstream execution is at
+        least once after crashes.
   /v1/jobs/{id}:
     get:
       summary: Read an asynchronous job
@@ -93,7 +114,8 @@ paths:
   /v1/events:
     get:
       summary: Open a real-time classification event stream
-      description: Upgrade to WebSocket, then send `{"type":"auth","apiKey":"..."}` within five seconds. Events are scoped to the API key's application.
+      description: Upgrade to WebSocket, then send `{"type":"auth","apiKey":"..."}`
+        within five seconds. Events are scoped to the API key's application.
       operationId: streamClassificationEvents
       x-websocket: true
       responses:
@@ -122,7 +144,11 @@ paths:
       security: []
       summary: Prometheus metrics
       responses:
-        "200": { description: Prometheus exposition format, content: { text/plain: { schema: { type: string } } } }
+        "200":
+          {
+            description: Prometheus exposition format,
+            content: { text/plain: { schema: { type: string } } }
+          }
       operationId: getMetrics
       x-cli-command: metrics
   /:
@@ -157,7 +183,8 @@ components:
         labels:
           type: object
           maxProperties: 20
-          description: Searchable request context such as a session URL, tenant, or environment.
+          description: Searchable request context such as a session URL, tenant, or
+            environment.
           propertyNames: { pattern: "^[A-Za-z0-9_.-]{1,64}$" }
           additionalProperties: { type: string, maxLength: 2048 }
     DetectorResult:
@@ -170,10 +197,29 @@ components:
         weightedProbability: { type: number, minimum: 0, maximum: 1 }
     Decision:
       type: object
-      required: [ id, createdAt, profileId, verdict, action, risk, confidence, reason, detectors, model, provider, latencyMs, queueMs ]
+      required:
+        [
+          id,
+          createdAt,
+          profileId,
+          verdict,
+          action,
+          risk,
+          confidence,
+          reason,
+          detectors,
+          model,
+          provider,
+          latencyMs,
+          queueMs
+        ]
       properties:
         id: { type: string, description: Server-generated decision identifier }
-        requestId: { type: string, description: Valid incoming X-Request-Id or a generated request identifier }
+        requestId:
+          {
+            type: string,
+            description: Valid incoming X-Request-Id or a generated request identifier
+          }
         createdAt: { type: string, format: date-time }
         traceId: { type: string, description: W3C trace identifier }
         profileId: { type: string }
@@ -200,7 +246,8 @@ components:
             totalMs: { type: number }
         usage:
           type: object
-          description: Provider token usage and actual billed cost when reported. Local decisions report zero cost.
+          description: Provider token usage and actual billed cost when reported. Local
+            decisions report zero cost.
           properties:
             inputTokens: { type: integer, minimum: 0 }
             outputTokens: { type: integer, minimum: 0 }
