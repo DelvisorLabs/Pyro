@@ -105,45 +105,16 @@ export async function buildGateway(config: GatewayConfig): Promise<FastifyInstan
   const keys = new CachedDocument(keysStore);
   const secrets = new CachedDocument(secretsStore);
 
-  const storedProfiles = await profilesStore.read();
-  const normalizedProfiles = storedProfiles.flatMap((profile) => {
-    const parsed = ProfileSchema.safeParse(profile);
-    return parsed.success ? [{ ...profile, ...parsed.data }] : [];
+  await appsStore.update((stored) => {
+    const valid = stored.flatMap((record) => { const parsed = AppSchema.safeParse(record); return parsed.success ? [parsed.data] : []; });
+    return valid.length ? valid : [createDefaultApp()];
   });
-  if (normalizedProfiles.length !== storedProfiles.length || JSON.stringify(normalizedProfiles) !== JSON.stringify(storedProfiles)) {
-    await profilesStore.write(normalizedProfiles.length ? normalizedProfiles : [createDefaultProfile()]);
-  }
-  const storedApps = await appsStore.read();
-  const normalizedApps = storedApps.flatMap((record) => {
-    const parsed = AppSchema.safeParse(record);
-    return parsed.success ? [parsed.data] : [];
+  await settingsStore.update((stored) => { const parsed = ProviderSettingsSchema.safeParse(stored); return parsed.success ? parsed.data : createDefaultProviderSettings(); });
+  await keysStore.update((stored) => {
+    const normalized = stored.map((key) => ({ ...key, appId: key.appId ?? "default" }));
+    if (normalized.length || !config.bootstrapApiKey) return normalized;
+    return [{ id: randomUUID(), name: "Local development", prefix: config.bootstrapApiKey.slice(0, 8), hash: hash(config.bootstrapApiKey), appId: "default", createdAt: new Date().toISOString() }];
   });
-  const validApps = normalizedApps.length ? normalizedApps : [createDefaultApp()];
-  if (JSON.stringify(validApps) !== JSON.stringify(storedApps)) await appsStore.write(validApps);
-  const storedSettings = await settingsStore.read();
-  const normalizedSettings = ProviderSettingsSchema.safeParse(storedSettings);
-  if (normalizedSettings.success && JSON.stringify(normalizedSettings.data) !== JSON.stringify(storedSettings)) {
-    await settingsStore.write(normalizedSettings.data);
-  } else if (!normalizedSettings.success) {
-    await settingsStore.write(createDefaultProviderSettings());
-  }
-  const storedKeys = await keysStore.read();
-  if (storedKeys.some((key) => !key.appId)) {
-    await keysStore.write(storedKeys.map((key) => ({ ...key, appId: key.appId ?? "default" })));
-  }
-  if ((await keysStore.read()).length === 0 && config.bootstrapApiKey) {
-    await keysStore.write([
-      {
-        id: randomUUID(),
-        name: "Local development",
-        prefix: config.bootstrapApiKey.slice(0, 8),
-        hash: hash(config.bootstrapApiKey),
-        appId: "default",
-        createdAt: new Date().toISOString(),
-      },
-    ]);
-    keys.invalidate();
-  }
 
   const queue = new ConcurrentQueue(config.queueConcurrency, config.queueMaxDepth);
   const metrics = new GatewayMetrics();
@@ -228,13 +199,15 @@ export async function buildGateway(config: GatewayConfig): Promise<FastifyInstan
     const allProfiles = await profiles.read();
     const shadowProfiles = (profile.shadowProfileIds ?? [])
       .filter((profileId) => profileId !== profile.id)
-      .map((profileId) => allProfiles.find((candidate) => candidate.id === profileId))
+      .map((profileId) => { const record = allProfiles.find((candidate) => candidate.id === profileId); return record ? revisionOf(record, firewallApp.profileRevisions?.[profileId]) : undefined; })
       .filter((candidate): candidate is Profile => Boolean(candidate))
       .slice(0, 3);
     const shadows = await Promise.all(shadowProfiles.map(async (shadowProfile) => {
       const result = await evaluate(`${id}:shadow:${shadowProfile.id}`, envelope, shadowProfile, 0, traceId, firewallApp);
       return {
         profileId: shadowProfile.id,
+        policyRevision: shadowProfile.revision,
+        policyHash: shadowProfile.contentHash ?? policyHash(shadowProfile),
         verdict: result.decision.verdict,
         action: result.decision.action,
         risk: result.decision.risk,
@@ -263,8 +236,12 @@ export async function buildGateway(config: GatewayConfig): Promise<FastifyInstan
     app.log.info({ decisionId: id, requestId, traceId, profile: profile.id, action: decision.action, risk: decision.risk, latencyMs: decision.latencyMs }, "classification completed");
     metrics.record(decision, Boolean(failure));
     metrics.updateQueue(queue.snapshot());
-    eventBus.emit("decision", event);
-    return decision;
+    // A recovered lease can overlap an upstream call from a paused worker.
+    // The first committed event remains authoritative for every replay.
+    const committed = (await eventsStore.findById(id))!;
+    eventBus.emit("decision", committed);
+    const { inputPreview, inputHash, inputBytes, appRulesSnapshot, localRuleId: storedRule, apiKeyId, apiKeyName, appName, error, ...result } = committed;
+    return result;
   };
 
   const enqueue = (
@@ -279,7 +256,7 @@ export async function buildGateway(config: GatewayConfig): Promise<FastifyInstan
 
   app.get("/", async () => ({
     name: "Pyro gateway",
-    version: "0.2.0",
+    version: "0.3.0-beta.1",
     endpoints: ["POST /v1/classify", "POST /v1/jobs", "GET /v1/jobs/:id", "WS /v1/events"],
   }));
 
@@ -312,7 +289,7 @@ export async function buildGateway(config: GatewayConfig): Promise<FastifyInstan
     const firewallApp = request.firewallApp!;
     return (await profiles.read())
       .filter((profile) => !profile.archived)
-      .filter((profile) => firewallApp.allowedProfileIds.length === 0 || firewallApp.allowedProfileIds.includes(profile.id))
+      .filter((profile) => profileAllowed(profile.id, request.apiKey!, firewallApp))
       .map(({ id, name, description }) => ({ id, name, description }));
   });
 

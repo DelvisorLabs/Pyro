@@ -311,7 +311,7 @@ class PostgresEvents implements EventStore {
     const client = await this.pool.connect();
     try {
       await client.query("BEGIN");
-    await client.query(
+    const inserted = await client.query(
       `INSERT INTO pyro_events
         (id, created_at, app_id, profile_id, verdict, action, risk, provider, api_key_id, labels, payload)
        VALUES ($1, $2::timestamptz, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11::jsonb)
@@ -319,7 +319,7 @@ class PostgresEvents implements EventStore {
       [event.id, event.createdAt, event.appId ?? null, event.profileId, event.verdict, event.action, event.risk,
         event.provider, event.apiKeyId ?? null, JSON.stringify(event.labels ?? {}), JSON.stringify(event)],
     );
-      for (const delivery of deliveries) await insertDelivery(client, delivery);
+      if (inserted.rowCount) for (const delivery of deliveries) await insertDelivery(client, delivery);
       await client.query("COMMIT");
     } catch (error) { await client.query("ROLLBACK"); throw error; }
     finally { client.release(); }
@@ -689,7 +689,8 @@ class MemoryDatabase implements Database {
   };
   readonly events: EventStore = {
     append: async (event, deliveries = []) => {
-      if (!this.eventRows.some((item) => item.id === event.id)) this.eventRows.push(structuredClone(event));
+      if (this.eventRows.some((item) => item.id === event.id)) return;
+      this.eventRows.push(structuredClone(event));
       for (const delivery of deliveries) await this.deliveries.enqueue(delivery);
     },
     readRecent: async (limit = 100) => this.eventRows.slice(-Math.max(1, limit)).reverse().map((event) => structuredClone(event)),
