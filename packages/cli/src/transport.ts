@@ -26,7 +26,7 @@ export async function request(url: URL, method: string, headers: Record<string, 
     text = await response.text();
   } catch (error) {
     if (error instanceof Error && /Timeout|Abort/.test(error.name)) throw new CliError(`Request timed out after ${timeout} ms.`, 4);
-    throw new CliError(`Cannot reach ${url.origin}. Check the server URL and that Pyro is running. Redirects are not followed.`, 4);
+    throw new CliError(`Cannot reach ${url.origin}. Installing the CLI does not start a server. Start Docker or set your server URLs, then run pyro doctor. Setup: https://delvisor.com/pyro/docs#setup. Redirects are not followed.`, 4);
   }
   let data: unknown = text;
   if (response.headers.get("content-type")?.includes("json") && text) {
