@@ -18,10 +18,13 @@ import {
   type StoredSecret,
   type UserRecord,
 } from "@pyro/contracts";
-import { encryptText, openDatabase, PolicyStore, type PolicyRecord } from "@pyro/storage";
+import { encryptText, openDatabase, PolicyStore, type PolicyRecord, consumeQuota } from "@pyro/storage";
 import { createSession, ensureAdmin, sessionUserId, sha256, verifyAdminPassword } from "./auth.js";
 import type { ControlPlaneConfig } from "./config.js";
 
+import { accessGuard, appScope, canAccessApp, visibleEvent, visibleUser, allowedProfiles } from "./access.js";
+import { registerTeam, verifyPassword } from "./team.js";
+import { registerOidc } from "./oidc.js";
 import { registerPolicyHistory } from "./policies.js";
 import { registerIntegrations } from "./integrations.js";
 import { exportProfileYaml, loadPresetProfiles, parseProfileYaml } from "./profile-files.js";
@@ -68,7 +71,6 @@ export async function buildControlPlane(config: ControlPlaneConfig): Promise<Fas
   }));
   const secretsStore = database.document<SecretFile>("provider_secrets", () => ({}));
   const eventsStore = database.events;
-  const loginState = { failures: 0, windowStartedAt: 0, blockedUntil: 0 };
 
   await ensureAdmin(usersStore);
   const storedApps = await appsStore.read();
@@ -98,13 +100,11 @@ export async function buildControlPlane(config: ControlPlaneConfig): Promise<Fas
     await settingsStore.write({ ...createDefaultProviderSettings(), endpoint: config.typesafeEndpoint, model: config.typesafeModel });
   }
 
-  const requireSession = async (request: FastifyRequest, reply: FastifyReply) => {
-    const userId = await sessionUserId(sessionsStore, request.cookies.pf_session);
-    if (!userId) return reply.code(401).send({ error: "Authentication required." });
-    request.user = { id: userId };
-  };
+  const requireSession = accessGuard(database);
 
   app.decorateRequest("user", null);
+  registerTeam(app, database, requireSession, config.oidc?.issuer);
+  registerOidc(app, database, config);
   registerIntegrations(app, database, config.controlPlaneSecret, requireSession);
 
   app.get("/health", async () => {
@@ -112,28 +112,16 @@ export async function buildControlPlane(config: ControlPlaneConfig): Promise<Fas
     return { status: "ok", database: database.kind };
   });
 
-  app.post<{ Body: { password?: string } }>("/api/auth/login", async (request, reply) => {
-    const now = Date.now();
-    if (loginState.blockedUntil > now) {
-      reply.header("Retry-After", Math.max(1, Math.ceil((loginState.blockedUntil - now) / 1_000)));
-      return reply.code(429).send({ error: "Too many failed sign-in attempts. Try again later." });
-    }
-    if (now - loginState.windowStartedAt > 15 * 60_000) {
-      loginState.failures = 0;
-      loginState.windowStartedAt = now;
-    }
-    const { password } = request.body ?? {};
-    const user = (await usersStore.read()).find((item) => item.username === "admin");
-    if (!user || typeof password !== "string" || !verifyAdminPassword(password, config.adminPassword)) {
-      loginState.windowStartedAt ||= now;
-      loginState.failures += 1;
-      if (loginState.failures >= 10) loginState.blockedUntil = now + 15 * 60_000;
+  app.post<{ Body: { username?: string; password?: string } }>("/api/auth/login", async (request, reply) => {
+    const { password, username = "admin" } = request.body ?? {};
+    if (typeof username !== "string" || username.length > 100 || typeof password !== "string" || password.length > 1024) return reply.code(400).send({ error: "Invalid credentials." });
+    const quota = await consumeQuota(database, [{ id: `login:${sha256(username)}`, limit: 10 }]);
+    if (!quota.allowed) return reply.code(429).send({ error: "Too many sign-in attempts. Try again in a minute." });
+    const user = (await usersStore.read()).find((item) => item.username === username && !item.disabled);
+    if (!user || !(username === "admin" ? verifyAdminPassword(password, config.adminPassword) : await verifyPassword(password, user.passwordHash))) {
       await new Promise((resolve) => setTimeout(resolve, 300));
       return reply.code(401).send({ error: "Invalid administrator password." });
     }
-    loginState.failures = 0;
-    loginState.windowStartedAt = now;
-    loginState.blockedUntil = 0;
     await usersStore.update((users) => users.map((item) => item.id === user.id
       ? { ...item, lastLoginAt: new Date().toISOString() }
       : item));
@@ -145,7 +133,8 @@ export async function buildControlPlane(config: ControlPlaneConfig): Promise<Fas
       secure: request.protocol === "https",
       maxAge: 24 * 60 * 60,
     });
-    return { user: { id: user.id, username: user.username } };
+    request.user = user;
+    return { user: visibleUser(user) };
   });
 
   app.post("/api/auth/logout", { preHandler: requireSession }, async (request, reply) => {
@@ -157,15 +146,11 @@ export async function buildControlPlane(config: ControlPlaneConfig): Promise<Fas
 
   app.get("/api/auth/me", { preHandler: requireSession }, async (request) => {
     const user = (await usersStore.read()).find((item) => item.id === request.user?.id);
-    return { user: user ? {
-      id: user.id,
-      username: user.username,
-      role: user.role ?? "admin",
-    } : null };
+    return { user: user ? visibleUser(user) : null };
   });
 
-  app.get("/api/overview", { preHandler: requireSession }, async () => {
-    const aggregate = await eventsStore.overview();
+  app.get("/api/overview", { preHandler: requireSession }, async (request) => {
+    const aggregate = await eventsStore.overview(undefined, appScope(request.user!));
     let gateway: unknown = { status: "offline" };
     try {
       const response = await fetch(`${config.gatewayInternalUrl}/v1/health`, { signal: AbortSignal.timeout(1_500) });
@@ -175,7 +160,7 @@ export async function buildControlPlane(config: ControlPlaneConfig): Promise<Fas
     }
     return {
       ...aggregate,
-      gateway,
+      gateway: request.user!.role === "admin" ? gateway : undefined,
     };
   });
 
@@ -190,6 +175,7 @@ export async function buildControlPlane(config: ControlPlaneConfig): Promise<Fas
       bucketMs: window.bucketMs,
       buckets: window.buckets,
       appId: query.appId,
+      appIds: appScope(request.user!),
     });
     return {
       range: window.name,
@@ -204,6 +190,8 @@ export async function buildControlPlane(config: ControlPlaneConfig): Promise<Fas
     const limit = Math.min(500, Math.max(1, Number(query.limit ?? 100)));
     const offset = Math.max(0, Number(query.offset ?? 0));
     const filters = {
+      appIds: appScope(request.user!),
+      excludeRawSearch: request.user!.role !== "admin" && !request.user!.rawPreviews,
       action: query.action, verdict: query.verdict, status: query.status, profile: query.profile, provider: query.provider,
       apiKey: query.apiKey, appId: query.appId, from: query.from, to: query.to,
       minimumRisk: query.minimumRisk === undefined ? undefined : Number(query.minimumRisk),
@@ -212,7 +200,7 @@ export async function buildControlPlane(config: ControlPlaneConfig): Promise<Fas
     if (query.format === "json") {
       const result = await eventsStore.query(filters);
       reply.header("Content-Disposition", `attachment; filename="pyro-events-${Date.now()}.json"`);
-      return reply.type("application/json").send(result.events);
+      return reply.type("application/json").send(result.events.map((event) => visibleEvent(request.user!, event)));
     }
     if (query.format === "csv") {
       const result = await eventsStore.query(filters);
@@ -229,13 +217,13 @@ export async function buildControlPlane(config: ControlPlaneConfig): Promise<Fas
       return reply.type("text/csv").send(rows.map((row) => row.map(escape).join(",")).join("\n"));
     }
     const result = await eventsStore.query({ ...filters, limit, offset });
-    return { events: result.events, total: result.total, hasMore: offset + limit < result.total, labelKeys: result.labelKeys };
+    return { events: result.events.map((event) => visibleEvent(request.user!, event)), total: result.total, hasMore: offset + limit < result.total, labelKeys: result.labelKeys };
   });
 
   app.get<{ Params: { id: string } }>("/api/activity/:id", { preHandler: requireSession }, async (request, reply) => {
     const event = await eventsStore.findById(request.params.id);
-    if (!event) return reply.code(404).send({ error: "Trace not found." });
-    return { event };
+    if (!event || !canAccessApp(request.user!, event.appId)) return reply.code(404).send({ error: "Trace not found." });
+    return { event: visibleEvent(request.user!, event) };
   });
 
   app.post("/api/classify", { preHandler: requireSession }, async (request, reply) => {
@@ -286,7 +274,7 @@ export async function buildControlPlane(config: ControlPlaneConfig): Promise<Fas
     return reply.header("Content-Disposition", `attachment; filename="${profile.id}.yaml"`).type("application/yaml").send(exportProfileYaml(profile));
   });
 
-  app.get("/api/profiles", { preHandler: requireSession }, async () => ({ profiles: await profilesStore.read() }));
+  app.get("/api/profiles", { preHandler: requireSession }, async (request) => { const allows = await allowedProfiles(database, request.user!); return { profiles: (await profilesStore.read()).filter((p) => allows(p.id)) }; });
 
   app.post("/api/profiles", { preHandler: requireSession }, async (request, reply) => {
     const now = new Date().toISOString();
@@ -336,10 +324,10 @@ export async function buildControlPlane(config: ControlPlaneConfig): Promise<Fas
     return reply.code(204).send();
   });
 
-  app.get("/api/apps", { preHandler: requireSession }, async () => {
+  app.get("/api/apps", { preHandler: requireSession }, async (request) => {
     const keys = await keysStore.read();
     return {
-      apps: (await appsStore.read()).map((record) => ({
+      apps: (await appsStore.read()).filter((record) => canAccessApp(request.user!, record.id)).map((record) => ({
         ...record,
         activeKeyCount: keys.filter((key) => (key.appId ?? "default") === record.id && !key.revokedAt).length,
       })),
@@ -419,8 +407,8 @@ export async function buildControlPlane(config: ControlPlaneConfig): Promise<Fas
     return reply.code(204).send();
   });
 
-  app.get("/api/keys", { preHandler: requireSession }, async () => ({
-    keys: (await keysStore.read()).map(({ hash: _hash, ...key }) => key),
+  app.get("/api/keys", { preHandler: requireSession }, async (request) => ({
+    keys: (await keysStore.read()).filter((key) => canAccessApp(request.user!, key.appId)).map(({ hash: _hash, ...key }) => key),
   }));
 
   app.post<{ Body: { name?: string; appId?: string; defaultProfileId?: string; allowedProfileIds?: string[]; rateLimitPerMinute?: number } }>("/api/keys", { preHandler: requireSession }, async (request, reply) => {
@@ -512,14 +500,15 @@ export async function buildControlPlane(config: ControlPlaneConfig): Promise<Fas
     };
   });
 
-  const sockets = new Set<WebSocket>();
+  const sockets = new Map<WebSocket, string>();
   app.get("/ws", { websocket: true }, async (socket: WebSocket, request) => {
     const userId = await sessionUserId(sessionsStore, request.cookies.pf_session);
-    if (!userId) {
+    const user = (await usersStore.read()).find((u) => u.id === userId && !u.disabled);
+    if (!user) {
       socket.close(1008, "Authentication required");
       return;
     }
-    sockets.add(socket);
+    sockets.set(socket, request.cookies.pf_session!);
     socket.send(JSON.stringify({ type: "connected", data: { userId } }));
     socket.on("close", () => sockets.delete(socket));
   });
@@ -531,18 +520,21 @@ export async function buildControlPlane(config: ControlPlaneConfig): Promise<Fas
     polling = true;
     try {
       const profiles = await profilesStore.read();
+      const connected = new Map<WebSocket, UserRecord>();
+      const users = await usersStore.read();
+      for (const [socket, token] of sockets) {
+        const userId = await sessionUserId(sessionsStore, token);
+        const user = users.find((u) => u.id === userId && !u.disabled);
+        if (!user) { socket.close(1008, "Session revoked or expired"); sockets.delete(socket); }
+        else connected.set(socket, user);
+      }
       while (true) {
         const unseen = await eventsStore.readAfter(eventCursor, 500);
         if (unseen.length === 0) break;
         for (const event of unseen) {
           const profile = profiles.find((item) => item.id === event.profileId);
-          const message = JSON.stringify({
-            type: "decision",
-            data: event,
-            notify: profile?.notifyOn.includes(event.action) ?? event.action !== "allow",
-          });
-          for (const socket of sockets) {
-            if (socket.readyState === socket.OPEN) socket.send(message);
+          for (const [socket, user] of connected) {
+            if (socket.readyState === socket.OPEN && canAccessApp(user, event.appId)) socket.send(JSON.stringify({ type: "decision", data: visibleEvent(user, event), notify: profile?.notifyOn.includes(event.action) ?? event.action !== "allow" }));
           }
         }
         const last = unseen.at(-1)!;
@@ -567,6 +559,6 @@ export async function buildControlPlane(config: ControlPlaneConfig): Promise<Fas
 
 declare module "fastify" {
   interface FastifyRequest {
-    user: { id: string } | null;
+    user: UserRecord | null;
   }
 }

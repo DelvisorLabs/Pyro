@@ -504,6 +504,9 @@ paths:
               properties:
                 password:
                   type: string
+                username:
+                  type: string
+                  description: Individual username; defaults to admin.
               required:
                 - password
       responses:
@@ -1217,6 +1220,164 @@ paths:
                   type: integer
                 expectedRevision:
                   type: integer
+  /api/team:
+    get:
+      operationId: team_list
+      x-cli-command: team list
+      summary: team list
+      responses:
+        "200":
+          description: Success
+        "403":
+          description: Insufficient permissions
+    post:
+      operationId: team_create
+      x-cli-command: team create
+      summary: team create
+      responses:
+        "200":
+          description: Success
+        "403":
+          description: Insufficient permissions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - username
+                - role
+              properties:
+                username:
+                  type: string
+                role:
+                  type: string
+                  enum:
+                    - admin
+                    - operator
+                    - reviewer
+                    - viewer
+                appIds:
+                  type: array
+                  items:
+                    type: string
+                rawPreviews:
+                  type: boolean
+                disabled:
+                  type: boolean
+                password:
+                  type: string
+                  minLength: 12
+                oidcSubject:
+                  type: string
+  /api/team/{id}:
+    put:
+      operationId: team_update
+      x-cli-command: team update
+      summary: team update
+      responses:
+        "200":
+          description: Success
+        "403":
+          description: Insufficient permissions
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - username
+                - role
+              properties:
+                username:
+                  type: string
+                role:
+                  type: string
+                  enum:
+                    - admin
+                    - operator
+                    - reviewer
+                    - viewer
+                appIds:
+                  type: array
+                  items:
+                    type: string
+                rawPreviews:
+                  type: boolean
+                disabled:
+                  type: boolean
+                password:
+                  type: string
+                  minLength: 12
+                oidcSubject:
+                  type: string
+  /api/team/{id}/sessions:
+    delete:
+      operationId: team_revoke-sessions
+      x-cli-command: team revoke-sessions
+      summary: team revoke-sessions
+      responses:
+        "200":
+          description: Success
+        "403":
+          description: Insufficient permissions
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+  /api/audit:
+    get:
+      operationId: audit_list
+      x-cli-command: audit list
+      summary: audit list
+      responses:
+        "200":
+          description: Success
+        "403":
+          description: Insufficient permissions
+  /api/auth/options:
+    get:
+      operationId: auth_options
+      x-cli-command: auth options
+      summary: auth options
+      responses:
+        "200":
+          description: Success
+        "403":
+          description: Insufficient permissions
+      security: []
+  /api/auth/oidc/start:
+    get:
+      operationId: auth_sso-start
+      x-cli-command: auth sso-start
+      summary: auth sso-start
+      responses:
+        "200":
+          description: Success
+        "403":
+          description: Insufficient permissions
+      security: []
+  /api/auth/oidc/callback:
+    get:
+      operationId: auth_sso-callback
+      x-cli-command: auth sso-callback
+      summary: auth sso-callback
+      responses:
+        "200":
+          description: Success
+        "403":
+          description: Insufficient permissions
+      security: []
 components:
   securitySchemes:
     session:

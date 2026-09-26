@@ -18,26 +18,12 @@ export function verifyAdminPassword(candidate: string, configuredPassword: strin
 }
 
 export async function ensureAdmin(users: DocumentStore<UserRecord[]>): Promise<UserRecord> {
-  const current = await users.read();
-  const existing = current.find((user) => user.username === "admin");
-  if (existing) {
-    const admin: UserRecord = {
-      id: existing.id,
-      username: "admin",
-      role: "admin",
-      lastLoginAt: existing.lastLoginAt,
-      createdAt: existing.createdAt,
-    };
-    await users.write(current.map((user) => user.id === existing.id ? admin : user));
-    return admin;
-  }
-  const admin: UserRecord = {
-    id: randomUUID(),
-    username: "admin",
-    role: "admin",
-    createdAt: new Date().toISOString(),
-  };
-  await users.write([...current, admin]);
+  let admin!: UserRecord;
+  await users.update((current) => {
+    const existing = current.find((user) => user.username === "admin");
+    admin = existing ? { ...existing, role: "admin" } : { id: randomUUID(), username: "admin", role: "admin", createdAt: new Date().toISOString() };
+    return existing ? current.map((u) => u.id === admin.id ? admin : u) : [...current, admin];
+  });
   return admin;
 }
 

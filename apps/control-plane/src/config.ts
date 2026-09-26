@@ -1,4 +1,5 @@
 export interface ControlPlaneConfig {
+  oidc?: { issuer: string; clientId: string; clientSecret: string; redirectUri: string };
   host: string;
   port: number;
   databaseUrl: string;
@@ -21,6 +22,7 @@ function required(name: string, minimumLength = 1): string {
 
 export function loadConfig(): ControlPlaneConfig {
   return {
+    oidc: process.env.OIDC_ISSUER ? { issuer: required("OIDC_ISSUER"), clientId: required("OIDC_CLIENT_ID"), clientSecret: required("OIDC_CLIENT_SECRET"), redirectUri: required("OIDC_REDIRECT_URI") } : undefined,
     host: process.env.HOST ?? "0.0.0.0",
     port: Number.parseInt(process.env.PORT ?? "8081", 10),
     databaseUrl: required("DATABASE_URL"),

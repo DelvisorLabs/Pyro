@@ -1,0 +1,38 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { randomUUID } from "node:crypto";
+import { createDefaultApp, type ClassificationEvent } from "@pyro/contracts";
+import { openDatabase } from "@pyro/storage";
+import { buildControlPlane } from "../src/app.js";
+const configuration = () => ({ host: "127.0.0.1", port: 0, databaseUrl: `memory://team-${randomUUID()}`, adminPassword: "correct-horse-battery-staple", controlPlaneSecret: "control-plane-test-secret", gatewayInternalUrl: "http://127.0.0.1:1", gatewayApiKey: "test-key", typesafeEndpoint: "https://api.typesafe.ai/v1/systemone", typesafeModel: "jev-latest" });
+
+test("roles scope lists, aggregates, exports, previews and mutations; revocation stops sessions", async (t) => {
+  const config = configuration(), server = await buildControlPlane(config); t.after(() => server.close());
+  const db = await openDatabase(config.databaseUrl);
+  await db.document("apps", () => []).write([{ ...createDefaultApp(), id: "alpha" }, { ...createDefaultApp(), id: "beta" }]);
+  const login = await server.inject({ method: "POST", url: "/api/auth/login", payload: { password: config.adminPassword } });
+  const admin = login.headers["set-cookie"]!.split(";")[0]!;
+  const create = await server.inject({ method: "POST", url: "/api/team", headers: { cookie: admin }, payload: { username: "alice", role: "viewer", appIds: ["alpha"] } });
+  assert.equal(create.statusCode, 201);
+  const { user, password } = create.json();
+  assert.ok(password); assert.equal(user.passwordHash, undefined);
+  const session = await server.inject({ method: "POST", url: "/api/auth/login", payload: { username: "alice", password } });
+  assert.equal(session.statusCode, 200);
+  const cookie = session.headers["set-cookie"]!.split(";")[0]!;
+  for (const appId of ["alpha", "beta"]) await db.events.append({ id: appId, appId, createdAt: new Date().toISOString(), profileId: "default", action: "review", verdict: "suspicious", risk: 0.5, confidence: 0.5, reason: "review", detectors: [], model: "local", provider: "local-rules", latencyMs: 0, queueMs: 0, inputHash: "hash", inputPreview: "sensitive-preview", metadata: { raw: "private" }, labels: { [appId]: "label" } } satisfies ClassificationEvent);
+  const read = (url: string) => server.inject({ method: "GET", url, headers: { cookie } });
+  const activity = (await read("/api/activity")).json();
+  assert.equal(activity.total, 1); assert.equal(activity.events[0].appId, "alpha"); assert.equal(activity.events[0].inputPreview, undefined); assert.equal(activity.events[0].metadata, undefined); assert.deepEqual(activity.labelKeys, ["alpha"]);
+  assert.equal((await read("/api/activity?search=sensitive-preview")).json().total, 0);
+  assert.equal((await read("/api/activity/beta")).statusCode, 404);
+  assert.equal((await read("/api/activity?appId=beta&format=json")).json().length, 0);
+  assert.equal((await read("/api/overview")).json().totals.requests, 1);
+  assert.equal((await read("/api/usage")).json().totals.requests, 1);
+  assert.equal((await read("/api/apps")).json().apps.length, 1);
+  for (const url of ["/api/settings/provider", "/api/team", "/api/audit", "/api/keys"]) assert.equal((await read(url)).statusCode, 403, url);
+  for (const url of ["/api/keys", "/api/profiles", "/api/classify", "/api/team"]) assert.equal((await server.inject({ method: "POST", url, headers: { cookie }, payload: {} })).statusCode, 403, url);
+  const log = (await server.inject({ method: "GET", url: "/api/audit", headers: { cookie: admin } })).json();
+  assert.ok(log.entries.some((e: { resource: string }) => e.resource === "/api/team")); assert.ok(!JSON.stringify(log).includes(password));
+  await server.inject({ method: "DELETE", url: `/api/team/${user.id}/sessions`, headers: { cookie: admin } });
+  assert.equal((await read("/api/auth/me")).statusCode, 401);
+});

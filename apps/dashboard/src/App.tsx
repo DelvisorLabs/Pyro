@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Activity, BookOpenCheck, Boxes, ChartColumn, KeyRound, LogOut, Menu, Settings, SlidersHorizontal, TerminalSquare, X } from "lucide-react";
-import type { ClassificationEvent } from "@pyro/contracts";
+import type { ClassificationEvent, UserRecord } from "@pyro/contracts";
 import { PyroMark } from "@/components/PyroMark";
 import { PageErrorBoundary } from "@/components/PageErrorBoundary";
 import { BranchedMenu, type BranchedMenuItem } from "@/components/react-bits/BranchedMenu";
@@ -16,11 +16,12 @@ import { PlaygroundPage } from "@/pages/PlaygroundPage";
 import { PolicyHistoryPage } from "@/pages/PolicyHistoryPage";
 import { ProfilesPage } from "@/pages/ProfilesPage";
 import { IntegrationsPage } from "@/pages/IntegrationsPage";
+import { TeamPage } from "@/pages/TeamPage";
 import { SettingsPage } from "@/pages/SettingsPage";
 import { UsagePage } from "@/pages/UsagePage";
 
-type Page = "history" | "overview" | "apps" | "usage" | "playground" | "profiles" | "activity" | "keys" | "settings" | "integrations";
-interface User { id: string; username: string; role?: "admin" | "viewer" }
+type Page = "team" | "history" | "overview" | "apps" | "usage" | "playground" | "profiles" | "activity" | "keys" | "settings" | "integrations";
+type User = UserRecord;
 
 const NAV: BranchedMenuItem[] = [
   { label: "Observe", children: [
@@ -30,6 +31,7 @@ const NAV: BranchedMenuItem[] = [
     { value: "playground", label: "Playground", icon: <TerminalSquare className="size-3.5" /> },
   ] },
   { label: "Configure", children: [
+    { value: "team", label: "Team & audit", icon: <KeyRound className="size-3.5" /> },
     { value: "apps", label: "Applications", icon: <Boxes className="size-3.5" /> },
     { value: "history", label: "Policy history", icon: <BookOpenCheck className="size-3.5" /> },
     { value: "profiles", label: "Protection Profiles", icon: <SlidersHorizontal className="size-3.5" /> },
@@ -96,6 +98,8 @@ export default function App() {
   if (checking) return <div className="flex min-h-screen items-center justify-center text-sm text-muted">Starting Pyro…</div>;
   if (!user) return <LoginPage onLogin={setUser} />;
 
+  const visiblePages = user.role === "admin" ? undefined : ["overview", "usage", "activity", "reviews", "evaluations", ...(user.role === "operator" ? ["keys"] : [])];
+  const navigation = NAV.map((group) => ({ ...group, children: group.children?.filter((item) => !visiblePages || visiblePages.includes(String(item.value))) })).filter((group) => group.children?.length);
   const content = {
     overview: <OverviewPage refreshKey={refreshKey} />,
     apps: <AppsPage />,
@@ -106,8 +110,9 @@ export default function App() {
     activity: <ActivityPage refreshKey={refreshKey} />,
     keys: <ApiKeysPage />,
     settings: <SettingsPage />,
+    team: <TeamPage />,
     integrations: <IntegrationsPage />,
-  }[page];
+  }[visiblePages && !visiblePages.includes(page) ? "overview" : page];
 
   return (
     <div className="app-grid">
@@ -117,8 +122,8 @@ export default function App() {
           <div className="flex items-center gap-1 sm:hidden"><Button ref={mobileMenuRef} variant="ghost" size="icon" aria-label={mobileNavOpen ? "Close navigation" : "Open navigation"} aria-expanded={mobileNavOpen} aria-controls="dashboard-navigation" onClick={() => setMobileNavOpen((open) => !open)}>{mobileNavOpen ? <X className="size-4" /> : <Menu className="size-4" />}</Button></div>
         </div>
         <div id="dashboard-navigation" className={`flex min-h-0 flex-1 flex-col ${mobileNavOpen ? "" : "max-sm:hidden"}`}>
-          <div className="flex-1 overflow-y-auto px-4 py-5"><BranchedMenu rowHeight={38} indent={26} items={NAV} defaultOpen={[0, 1]} activeValue={page} onSelect={(value) => navigate(value as Page)} /></div>
-          <div className="flex items-center justify-between border-t border-line px-3 py-3"><button type="button" className={`flex h-9 flex-1 items-center gap-3 px-3 text-left text-[13px] hover:text-foreground ${page === "settings" ? "font-semibold text-foreground" : "text-muted"}`} aria-current={page === "settings" ? "page" : undefined} onClick={() => navigate("settings")}><Settings className="size-4" />Settings</button><Button variant="ghost" size="icon" className="size-8 hover:bg-transparent" onClick={() => void logout()} aria-label="Log out" title="Log out"><LogOut className="size-3.5" /></Button></div>
+          <div className="flex-1 overflow-y-auto px-4 py-5"><BranchedMenu rowHeight={38} indent={26} items={navigation} defaultOpen={[0, 1]} activeValue={page} onSelect={(value) => navigate(value as Page)} /></div>
+          <div className="flex items-center justify-between border-t border-line px-3 py-3"><button type="button" className={`flex h-9 flex-1 items-center gap-3 px-3 text-left text-[13px] hover:text-foreground ${page === "settings" ? "font-semibold text-foreground" : "text-muted"}`} aria-current={page === "settings" ? "page" : undefined} onClick={() => navigate("settings")}><Settings className="size-4" />{user.role === "admin" ? "Settings" : user.username}</button><Button variant="ghost" size="icon" className="size-8 hover:bg-transparent" onClick={() => void logout()} aria-label="Log out" title="Log out"><LogOut className="size-3.5" /></Button></div>
         </div>
       </aside>
       <main className="min-w-0"><div className="page-shell"><PageErrorBoundary key={page}>{content}</PageErrorBoundary></div></main>

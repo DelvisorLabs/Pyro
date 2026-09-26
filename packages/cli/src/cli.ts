@@ -37,7 +37,7 @@ async function buildBody(endpoint: Endpoint, options: Options, args: string[]): 
   }
   if (kind === "login") {
     const password = options.passwordStdin ? (await readStdin()).replace(/\r?\n$/, "") : await passwordPrompt();
-    return { body: JSON.stringify({ password }), contentType };
+    return { body: JSON.stringify({ password, ...(options.username ? { username: options.username } : {}) }), contentType };
   }
   if (contentType !== "application/json") throw new Error("Use --data with this content type; for a text file use --data @input.txt.");
   let body: Record<string, unknown> = {};
