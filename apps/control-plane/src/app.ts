@@ -75,32 +75,15 @@ export async function buildControlPlane(config: ControlPlaneConfig): Promise<Fas
   const eventsStore = database.events;
 
   await ensureAdmin(usersStore);
-  const storedApps = await appsStore.read();
-  const normalizedApps = storedApps.flatMap((record) => {
-    const parsed = AppSchema.safeParse(record);
-    return parsed.success ? [parsed.data] : [];
+  await appsStore.update((stored) => {
+    const valid = stored.flatMap((record) => { const parsed = AppSchema.safeParse(record); return parsed.success ? [parsed.data] : []; });
+    return valid.length ? valid : [createDefaultApp()];
   });
-  const validApps = normalizedApps.length ? normalizedApps : [createDefaultApp()];
-  if (JSON.stringify(validApps) !== JSON.stringify(storedApps)) await appsStore.write(validApps);
-  const storedKeys = await keysStore.read();
-  if (storedKeys.some((key) => !key.appId)) {
-    await keysStore.write(storedKeys.map((key) => ({ ...key, appId: key.appId ?? "default" })));
-  }
-  const storedProfiles = await profilesStore.read();
-  const normalizedProfiles = storedProfiles.flatMap((profile) => {
-    const parsed = ProfileSchema.safeParse(profile);
-    return parsed.success ? [parsed.data] : [];
+  await keysStore.update((stored) => stored.map((key) => ({ ...key, appId: key.appId ?? "default" })));
+  await settingsStore.update((stored) => {
+    const parsed = ProviderSettingsSchema.safeParse(stored);
+    return parsed.success ? parsed.data : { ...createDefaultProviderSettings(), endpoint: config.typesafeEndpoint, model: config.typesafeModel };
   });
-  if (normalizedProfiles.length !== storedProfiles.length || JSON.stringify(normalizedProfiles) !== JSON.stringify(storedProfiles)) {
-    await profilesStore.write(normalizedProfiles.length ? normalizedProfiles : [createDefaultProfile()]);
-  }
-  const storedSettings = await settingsStore.read();
-  const normalizedSettings = ProviderSettingsSchema.safeParse(storedSettings);
-  if (normalizedSettings.success && JSON.stringify(normalizedSettings.data) !== JSON.stringify(storedSettings)) {
-    await settingsStore.write(normalizedSettings.data);
-  } else if (!normalizedSettings.success) {
-    await settingsStore.write({ ...createDefaultProviderSettings(), endpoint: config.typesafeEndpoint, model: config.typesafeModel });
-  }
 
   const requireSession = accessGuard(database);
 
