@@ -34,7 +34,7 @@ import {
   type StoredIntegration,
 } from "@pyro/contracts";
 import { ConcurrentQueue, QueueFullError } from "@pyro/queue";
-import { CachedDocument, decryptText, openDatabase, PolicyStore, revisionOf, type PolicyRecord, policyHash } from "@pyro/storage";
+import { CachedDocument, decryptText, openDatabase, PolicyStore, revisionOf, type PolicyRecord, policyHash, DurableJobs, DurableWorker, consumeQuota, JobCapacityError, JobConflict } from "@pyro/storage";
 import { decisionDeliveries, DeliveryWorker } from "@pyro/integrations";
 import type { GatewayConfig } from "./config.js";
 import { GatewayMetrics } from "./metrics.js";
@@ -43,15 +43,6 @@ interface SecretFile {
   typesafeApiKey?: StoredSecret;
 }
 
-interface JobRecord {
-  id: string;
-  appId: string;
-  status: "queued" | "running" | "complete" | "failed";
-  createdAt: string;
-  completedAt?: string;
-  decision?: ClassificationDecision;
-  error?: string;
-}
 
 function localRuleDecision(
   id: string,
@@ -203,8 +194,7 @@ export async function buildGateway(config: GatewayConfig): Promise<FastifyInstan
   const metrics = new GatewayMetrics();
   const eventBus = new EventEmitter();
   eventBus.setMaxListeners(1_000);
-  const jobs = new Map<string, JobRecord>();
-  const rateLimits = new Map<string, { window: number; count: number }>();
+  const jobs = new DurableJobs(database, config.controlPlaneSecret, "classification_jobs", Math.min(config.queueMaxDepth, 200));
   const circuit = { consecutiveFailures: 0, openUntil: 0 };
 
   const authenticate = async (candidate: string | undefined): Promise<ApiKeyRecord | undefined> => {
@@ -221,18 +211,15 @@ export async function buildGateway(config: GatewayConfig): Promise<FastifyInstan
     const firewallApp = (await apps.read()).find((candidate) => candidate.id === (apiKey.appId ?? "default"));
     if (!firewallApp) return reply.code(403).send({ error: "This API key is not assigned to an application." });
     if (!firewallApp.enabled) return reply.code(403).send({ error: "This application is disabled." });
-    const rateLimit = apiKey.rateLimitPerMinute ?? firewallApp.rateLimitPerMinute;
-    if (rateLimit) {
-      const window = Math.floor(Date.now() / 60_000);
-      const current = rateLimits.get(apiKey.id);
-      const count = current?.window === window ? current.count + 1 : 1;
-      rateLimits.set(apiKey.id, { window, count });
-      reply.header("X-RateLimit-Limit", rateLimit);
-      reply.header("X-RateLimit-Remaining", Math.max(0, rateLimit - count));
-      if (count > rateLimit) {
-        reply.header("Retry-After", 60 - Math.floor((Date.now() % 60_000) / 1_000));
-        return reply.code(429).send({ error: "Application rate limit exceeded." });
-      }
+    const limits = [
+      ...(firewallApp.rateLimitPerMinute ? [{ id: `app:${firewallApp.id}`, limit: firewallApp.rateLimitPerMinute }] : []),
+      ...(apiKey.rateLimitPerMinute ? [{ id: `key:${apiKey.id}`, limit: apiKey.rateLimitPerMinute }] : []),
+    ];
+    if (limits.length && request.method === "POST") {
+      const quota = await consumeQuota(database, limits);
+      reply.header("X-RateLimit-Limit", Math.min(...limits.map((l) => l.limit)));
+      reply.header("X-RateLimit-Remaining", quota.remaining);
+      if (!quota.allowed) { reply.header("Retry-After", 60 - Math.floor((Date.now() % 60_000) / 1_000)); return reply.code(429).send({ error: "Application rate limit exceeded." }); }
     }
     request.apiKey = apiKey;
     request.firewallApp = firewallApp;
@@ -436,6 +423,7 @@ export async function buildGateway(config: GatewayConfig): Promise<FastifyInstan
       status: "ok",
       database: database.kind,
       queue: queue.snapshot(),
+      durableJobs: await jobs.stats(),
       circuitBreaker: {
         state: circuit.openUntil > Date.now() ? "open" : circuit.consecutiveFailures > 0 ? "degraded" : "closed",
         consecutiveFailures: circuit.consecutiveFailures,
@@ -512,45 +500,30 @@ export async function buildGateway(config: GatewayConfig): Promise<FastifyInstan
     const serialized = serializeInput(envelope.input);
     if (serialized.length > profile.maxInputChars) return reply.code(413).send({ error: "Input is too large." });
 
-    const id = identity.decisionId;
-    jobs.set(id, { id, appId: firewallApp.id, status: "queued", createdAt: new Date().toISOString() });
     try {
-      const pending = queue.submit(async (queueMs) => {
-        const current = jobs.get(id);
-        if (current) current.status = "running";
-        return classify(id, envelope, profile, queueMs, firewallApp, apiKey, identity.traceId, identity.requestId);
-      }, id);
-      void pending
-        .then((result) => {
-          jobs.set(id, {
-            ...jobs.get(id)!,
-            status: "complete",
-            completedAt: new Date().toISOString(),
-            decision: result.value,
-          });
-        })
-        .catch((error: unknown) => {
-          jobs.set(id, {
-            ...jobs.get(id)!,
-            status: "failed",
-            completedAt: new Date().toISOString(),
-            error: error instanceof Error ? error.message : "Unknown failure",
-          });
-        });
-      return reply.code(202).send({ id, status: "queued", statusUrl: `/v1/jobs/${id}` });
+      const job = await jobs.enqueue({ id: identity.decisionId, appId: firewallApp.id,
+        fingerprint: hash(JSON.stringify(envelope)), idempotencyKey: request.headers["idempotency-key"] as string | undefined,
+        input: { envelope, profile, firewallApp, apiKey, identity } });
+      return reply.code(202).send({ id: job.id, status: job.status, statusUrl: `/v1/jobs/${job.id}` });
     } catch (error) {
-      jobs.delete(id);
-      if (error instanceof QueueFullError) return reply.code(429).send({ error: error.message });
+      if (error instanceof JobCapacityError || error instanceof JobConflict) return reply.code(error.statusCode).send({ error: error.message });
       throw error;
     }
   });
 
   app.get<{ Params: { id: string } }>("/v1/jobs/:id", { preHandler: requireApiKey }, async (request, reply) => {
-    const job = jobs.get(request.params.id);
+    const job = await jobs.get(request.params.id, request.firewallApp!.id);
     if (!job) return reply.code(404).send({ error: "Job not found or expired." });
-    if (job.appId !== request.firewallApp!.id) return reply.code(404).send({ error: "Job not found or expired." });
-    return job;
+    return { id: job.id, appId: job.appId, status: job.status, createdAt: job.createdAt, completedAt: job.completedAt, expiresAt: job.expiresAt, decision: job.result, error: job.error };
   });
+
+  const jobWorker = new DurableWorker(jobs, config.queueConcurrency, async (job) => {
+    const { envelope, profile, firewallApp, apiKey, identity } = jobs.input<{ envelope: ClassificationEnvelope; profile: Profile; firewallApp: AppRecord; apiKey: ApiKeyRecord; identity: ReturnType<typeof requestIdentity> }>(job);
+    const existing = await eventsStore.findById(job.id);
+    if (existing) { const { inputPreview, inputHash, appRulesSnapshot, ...decision } = existing; return decision; }
+    return classify(job.id, envelope, profile, Date.now() - Date.parse(job.createdAt), firewallApp, apiKey, identity.traceId, identity.requestId);
+  }, (error) => app.log.error({ err: error }, "Classification worker failed"));
+  jobWorker.start();
 
   app.get("/v1/events", { websocket: true }, (socket: WebSocket) => {
     let authenticatedAppId: string | undefined;
@@ -594,16 +567,14 @@ export async function buildGateway(config: GatewayConfig): Promise<FastifyInstan
     });
   });
 
+  const retentionDays = Math.max(1, Number(process.env.EVENT_RETENTION_DAYS) || 30);
   const cleanup = setInterval(() => {
-    const cutoff = Date.now() - 10 * 60_000;
-    for (const [id, job] of jobs) {
-      const timestamp = new Date(job.completedAt ?? job.createdAt).getTime();
-      if (timestamp < cutoff) jobs.delete(id);
-    }
+    void database.prune(new Date(Date.now() - retentionDays * 86_400_000).toISOString()).catch((error) => app.log.error(error, "Retention failed"));
   }, 60_000);
   cleanup.unref();
   app.addHook("onClose", async () => {
     clearInterval(cleanup);
+    await jobWorker.stop();
     await deliveryWorker.stop();
     await database.close();
   });

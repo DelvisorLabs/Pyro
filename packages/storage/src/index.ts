@@ -112,6 +112,7 @@ export interface Database {
   document<T>(key: string, fallback: () => T): DocumentStore<T>;
   readonly events: EventStore;
   readonly deliveries: DeliveryStore;
+  prune(before: string): Promise<void>;
   ping(): Promise<void>;
   close(): Promise<void>;
 }
@@ -576,6 +577,11 @@ class PostgresDatabase implements Database {
     return new PostgresDocument(this.pool, key, fallback);
   }
 
+  async prune(before: string): Promise<void> {
+    await this.pool.query("DELETE FROM pyro_deliveries WHERE created_at < $1 AND status IN ('delivered', 'failed')", [before]);
+    await this.pool.query("DELETE FROM pyro_events WHERE created_at < $1", [before]);
+  }
+
   async ping(): Promise<void> {
     await this.pool.query("SELECT 1");
   }
@@ -767,6 +773,9 @@ class MemoryDatabase implements Database {
     return new MemoryDocument(this.documents, key, fallback);
   }
 
+  async prune(before: string): Promise<void> {
+    this.eventRows.splice(0, this.eventRows.length, ...this.eventRows.filter((e) => e.createdAt >= before));
+  }
   async ping(): Promise<void> {}
   async close(): Promise<void> {}
 }
@@ -858,3 +867,5 @@ export function decryptText(value: StoredSecret, secret: string): string {
 }
 
 export * from "./policies.js";
+
+export * from "./jobs.js";
