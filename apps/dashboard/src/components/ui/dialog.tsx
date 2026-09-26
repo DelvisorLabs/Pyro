@@ -21,10 +21,10 @@ export const DialogContent = React.forwardRef<React.ElementRef<typeof DialogPrim
 DialogContent.displayName = DialogPrimitive.Content.displayName;
 
 export function DialogHeader({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("border-b border-line px-6 py-5 pr-12", className)} {...props} />;
+  return <div className={cn("shrink-0 border-b border-line px-6 py-5 pr-12", className)} {...props} />;
 }
 export const DialogTitle = React.forwardRef<React.ElementRef<typeof DialogPrimitive.Title>, React.ComponentPropsWithoutRef<typeof DialogPrimitive.Title>>(
-  ({ className, ...props }, ref) => <DialogPrimitive.Title ref={ref} className={cn("text-base font-semibold tracking-[-0.015em]", className)} {...props} />,
+  ({ className, ...props }, ref) => <DialogPrimitive.Title ref={ref} className={cn("break-words text-base font-semibold tracking-[-0.015em]", className)} {...props} />,
 );
 DialogTitle.displayName = DialogPrimitive.Title.displayName;
 export const DialogDescription = React.forwardRef<React.ElementRef<typeof DialogPrimitive.Description>, React.ComponentPropsWithoutRef<typeof DialogPrimitive.Description>>(
@@ -32,5 +32,5 @@ export const DialogDescription = React.forwardRef<React.ElementRef<typeof Dialog
 );
 DialogDescription.displayName = DialogPrimitive.Description.displayName;
 export function DialogFooter({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("flex justify-end gap-2 border-t border-line bg-surface-subtle px-6 py-4", className)} {...props} />;
+  return <div className={cn("flex shrink-0 flex-wrap justify-end gap-2 border-t border-line bg-surface-subtle px-6 py-4", className)} {...props} />;
 }
