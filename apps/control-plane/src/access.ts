@@ -32,7 +32,7 @@ export function accessGuard(database: Database) {
     if (method === "GET" && ["/api/overview", "/api/usage", "/api/activity", "/api/activity/:id", "/api/apps", "/api/profiles", "/api/profile-presets", "/api/reviews", "/api/reviews/:id", "/api/evaluations", "/api/evaluations/:id", "/api/datasets"].includes(path)) return grant();
     if (path.startsWith("/api/reviews/") && user.role === "reviewer") return grant();
     if (user.role === "operator") {
-      if (["/api/evaluations", "/api/evaluations/:id", "/api/datasets", "/api/reviews/:id"].includes(path)) return grant();
+      if (["/api/evaluations", "/api/evaluations/:id", "/api/datasets", "/api/datasets/:id", "/api/reviews/:id"].includes(path)) return grant();
       if (path === "/api/keys" && method === "GET") return;
       const body = request.body as { appId?: string } | undefined;
       const params = request.params as { id?: string };

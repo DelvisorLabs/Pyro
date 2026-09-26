@@ -23,6 +23,7 @@ import { createSession, ensureAdmin, sessionUserId, sha256, verifyAdminPassword 
 import type { ControlPlaneConfig } from "./config.js";
 
 import { accessGuard, appScope, canAccessApp, visibleEvent, visibleUser, allowedProfiles } from "./access.js";
+import { registerEvaluations } from "./evaluations.js";
 import { registerReviews } from "./reviews.js";
 import { registerTeam, verifyPassword } from "./team.js";
 import { registerOidc } from "./oidc.js";
@@ -104,7 +105,8 @@ export async function buildControlPlane(config: ControlPlaneConfig): Promise<Fas
   const requireSession = accessGuard(database);
 
   app.decorateRequest("user", null);
-  registerReviews(app, database, requireSession);
+  const stopEvaluations = registerEvaluations(app, database, config, requireSession);
+  const stopReviews = registerReviews(app, database, requireSession);
   registerTeam(app, database, requireSession, config.oidc?.issuer);
   registerOidc(app, database, config);
   registerIntegrations(app, database, config.controlPlaneSecret, requireSession);
@@ -316,7 +318,7 @@ export async function buildControlPlane(config: ControlPlaneConfig): Promise<Fas
     const profiles = await profilesStore.read();
     if (!profiles.some((profile) => profile.id === request.params.id)) return reply.code(404).send({ error: "Profile not found." });
     const [applications, apiKeys] = await Promise.all([appsStore.read(), keysStore.read()]);
-    const referencedByApp = applications.some((record) => record.defaultProfileId === request.params.id || record.allowedProfileIds.includes(request.params.id));
+    const referencedByApp = applications.some((record) => record.defaultProfileId === request.params.id || record.allowedProfileIds.includes(request.params.id) || Boolean(record.profileRevisions?.[request.params.id]) || record.canary?.profileId === request.params.id);
     const referencedByKey = apiKeys.some((key) => !key.revokedAt && (key.defaultProfileId === request.params.id || key.allowedProfileIds?.includes(request.params.id)));
     const referencedByShadow = profiles.some((profile) => profile.id !== request.params.id && profile.shadowProfileIds.includes(request.params.id));
     if (referencedByApp || referencedByKey || referencedByShadow) {
@@ -553,6 +555,8 @@ export async function buildControlPlane(config: ControlPlaneConfig): Promise<Fas
   poller.unref();
   app.addHook("onClose", async () => {
     clearInterval(poller);
+    await stopEvaluations();
+    await stopReviews();
     await database.close();
   });
 

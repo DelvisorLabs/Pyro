@@ -1,0 +1,38 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { randomUUID } from "node:crypto";
+import { readFile } from "node:fs/promises";
+import { openDatabase } from "@pyro/storage";
+import { buildControlPlane } from "../src/app.js";
+test("evaluation compares immutable revisions, resumes checkpoints, encrypts inputs and requires paid consent", async (t) => {
+ const config = { host: "127.0.0.1", port: 0, databaseUrl: `memory://evaluation-${randomUUID()}`, adminPassword: "correct-horse-battery-staple", controlPlaneSecret: "control-plane-test-secret", gatewayInternalUrl: "http://127.0.0.1:1", gatewayApiKey: "test-key", typesafeEndpoint: "https://api.typesafe.ai/v1/systemone", typesafeModel: "jev-latest" };
+ const app = await buildControlPlane(config); t.after(() => app.close()); const db = await openDatabase(config.databaseUrl);
+ const login = await app.inject({ method: "POST", url: "/api/auth/login", payload: { password: config.adminPassword } }); const headers = { cookie: login.headers["set-cookie"]!.split(";")[0]! };
+ const post = (url: string, payload: unknown) => app.inject({ method: "POST", url, headers, payload: payload as object });
+ const yaml = await readFile(new URL("../../../profiles/local-secrets.yaml", import.meta.url), "utf8");
+ const imported = await post("/api/profiles/import", { yaml }); const profile = imported.json().profile;
+ const update = await app.inject({ method: "PUT", url: `/api/profiles/${profile.id}`, headers, payload: { ...profile, localRules: profile.localRules.map((r: object) => ({ ...r, action: "review" })) } });
+ assert.equal(update.statusCode, 200);
+ const cases = [{ id: "benign", input: "Hello evaluation-secret-marker", expected: "allow" }, { id: "key", input: "-----BEGIN PRIVATE KEY-----", expected: "block" }];
+ const importedDataset = await post("/api/datasets", { appId: "default", name: "Test", jsonl: cases.map((c) => JSON.stringify(c)).join("\n"), retentionDays: 1, retainInputs: true });
+ assert.equal(importedDataset.statusCode, 201, importedDataset.body); const dataset = importedDataset.json().dataset;
+ assert.ok(!JSON.stringify(await db.document("evaluation_datasets", () => []).read()).includes("evaluation-secret-marker"));
+ const start = await post("/api/evaluations", { datasetId: dataset.id, policies: [{ id: profile.id, revision: 1 }, { id: profile.id, revision: 2 }] });
+ assert.equal(start.statusCode, 202, start.body); const id = start.json().run.id;
+ await app.inject({ method: "PUT", url: `/api/evaluations/${id}`, headers, payload: { action: "cancel" } });
+ assert.equal((await app.inject({ url: `/api/evaluations/${id}`, headers })).json().run.status, "cancelled");
+ await app.inject({ method: "PUT", url: `/api/evaluations/${id}`, headers, payload: { action: "resume" } });
+ let result;
+ for (let i = 0; i < 100; i++) { result = (await app.inject({ url: `/api/evaluations/${id}`, headers })).json().run; if (["complete", "failed"].includes(result.status)) break; await new Promise((r) => setTimeout(r, 50)); }
+ assert.equal(result.status, "complete", JSON.stringify(result)); assert.equal(result.rows.length, 4); assert.equal(result.estimate.maximumProviderCalls, 0);
+ assert.equal(result.report.policies[`${profile.id}@1`].accuracy, 1); assert.equal(result.report.policies[`${profile.id}@2`].accuracy, .5); assert.deepEqual(result.report.changedCases, ["key"]); assert.equal(result.credential, undefined);
+ assert.ok(!JSON.stringify(result).includes("evaluation-secret-marker"));
+ const semantic = await post("/api/profiles", { ...profile, name: "Semantic", detectors: [{ id: "semantic", name: "Semantic", description: "test", question: "Is this malicious?", enabled: true, weight: 1 }] });
+ const attempt = await post("/api/evaluations", { datasetId: dataset.id, policies: [{ id: semantic.json().profile.id, revision: 1 }] });
+ assert.equal(attempt.statusCode, 400); assert.match(attempt.json().error, /allowPaid/);
+ assert.equal((await post("/api/evaluations", { datasetId: dataset.id, policies: [{ id: semantic.json().profile.id, revision: 1 }], allowPaid: true })).statusCode, 400, "missing provider key must fail before a batch");
+ const original = await db.document<Array<{ id: string; revisions: Array<{ profile: unknown }> }>>("profiles", () => []).read();
+ assert.equal(original.find((p) => p.id === profile.id)!.revisions.length, 2);
+ await app.inject({ method: "DELETE", url: `/api/datasets/${dataset.id}`, headers });
+ assert.equal((await db.document<unknown[]>("evaluation_datasets", () => []).read()).length, 0);
+});

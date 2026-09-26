@@ -38,6 +38,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm audit --audit-level=high
       - run: pnpm run check
+      - name: Local evaluation regression budget
+        run: pnpm evaluate --min-accuracy 1 --max-false-positive-rate 0
       - name: Install CLI from its packed release outside the repository
         run: pnpm --filter @delvisor/pyro run test:install
       - uses: actions/setup-python@v7

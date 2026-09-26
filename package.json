@@ -12,7 +12,8 @@
     "typecheck": "pnpm run build:packages && pnpm -r run typecheck",
     "webhook:receiver": "node scripts/webhook-receiver.mjs",
     "test:webhook": "node scripts/test-webhook.mjs",
-    "pyro": "node packages/cli/dist/bin.js"
+    "pyro": "node packages/cli/dist/bin.js",
+    "evaluate": "node scripts/evaluate.mjs"
   },
   "devDependencies": {
     "concurrently": "^9.2.1",

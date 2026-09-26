@@ -16,18 +16,20 @@ import { PlaygroundPage } from "@/pages/PlaygroundPage";
 import { PolicyHistoryPage } from "@/pages/PolicyHistoryPage";
 import { ProfilesPage } from "@/pages/ProfilesPage";
 import { IntegrationsPage } from "@/pages/IntegrationsPage";
+import { EvaluationsPage } from "@/pages/EvaluationsPage";
 import { ReviewsPage } from "@/pages/ReviewsPage";
 import { TeamPage } from "@/pages/TeamPage";
 import { SettingsPage } from "@/pages/SettingsPage";
 import { UsagePage } from "@/pages/UsagePage";
 
-type Page = "reviews" | "team" | "history" | "overview" | "apps" | "usage" | "playground" | "profiles" | "activity" | "keys" | "settings" | "integrations";
+type Page = "evaluations" | "reviews" | "team" | "history" | "overview" | "apps" | "usage" | "playground" | "profiles" | "activity" | "keys" | "settings" | "integrations";
 type User = UserRecord;
 
 const NAV: BranchedMenuItem[] = [
   { label: "Observe", children: [
     { value: "overview", label: "Overview", icon: <Activity className="size-3.5" /> },
     { value: "usage", label: "Usage", icon: <ChartColumn className="size-3.5" /> },
+    { value: "evaluations", label: "Evaluation lab", icon: <ChartColumn className="size-3.5" /> },
     { value: "reviews", label: "Review inbox", icon: <BookOpenCheck className="size-3.5" /> },
     { value: "activity", label: "Activity", icon: <BookOpenCheck className="size-3.5" /> },
     { value: "playground", label: "Playground", icon: <TerminalSquare className="size-3.5" /> },
@@ -109,6 +111,7 @@ export default function App() {
     playground: <PlaygroundPage onDecision={() => setRefreshKey((value) => value + 1)} />,
     profiles: <ProfilesPage />,
     history: <PolicyHistoryPage />,
+    evaluations: <EvaluationsPage canRun={user.role === "admin" || user.role === "operator"} />,
     reviews: <ReviewsPage canReview={user.role !== "viewer"} />,
     activity: <ActivityPage refreshKey={refreshKey} />,
     keys: <ApiKeysPage />,
