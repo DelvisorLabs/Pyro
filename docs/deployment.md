@@ -80,3 +80,13 @@ the review and handed off to the durable delivery outbox with a stable ID;
 receivers must deduplicate IDs. Payloads include disposition and actor ID but omit
 comments and inputs. A resolution never runs a previously blocked or held action:
 your application decides whether and how to resume, with its own authorization.
+
+## Evaluation retention
+
+Evaluation datasets explicitly retain full inputs encrypted for 1, 7 or 30 days,
+independent of policy `persistInputs`. Reports store input hashes and decisions,
+not full inputs, and expire with the dataset. Manual deletion cancels a run and
+removes stored inputs; an in-flight provider request can still finish. A selected
+provider credential is encrypted in the run until completion or expiry so a
+resumed run uses the authorized account. Keep reports and dataset snapshots in
+your own controlled storage when longer retention is required.

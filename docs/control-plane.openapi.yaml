@@ -1468,6 +1468,158 @@ paths:
                   maxLength: 2000
                 reopen:
                   type: boolean
+  /api/datasets:
+    get:
+      operationId: datasets_list
+      x-cli-command: datasets list
+      summary: datasets list
+      responses:
+        "200":
+          description: Success
+        "403":
+          description: Application permission required
+    post:
+      operationId: datasets_import
+      x-cli-command: datasets import
+      summary: datasets import
+      responses:
+        "200":
+          description: Success
+        "403":
+          description: Application permission required
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - appId
+                - name
+                - jsonl
+                - retentionDays
+                - retainInputs
+              properties:
+                appId:
+                  type: string
+                name:
+                  type: string
+                jsonl:
+                  type: string
+                retentionDays:
+                  type: integer
+                  enum:
+                    - 1
+                    - 7
+                    - 30
+                retainInputs:
+                  type: boolean
+  /api/datasets/{id}:
+    delete:
+      operationId: datasets_delete
+      x-cli-command: datasets delete
+      summary: datasets delete
+      responses:
+        "200":
+          description: Success
+        "403":
+          description: Application permission required
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+  /api/evaluations:
+    get:
+      operationId: evaluations_list
+      x-cli-command: evaluations list
+      summary: evaluations list
+      responses:
+        "200":
+          description: Success
+        "403":
+          description: Application permission required
+    post:
+      operationId: evaluations_run
+      x-cli-command: evaluations run
+      summary: evaluations run
+      responses:
+        "200":
+          description: Success
+        "403":
+          description: Application permission required
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - datasetId
+                - policies
+              properties:
+                datasetId:
+                  type: string
+                policies:
+                  type: array
+                  items:
+                    type: object
+                    required:
+                      - id
+                      - revision
+                    properties:
+                      id:
+                        type: string
+                      revision:
+                        type: integer
+                allowPaid:
+                  type: boolean
+  /api/evaluations/{id}:
+    get:
+      operationId: evaluations_get
+      x-cli-command: evaluations get
+      summary: evaluations get
+      responses:
+        "200":
+          description: Success
+        "403":
+          description: Application permission required
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+    put:
+      operationId: evaluations_control
+      x-cli-command: evaluations control
+      summary: evaluations control
+      responses:
+        "200":
+          description: Success
+        "403":
+          description: Application permission required
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - action
+              properties:
+                action:
+                  type: string
+                  enum:
+                    - cancel
+                    - resume
 components:
   securitySchemes:
     session:

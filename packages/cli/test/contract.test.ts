@@ -30,7 +30,7 @@ test("bundled contracts match source OpenAPI and every operation has a unique re
 });
 
 test("every gateway and dashboard route is documented (including webhooks and WebSockets)", async () => {
-  for (const [service, files] of Object.entries({ gateway: ["apps/gateway/src/app.ts"], control: ["apps/control-plane/src/app.ts", "apps/control-plane/src/integrations.ts", "apps/control-plane/src/policies.ts", "apps/control-plane/src/team.ts", "apps/control-plane/src/oidc.ts", "apps/control-plane/src/reviews.ts"] })) {
+  for (const [service, files] of Object.entries({ gateway: ["apps/gateway/src/app.ts"], control: ["apps/control-plane/src/app.ts", "apps/control-plane/src/integrations.ts", "apps/control-plane/src/policies.ts", "apps/control-plane/src/team.ts", "apps/control-plane/src/oidc.ts", "apps/control-plane/src/reviews.ts", "apps/control-plane/src/evaluations.ts"] })) {
     const documented = new Set(endpoints().filter(endpoint => endpoint.service === service).map(endpoint => `${endpoint.method} ${endpoint.path}`));
     for (const file of files) {
       const code = await readFile(new URL(`../../../${file}`, import.meta.url), "utf8");

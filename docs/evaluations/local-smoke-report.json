@@ -1,0 +1,1017 @@
+{
+  "generatedAt": "2026-09-26T15:44:42.894Z",
+  "purpose": "Local rule regression smoke test; not semantic attack-detection evidence.",
+  "datasetHash": "4775e0ffc3f8500241bb77d2feb14169a9a3ef7518736ff3db8fdd3335f5ce14",
+  "policyHash": "cca634d122087103d7087583a1f111a08865cf2e58974d41f40f72a35f0d218a",
+  "provider": "no external calls",
+  "modelVersion": "local-rules",
+  "sampleCount": 20,
+  "report": {
+    "policies": {
+      "local-secrets@1": {
+        "count": 20,
+        "correct": 20,
+        "accuracy": 1,
+        "indeterminate": 0,
+        "falsePositiveRate": 0,
+        "confusion": {
+          "allow": {
+            "allow": 11,
+            "review": 0,
+            "block": 0,
+            "indeterminate": 0
+          },
+          "review": {
+            "allow": 0,
+            "review": 3,
+            "block": 0,
+            "indeterminate": 0
+          },
+          "block": {
+            "allow": 0,
+            "review": 0,
+            "block": 6,
+            "indeterminate": 0
+          }
+        },
+        "perAction": {
+          "allow": {
+            "precision": 1,
+            "recall": 1
+          },
+          "review": {
+            "precision": 1,
+            "recall": 1
+          },
+          "block": {
+            "precision": 1,
+            "recall": 1
+          }
+        },
+        "p50LatencyMs": 0.020959000000004835,
+        "p95LatencyMs": 0.37320899999997437,
+        "localRuleRate": 1,
+        "reportedCosts": {
+          "USD": 0
+        },
+        "costUnreported": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "categories": {
+          "benign-rule-controls": {
+            "count": 10,
+            "correct": 10,
+            "accuracy": 1,
+            "indeterminate": 0,
+            "falsePositiveRate": 0,
+            "confusion": {
+              "allow": {
+                "allow": 10,
+                "review": 0,
+                "block": 0,
+                "indeterminate": 0
+              },
+              "review": {
+                "allow": 0,
+                "review": 0,
+                "block": 0,
+                "indeterminate": 0
+              },
+              "block": {
+                "allow": 0,
+                "review": 0,
+                "block": 0,
+                "indeterminate": 0
+              }
+            },
+            "perAction": {
+              "allow": {
+                "precision": 1,
+                "recall": 1
+              },
+              "review": {
+                "precision": null,
+                "recall": null
+              },
+              "block": {
+                "precision": null,
+                "recall": null
+              }
+            },
+            "p50LatencyMs": 0.06299999999998818,
+            "p95LatencyMs": 0.8554579999999987,
+            "localRuleRate": 1,
+            "reportedCosts": {
+              "USD": 0
+            },
+            "costUnreported": 0,
+            "inputTokens": 0,
+            "outputTokens": 0
+          },
+          "private-key-shape": {
+            "count": 5,
+            "correct": 5,
+            "accuracy": 1,
+            "indeterminate": 0,
+            "falsePositiveRate": null,
+            "confusion": {
+              "allow": {
+                "allow": 0,
+                "review": 0,
+                "block": 0,
+                "indeterminate": 0
+              },
+              "review": {
+                "allow": 0,
+                "review": 0,
+                "block": 0,
+                "indeterminate": 0
+              },
+              "block": {
+                "allow": 0,
+                "review": 0,
+                "block": 5,
+                "indeterminate": 0
+              }
+            },
+            "perAction": {
+              "allow": {
+                "precision": null,
+                "recall": null
+              },
+              "review": {
+                "precision": null,
+                "recall": null
+              },
+              "block": {
+                "precision": 1,
+                "recall": 1
+              }
+            },
+            "p50LatencyMs": 0.01849999999998886,
+            "p95LatencyMs": 0.06475000000000364,
+            "localRuleRate": 1,
+            "reportedCosts": {
+              "USD": 0
+            },
+            "costUnreported": 0,
+            "inputTokens": 0,
+            "outputTokens": 0
+          },
+          "synthetic-token-shape": {
+            "count": 3,
+            "correct": 3,
+            "accuracy": 1,
+            "indeterminate": 0,
+            "falsePositiveRate": null,
+            "confusion": {
+              "allow": {
+                "allow": 0,
+                "review": 0,
+                "block": 0,
+                "indeterminate": 0
+              },
+              "review": {
+                "allow": 0,
+                "review": 3,
+                "block": 0,
+                "indeterminate": 0
+              },
+              "block": {
+                "allow": 0,
+                "review": 0,
+                "block": 0,
+                "indeterminate": 0
+              }
+            },
+            "perAction": {
+              "allow": {
+                "precision": null,
+                "recall": null
+              },
+              "review": {
+                "precision": 1,
+                "recall": 1
+              },
+              "block": {
+                "precision": null,
+                "recall": null
+              }
+            },
+            "p50LatencyMs": 0.020959000000004835,
+            "p95LatencyMs": 0.02400000000000091,
+            "localRuleRate": 1,
+            "reportedCosts": {
+              "USD": 0
+            },
+            "costUnreported": 0,
+            "inputTokens": 0,
+            "outputTokens": 0
+          },
+          "structured-input": {
+            "count": 2,
+            "correct": 2,
+            "accuracy": 1,
+            "indeterminate": 0,
+            "falsePositiveRate": 0,
+            "confusion": {
+              "allow": {
+                "allow": 1,
+                "review": 0,
+                "block": 0,
+                "indeterminate": 0
+              },
+              "review": {
+                "allow": 0,
+                "review": 0,
+                "block": 0,
+                "indeterminate": 0
+              },
+              "block": {
+                "allow": 0,
+                "review": 0,
+                "block": 1,
+                "indeterminate": 0
+              }
+            },
+            "perAction": {
+              "allow": {
+                "precision": 1,
+                "recall": 1
+              },
+              "review": {
+                "precision": null,
+                "recall": null
+              },
+              "block": {
+                "precision": 1,
+                "recall": 1
+              }
+            },
+            "p50LatencyMs": 0.01491699999999696,
+            "p95LatencyMs": 0.015667000000007647,
+            "localRuleRate": 1,
+            "reportedCosts": {
+              "USD": 0
+            },
+            "costUnreported": 0,
+            "inputTokens": 0,
+            "outputTokens": 0
+          }
+        }
+      }
+    },
+    "disagreements": [],
+    "changedCases": []
+  },
+  "rows": [
+    {
+      "caseId": "benign-1",
+      "category": "benign-rule-controls",
+      "expected": "allow",
+      "revision": 1,
+      "profileId": "local-secrets",
+      "inputHash": "6bc478592aa03b30466544965c3af71b3577e7ce0fe90720024a40f0a2140c92",
+      "decision": {
+        "id": "benign-1",
+        "traceId": "evaluation",
+        "createdAt": "2026-09-26T15:44:42.892Z",
+        "profileId": "local-secrets",
+        "verdict": "safe",
+        "action": "allow",
+        "risk": 0,
+        "confidence": 1,
+        "reason": "No local rule matched; no semantic detectors are enabled.",
+        "detectors": [],
+        "model": "local-rules",
+        "provider": "local-rules",
+        "latencyMs": 0.8554579999999987,
+        "queueMs": 0,
+        "usage": {
+          "inputTokens": 0,
+          "outputTokens": 0,
+          "cost": {
+            "amount": 0,
+            "currency": "USD"
+          }
+        }
+      }
+    },
+    {
+      "caseId": "benign-2",
+      "category": "benign-rule-controls",
+      "expected": "allow",
+      "revision": 1,
+      "profileId": "local-secrets",
+      "inputHash": "bd7b602af1cdc8dfd0353f5a57f7a383450e41a1d99c7a20d73a8b85193876b3",
+      "decision": {
+        "id": "benign-2",
+        "traceId": "evaluation",
+        "createdAt": "2026-09-26T15:44:42.892Z",
+        "profileId": "local-secrets",
+        "verdict": "safe",
+        "action": "allow",
+        "risk": 0,
+        "confidence": 1,
+        "reason": "No local rule matched; no semantic detectors are enabled.",
+        "detectors": [],
+        "model": "local-rules",
+        "provider": "local-rules",
+        "latencyMs": 0.08499999999997954,
+        "queueMs": 0,
+        "usage": {
+          "inputTokens": 0,
+          "outputTokens": 0,
+          "cost": {
+            "amount": 0,
+            "currency": "USD"
+          }
+        }
+      }
+    },
+    {
+      "caseId": "benign-3",
+      "category": "benign-rule-controls",
+      "expected": "allow",
+      "revision": 1,
+      "profileId": "local-secrets",
+      "inputHash": "16c4f0b768ee0ccea3e7af404a22c2596246168eee36fad1205007545da33053",
+      "decision": {
+        "id": "benign-3",
+        "traceId": "evaluation",
+        "createdAt": "2026-09-26T15:44:42.892Z",
+        "profileId": "local-secrets",
+        "verdict": "safe",
+        "action": "allow",
+        "risk": 0,
+        "confidence": 1,
+        "reason": "No local rule matched; no semantic detectors are enabled.",
+        "detectors": [],
+        "model": "local-rules",
+        "provider": "local-rules",
+        "latencyMs": 0.019249999999999545,
+        "queueMs": 0,
+        "usage": {
+          "inputTokens": 0,
+          "outputTokens": 0,
+          "cost": {
+            "amount": 0,
+            "currency": "USD"
+          }
+        }
+      }
+    },
+    {
+      "caseId": "benign-4",
+      "category": "benign-rule-controls",
+      "expected": "allow",
+      "revision": 1,
+      "profileId": "local-secrets",
+      "inputHash": "aa1abb43867f655e57e2337c22b6a252842f5f4743ee6f1bfd73bb00ccfe9754",
+      "decision": {
+        "id": "benign-4",
+        "traceId": "evaluation",
+        "createdAt": "2026-09-26T15:44:42.892Z",
+        "profileId": "local-secrets",
+        "verdict": "safe",
+        "action": "allow",
+        "risk": 0,
+        "confidence": 1,
+        "reason": "No local rule matched; no semantic detectors are enabled.",
+        "detectors": [],
+        "model": "local-rules",
+        "provider": "local-rules",
+        "latencyMs": 0.016708999999991647,
+        "queueMs": 0,
+        "usage": {
+          "inputTokens": 0,
+          "outputTokens": 0,
+          "cost": {
+            "amount": 0,
+            "currency": "USD"
+          }
+        }
+      }
+    },
+    {
+      "caseId": "benign-5",
+      "category": "benign-rule-controls",
+      "expected": "allow",
+      "revision": 1,
+      "profileId": "local-secrets",
+      "inputHash": "05929c25ee53638a78ccbe25a891940a86322eb729bc5db9c6afc53c42bbde07",
+      "decision": {
+        "id": "benign-5",
+        "traceId": "evaluation",
+        "createdAt": "2026-09-26T15:44:42.892Z",
+        "profileId": "local-secrets",
+        "verdict": "safe",
+        "action": "allow",
+        "risk": 0,
+        "confidence": 1,
+        "reason": "No local rule matched; no semantic detectors are enabled.",
+        "detectors": [],
+        "model": "local-rules",
+        "provider": "local-rules",
+        "latencyMs": 0.18099999999998317,
+        "queueMs": 0,
+        "usage": {
+          "inputTokens": 0,
+          "outputTokens": 0,
+          "cost": {
+            "amount": 0,
+            "currency": "USD"
+          }
+        }
+      }
+    },
+    {
+      "caseId": "benign-6",
+      "category": "benign-rule-controls",
+      "expected": "allow",
+      "revision": 1,
+      "profileId": "local-secrets",
+      "inputHash": "457aba698fd3e9f3c188bcd6f10139a6df42ea4e7a45215762a1c512e9dcd3d4",
+      "decision": {
+        "id": "benign-6",
+        "traceId": "evaluation",
+        "createdAt": "2026-09-26T15:44:42.893Z",
+        "profileId": "local-secrets",
+        "verdict": "safe",
+        "action": "allow",
+        "risk": 0,
+        "confidence": 1,
+        "reason": "No local rule matched; no semantic detectors are enabled.",
+        "detectors": [],
+        "model": "local-rules",
+        "provider": "local-rules",
+        "latencyMs": 0.37320899999997437,
+        "queueMs": 0,
+        "usage": {
+          "inputTokens": 0,
+          "outputTokens": 0,
+          "cost": {
+            "amount": 0,
+            "currency": "USD"
+          }
+        }
+      }
+    },
+    {
+      "caseId": "benign-7",
+      "category": "benign-rule-controls",
+      "expected": "allow",
+      "revision": 1,
+      "profileId": "local-secrets",
+      "inputHash": "0fa0349a6088537f321c439115393df0e8a10ab9304245e9bd613675b99cfb3f",
+      "decision": {
+        "id": "benign-7",
+        "traceId": "evaluation",
+        "createdAt": "2026-09-26T15:44:42.893Z",
+        "profileId": "local-secrets",
+        "verdict": "safe",
+        "action": "allow",
+        "risk": 0,
+        "confidence": 1,
+        "reason": "No local rule matched; no semantic detectors are enabled.",
+        "detectors": [],
+        "model": "local-rules",
+        "provider": "local-rules",
+        "latencyMs": 0.09583299999999895,
+        "queueMs": 0,
+        "usage": {
+          "inputTokens": 0,
+          "outputTokens": 0,
+          "cost": {
+            "amount": 0,
+            "currency": "USD"
+          }
+        }
+      }
+    },
+    {
+      "caseId": "benign-8",
+      "category": "benign-rule-controls",
+      "expected": "allow",
+      "revision": 1,
+      "profileId": "local-secrets",
+      "inputHash": "812caaca1956e1f454faa2327e0302803726ea4bd8e8c5bacc40bbecadfcecdd",
+      "decision": {
+        "id": "benign-8",
+        "traceId": "evaluation",
+        "createdAt": "2026-09-26T15:44:42.893Z",
+        "profileId": "local-secrets",
+        "verdict": "safe",
+        "action": "allow",
+        "risk": 0,
+        "confidence": 1,
+        "reason": "No local rule matched; no semantic detectors are enabled.",
+        "detectors": [],
+        "model": "local-rules",
+        "provider": "local-rules",
+        "latencyMs": 0.06299999999998818,
+        "queueMs": 0,
+        "usage": {
+          "inputTokens": 0,
+          "outputTokens": 0,
+          "cost": {
+            "amount": 0,
+            "currency": "USD"
+          }
+        }
+      }
+    },
+    {
+      "caseId": "benign-9",
+      "category": "benign-rule-controls",
+      "expected": "allow",
+      "revision": 1,
+      "profileId": "local-secrets",
+      "inputHash": "d7ff901e7ca9bbbf7a7d3a91d7817fb5826c604205581a7c3d37e196f0a560d3",
+      "decision": {
+        "id": "benign-9",
+        "traceId": "evaluation",
+        "createdAt": "2026-09-26T15:44:42.893Z",
+        "profileId": "local-secrets",
+        "verdict": "safe",
+        "action": "allow",
+        "risk": 0,
+        "confidence": 1,
+        "reason": "No local rule matched; no semantic detectors are enabled.",
+        "detectors": [],
+        "model": "local-rules",
+        "provider": "local-rules",
+        "latencyMs": 0.04662499999997749,
+        "queueMs": 0,
+        "usage": {
+          "inputTokens": 0,
+          "outputTokens": 0,
+          "cost": {
+            "amount": 0,
+            "currency": "USD"
+          }
+        }
+      }
+    },
+    {
+      "caseId": "benign-10",
+      "category": "benign-rule-controls",
+      "expected": "allow",
+      "revision": 1,
+      "profileId": "local-secrets",
+      "inputHash": "a6ba4f2a6d98c0bceb0b1dff2e42fbf4be374872fabed59de052368a03e2316d",
+      "decision": {
+        "id": "benign-10",
+        "traceId": "evaluation",
+        "createdAt": "2026-09-26T15:44:42.893Z",
+        "profileId": "local-secrets",
+        "verdict": "safe",
+        "action": "allow",
+        "risk": 0,
+        "confidence": 1,
+        "reason": "No local rule matched; no semantic detectors are enabled.",
+        "detectors": [],
+        "model": "local-rules",
+        "provider": "local-rules",
+        "latencyMs": 0.011916000000013582,
+        "queueMs": 0,
+        "usage": {
+          "inputTokens": 0,
+          "outputTokens": 0,
+          "cost": {
+            "amount": 0,
+            "currency": "USD"
+          }
+        }
+      }
+    },
+    {
+      "caseId": "key-1",
+      "category": "private-key-shape",
+      "expected": "block",
+      "revision": 1,
+      "profileId": "local-secrets",
+      "inputHash": "a76304e17b03ccc27c42d154fddd65442b4f0ef645ad8f5e6101a563c747f7ab",
+      "decision": {
+        "id": "key-1",
+        "traceId": "evaluation",
+        "createdAt": "2026-09-26T15:44:42.893Z",
+        "profileId": "local-secrets",
+        "verdict": "unsafe",
+        "action": "block",
+        "risk": 1,
+        "confidence": 1,
+        "reason": "Local rule “Private key material” matched before provider evaluation.",
+        "detectors": [
+          {
+            "id": "local_rule:profile:private-key",
+            "name": "Private key material",
+            "probability": 1,
+            "weightedProbability": 1
+          }
+        ],
+        "model": "local-rules",
+        "provider": "local-rules",
+        "latencyMs": 0.048499999999989996,
+        "queueMs": 0,
+        "timings": {
+          "providerMs": 0,
+          "policyMs": 0.048499999999989996,
+          "totalMs": 0.048499999999989996
+        },
+        "usage": {
+          "inputTokens": 0,
+          "outputTokens": 0,
+          "cost": {
+            "amount": 0,
+            "currency": "USD"
+          }
+        }
+      }
+    },
+    {
+      "caseId": "key-2",
+      "category": "private-key-shape",
+      "expected": "block",
+      "revision": 1,
+      "profileId": "local-secrets",
+      "inputHash": "e042b3e16b0ac1614ea1f7731da56dd9624fbdd657ed9142cf2150d5a8976c04",
+      "decision": {
+        "id": "key-2",
+        "traceId": "evaluation",
+        "createdAt": "2026-09-26T15:44:42.893Z",
+        "profileId": "local-secrets",
+        "verdict": "unsafe",
+        "action": "block",
+        "risk": 1,
+        "confidence": 1,
+        "reason": "Local rule “Private key material” matched before provider evaluation.",
+        "detectors": [
+          {
+            "id": "local_rule:profile:private-key",
+            "name": "Private key material",
+            "probability": 1,
+            "weightedProbability": 1
+          }
+        ],
+        "model": "local-rules",
+        "provider": "local-rules",
+        "latencyMs": 0.01849999999998886,
+        "queueMs": 0,
+        "timings": {
+          "providerMs": 0,
+          "policyMs": 0.01849999999998886,
+          "totalMs": 0.01849999999998886
+        },
+        "usage": {
+          "inputTokens": 0,
+          "outputTokens": 0,
+          "cost": {
+            "amount": 0,
+            "currency": "USD"
+          }
+        }
+      }
+    },
+    {
+      "caseId": "key-3",
+      "category": "private-key-shape",
+      "expected": "block",
+      "revision": 1,
+      "profileId": "local-secrets",
+      "inputHash": "6f2ee0d127be6c434e603d1e5f6ca9a5f7207626dc409cb9f2fa2e45e2c4e75b",
+      "decision": {
+        "id": "key-3",
+        "traceId": "evaluation",
+        "createdAt": "2026-09-26T15:44:42.893Z",
+        "profileId": "local-secrets",
+        "verdict": "unsafe",
+        "action": "block",
+        "risk": 1,
+        "confidence": 1,
+        "reason": "Local rule “Private key material” matched before provider evaluation.",
+        "detectors": [
+          {
+            "id": "local_rule:profile:private-key",
+            "name": "Private key material",
+            "probability": 1,
+            "weightedProbability": 1
+          }
+        ],
+        "model": "local-rules",
+        "provider": "local-rules",
+        "latencyMs": 0.06475000000000364,
+        "queueMs": 0,
+        "timings": {
+          "providerMs": 0,
+          "policyMs": 0.06475000000000364,
+          "totalMs": 0.06475000000000364
+        },
+        "usage": {
+          "inputTokens": 0,
+          "outputTokens": 0,
+          "cost": {
+            "amount": 0,
+            "currency": "USD"
+          }
+        }
+      }
+    },
+    {
+      "caseId": "key-4",
+      "category": "private-key-shape",
+      "expected": "block",
+      "revision": 1,
+      "profileId": "local-secrets",
+      "inputHash": "aed6f0370ea175f4edd562ee6c3184c2ddf2dd2bb72ddc1d010b1f85159ed491",
+      "decision": {
+        "id": "key-4",
+        "traceId": "evaluation",
+        "createdAt": "2026-09-26T15:44:42.893Z",
+        "profileId": "local-secrets",
+        "verdict": "unsafe",
+        "action": "block",
+        "risk": 1,
+        "confidence": 1,
+        "reason": "Local rule “Private key material” matched before provider evaluation.",
+        "detectors": [
+          {
+            "id": "local_rule:profile:private-key",
+            "name": "Private key material",
+            "probability": 1,
+            "weightedProbability": 1
+          }
+        ],
+        "model": "local-rules",
+        "provider": "local-rules",
+        "latencyMs": 0.018250000000023192,
+        "queueMs": 0,
+        "timings": {
+          "providerMs": 0,
+          "policyMs": 0.018250000000023192,
+          "totalMs": 0.018250000000023192
+        },
+        "usage": {
+          "inputTokens": 0,
+          "outputTokens": 0,
+          "cost": {
+            "amount": 0,
+            "currency": "USD"
+          }
+        }
+      }
+    },
+    {
+      "caseId": "key-5",
+      "category": "private-key-shape",
+      "expected": "block",
+      "revision": 1,
+      "profileId": "local-secrets",
+      "inputHash": "f532a12e8c8075c41161b2ff7bae16c1e2f57da4c6a7f445caf0f3355b90e40e",
+      "decision": {
+        "id": "key-5",
+        "traceId": "evaluation",
+        "createdAt": "2026-09-26T15:44:42.893Z",
+        "profileId": "local-secrets",
+        "verdict": "unsafe",
+        "action": "block",
+        "risk": 1,
+        "confidence": 1,
+        "reason": "Local rule “Private key material” matched before provider evaluation.",
+        "detectors": [
+          {
+            "id": "local_rule:profile:private-key",
+            "name": "Private key material",
+            "probability": 1,
+            "weightedProbability": 1
+          }
+        ],
+        "model": "local-rules",
+        "provider": "local-rules",
+        "latencyMs": 0.01833300000001259,
+        "queueMs": 0,
+        "timings": {
+          "providerMs": 0,
+          "policyMs": 0.01833300000001259,
+          "totalMs": 0.01833300000001259
+        },
+        "usage": {
+          "inputTokens": 0,
+          "outputTokens": 0,
+          "cost": {
+            "amount": 0,
+            "currency": "USD"
+          }
+        }
+      }
+    },
+    {
+      "caseId": "token-1",
+      "category": "synthetic-token-shape",
+      "expected": "review",
+      "revision": 1,
+      "profileId": "local-secrets",
+      "inputHash": "916fc41193427e4685c2c4b73fcb1bb9c8fc1e6cb35ecd401b148f674f72b5cd",
+      "decision": {
+        "id": "token-1",
+        "traceId": "evaluation",
+        "createdAt": "2026-09-26T15:44:42.893Z",
+        "profileId": "local-secrets",
+        "verdict": "suspicious",
+        "action": "review",
+        "risk": 0.9,
+        "confidence": 0.9,
+        "reason": "Local rule “Credential-shaped token” matched before provider evaluation.",
+        "detectors": [
+          {
+            "id": "local_rule:profile:credential-token",
+            "name": "Credential-shaped token",
+            "probability": 0.9,
+            "weightedProbability": 0.9
+          }
+        ],
+        "model": "local-rules",
+        "provider": "local-rules",
+        "latencyMs": 0.02400000000000091,
+        "queueMs": 0,
+        "timings": {
+          "providerMs": 0,
+          "policyMs": 0.02400000000000091,
+          "totalMs": 0.02400000000000091
+        },
+        "usage": {
+          "inputTokens": 0,
+          "outputTokens": 0,
+          "cost": {
+            "amount": 0,
+            "currency": "USD"
+          }
+        }
+      }
+    },
+    {
+      "caseId": "token-2",
+      "category": "synthetic-token-shape",
+      "expected": "review",
+      "revision": 1,
+      "profileId": "local-secrets",
+      "inputHash": "9854cd6f6f693362264379ebb467d2e2e42c9e6162df52f33f4d43852c1cc957",
+      "decision": {
+        "id": "token-2",
+        "traceId": "evaluation",
+        "createdAt": "2026-09-26T15:44:42.893Z",
+        "profileId": "local-secrets",
+        "verdict": "suspicious",
+        "action": "review",
+        "risk": 0.9,
+        "confidence": 0.9,
+        "reason": "Local rule “Credential-shaped token” matched before provider evaluation.",
+        "detectors": [
+          {
+            "id": "local_rule:profile:credential-token",
+            "name": "Credential-shaped token",
+            "probability": 0.9,
+            "weightedProbability": 0.9
+          }
+        ],
+        "model": "local-rules",
+        "provider": "local-rules",
+        "latencyMs": 0.013125000000002274,
+        "queueMs": 0,
+        "timings": {
+          "providerMs": 0,
+          "policyMs": 0.013125000000002274,
+          "totalMs": 0.013125000000002274
+        },
+        "usage": {
+          "inputTokens": 0,
+          "outputTokens": 0,
+          "cost": {
+            "amount": 0,
+            "currency": "USD"
+          }
+        }
+      }
+    },
+    {
+      "caseId": "token-3",
+      "category": "synthetic-token-shape",
+      "expected": "review",
+      "revision": 1,
+      "profileId": "local-secrets",
+      "inputHash": "a523eb9a5003819be67ce75d171168b1a9e48a13d8c222cde4975413c6cc7b27",
+      "decision": {
+        "id": "token-3",
+        "traceId": "evaluation",
+        "createdAt": "2026-09-26T15:44:42.893Z",
+        "profileId": "local-secrets",
+        "verdict": "suspicious",
+        "action": "review",
+        "risk": 0.9,
+        "confidence": 0.9,
+        "reason": "Local rule “Credential-shaped token” matched before provider evaluation.",
+        "detectors": [
+          {
+            "id": "local_rule:profile:credential-token",
+            "name": "Credential-shaped token",
+            "probability": 0.9,
+            "weightedProbability": 0.9
+          }
+        ],
+        "model": "local-rules",
+        "provider": "local-rules",
+        "latencyMs": 0.020959000000004835,
+        "queueMs": 0,
+        "timings": {
+          "providerMs": 0,
+          "policyMs": 0.020959000000004835,
+          "totalMs": 0.020959000000004835
+        },
+        "usage": {
+          "inputTokens": 0,
+          "outputTokens": 0,
+          "cost": {
+            "amount": 0,
+            "currency": "USD"
+          }
+        }
+      }
+    },
+    {
+      "caseId": "nested-key",
+      "category": "structured-input",
+      "expected": "block",
+      "revision": 1,
+      "profileId": "local-secrets",
+      "inputHash": "152f482bcd9baffa6dcb877463c535e5b220f2d960dee15bfd546768aa422d8d",
+      "decision": {
+        "id": "nested-key",
+        "traceId": "evaluation",
+        "createdAt": "2026-09-26T15:44:42.894Z",
+        "profileId": "local-secrets",
+        "verdict": "unsafe",
+        "action": "block",
+        "risk": 1,
+        "confidence": 1,
+        "reason": "Local rule “Private key material” matched before provider evaluation.",
+        "detectors": [
+          {
+            "id": "local_rule:profile:private-key",
+            "name": "Private key material",
+            "probability": 1,
+            "weightedProbability": 1
+          }
+        ],
+        "model": "local-rules",
+        "provider": "local-rules",
+        "latencyMs": 0.015667000000007647,
+        "queueMs": 0,
+        "timings": {
+          "providerMs": 0,
+          "policyMs": 0.015667000000007647,
+          "totalMs": 0.015667000000007647
+        },
+        "usage": {
+          "inputTokens": 0,
+          "outputTokens": 0,
+          "cost": {
+            "amount": 0,
+            "currency": "USD"
+          }
+        }
+      }
+    },
+    {
+      "caseId": "nested-benign",
+      "category": "structured-input",
+      "expected": "allow",
+      "revision": 1,
+      "profileId": "local-secrets",
+      "inputHash": "a215fd4bb97a474944e453083df69f6d6c7d7d600b1a7f9f65232ccbdcffee22",
+      "decision": {
+        "id": "nested-benign",
+        "traceId": "evaluation",
+        "createdAt": "2026-09-26T15:44:42.894Z",
+        "profileId": "local-secrets",
+        "verdict": "safe",
+        "action": "allow",
+        "risk": 0,
+        "confidence": 1,
+        "reason": "No local rule matched; no semantic detectors are enabled.",
+        "detectors": [],
+        "model": "local-rules",
+        "provider": "local-rules",
+        "latencyMs": 0.01491699999999696,
+        "queueMs": 0,
+        "usage": {
+          "inputTokens": 0,
+          "outputTokens": 0,
+          "cost": {
+            "amount": 0,
+            "currency": "USD"
+          }
+        }
+      }
+    }
+  ]
+}

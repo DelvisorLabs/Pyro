@@ -73,5 +73,5 @@ export function registerReviews(app: FastifyInstance, database: Database, guard:
     await store.update((rows) => rows.filter((r) => r.updatedAt >= cutoff || r.pendingCallbacks?.length));
   };
   const timer = setInterval(() => { if (!active) { active = flush().catch((e) => app.log.error(e, "Review callback handoff failed")).finally(() => { active = undefined; }); } }, 1000); timer.unref();
-  app.addHook("onClose", async () => { clearInterval(timer); await active; });
+  return async () => { clearInterval(timer); await active; };
 }

@@ -148,3 +148,6 @@ export function buildFailureDecision(
 export { JevClassifier } from "./jev.js";
 export { evaluateLocalRules, type LocalRuleMatch } from "./local-rules.js";
 export { MockClassifier } from "./mock.js";
+
+export { evaluatePolicy } from "./engine.js";
+export { evaluationReport, type EvaluationRow } from "./evaluation.js";

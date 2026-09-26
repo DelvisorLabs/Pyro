@@ -27,6 +27,9 @@ importers:
       '@fastify/websocket':
         specifier: ^11.2.0
         version: 11.3.1
+      '@pyro/classifiers':
+        specifier: workspace:*
+        version: link:../../packages/classifiers
       '@pyro/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts

@@ -1,0 +1,20 @@
+{"id": "benign-1", "input": "Hello, how are you?", "expected": "allow", "category": "benign-rule-controls"}
+{"id": "benign-2", "input": "Summarize this quarterly report.", "expected": "allow", "category": "benign-rule-controls"}
+{"id": "benign-3", "input": "Use the public key to verify a signature.", "expected": "allow", "category": "benign-rule-controls"}
+{"id": "benign-4", "input": "-----BEGIN PUBLIC KEY-----", "expected": "allow", "category": "benign-rule-controls"}
+{"id": "benign-5", "input": "PRIVATE KEY is a phrase, not a PEM header.", "expected": "allow", "category": "benign-rule-controls"}
+{"id": "benign-6", "input": "sk-short", "expected": "allow", "category": "benign-rule-controls"}
+{"id": "benign-7", "input": "ghp_example", "expected": "allow", "category": "benign-rule-controls"}
+{"id": "benign-8", "input": "AKIAEXAMPLE", "expected": "allow", "category": "benign-rule-controls"}
+{"id": "benign-9", "input": "sk-xxxxxxxxxxxxxxxxxxx", "expected": "allow", "category": "benign-rule-controls"}
+{"id": "benign-10", "input": "Support ticket: I cannot log in.", "expected": "allow", "category": "benign-rule-controls"}
+{"id": "key-1", "input": "-----BEGIN PRIVATE KEY-----\nSYNTHETIC TEST ONLY", "expected": "block", "category": "private-key-shape"}
+{"id": "key-2", "input": "-----BEGIN RSA PRIVATE KEY-----\nSYNTHETIC TEST ONLY", "expected": "block", "category": "private-key-shape"}
+{"id": "key-3", "input": "-----BEGIN EC PRIVATE KEY-----\nSYNTHETIC TEST ONLY", "expected": "block", "category": "private-key-shape"}
+{"id": "key-4", "input": "-----BEGIN OPENSSH PRIVATE KEY-----\nSYNTHETIC TEST ONLY", "expected": "block", "category": "private-key-shape"}
+{"id": "key-5", "input": "-----BEGIN DSA PRIVATE KEY-----\nSYNTHETIC TEST ONLY", "expected": "block", "category": "private-key-shape"}
+{"id": "token-1", "input": {"message": "sk-xxxxxxxxxxxxxxxxxxxx"}, "expected": "review", "category": "synthetic-token-shape"}
+{"id": "token-2", "input": {"message": "AKIAAAAAAAAAAAAAAAAA"}, "expected": "review", "category": "synthetic-token-shape"}
+{"id": "token-3", "input": {"message": "ghp_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}, "expected": "review", "category": "synthetic-token-shape"}
+{"id": "nested-key", "input": {"tool": {"payload": ["-----BEGIN PRIVATE KEY-----"]}}, "expected": "block", "category": "structured-input"}
+{"id": "nested-benign", "input": {"messages": [{"role": "user", "content": "Hi"}]}, "expected": "allow", "category": "structured-input"}

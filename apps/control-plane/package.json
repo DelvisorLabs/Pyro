@@ -14,6 +14,7 @@
   "dependencies": {
     "@fastify/cookie": "^11.0.2",
     "@fastify/websocket": "^11.2.0",
+    "@pyro/classifiers": "workspace:*",
     "@pyro/contracts": "workspace:*",
     "@pyro/integrations": "workspace:*",
     "@pyro/storage": "workspace:*",
