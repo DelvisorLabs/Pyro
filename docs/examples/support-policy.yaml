@@ -1,0 +1,25 @@
+apiVersion: pyro/v1
+kind: Profile
+profile:
+  id: support-policy
+  name: Support policy
+  description: Detect requests to disclose credentials.
+  model: jev-latest
+  reviewThreshold: 0.55
+  blockThreshold: 0.82
+  decisionStrategy: maximum
+  failMode: closed
+  maxInputChars: 100000
+  timeoutMs: 8000
+  persistInputs: false
+  notifyOn: []
+  localRules: []
+  detectors:
+    - id: credential_request
+      name: Credential request
+      description: Requests for passwords, API keys, or authentication tokens.
+      question: >-
+        Does this message ask someone to disclose a password,
+        API key, or authentication token?
+      enabled: true
+      weight: 1
