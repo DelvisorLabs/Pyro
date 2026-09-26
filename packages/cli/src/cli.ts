@@ -66,6 +66,21 @@ async function runEndpoint(endpoint: Endpoint, command: Command, args: string[])
   const config = await readConfig(path);
   const resolved = settings(global, config);
   const baseUrl = resolved[endpoint.service];
+  const wantsLocal = options.local || options.semantic || options.profileFile;
+  const hasServer = options.remote || global.gatewayUrl || process.env.PYRO_GATEWAY_URL || config.gatewayUrl || process.env.PYRO_API_KEY;
+  if (endpoint["x-cli-command"] === "classify" && (wantsLocal || !hasServer)) {
+    if (options.remote && wantsLocal) throw new Error("Choose standalone flags or --remote, not both.");
+    const { body, contentType } = await buildBody(endpoint, options, args);
+    const outputPath = options.output as string | undefined;
+    const outputFile = outputPath ? await open(outputPath, "wx", 0o600) : undefined;
+    let complete = false;
+    try {
+      const { classifyStandalone } = await import("./standalone.js");
+      const result = await classifyStandalone(body!, contentType!, { profileFile: options.profileFile as string | undefined, semantic: Boolean(options.semantic), timeout: resolved.timeout, requestId: options.xRequestId as string | undefined });
+      await output(result, { ...global, outputFile }); complete = true;
+    } finally { await outputFile?.close(); if (outputFile && !complete) await rm(outputPath!, { force: true }); }
+    return;
+  }
   const headers = credentials(endpoint, baseUrl, config);
   let route = endpoint.path;
   let position = 0;
@@ -135,20 +150,31 @@ async function runEndpoint(endpoint: Endpoint, command: Command, args: string[])
 export function createProgram(): Command {
   const { version } = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as { version: string };
   const program = new Command().name("pyro").version(version)
-    .description("Pyro — classify inputs and manage a running Pyro server.")
+    .description("Pyro — classify inputs standalone, or connect to an optional Pyro server.")
     .option("--gateway-url <url>", "gateway URL (PYRO_GATEWAY_URL; default http://localhost:8080)")
     .option("--control-url <url>", "dashboard API URL (PYRO_CONTROL_URL; default http://localhost:8081)")
     .option("--config <path>", "config file (PYRO_CONFIG or ~/.config/pyro/config.json)")
     .option("--timeout <ms>", "request/authentication timeout (PYRO_TIMEOUT_MS; default 130000)")
     .option("--json", "compact JSON output for scripts (streams always use NDJSON)")
     .showHelpAfterError()
-    .addHelpText("after", "\nGet started (a running server is required):\n  pyro doctor                     Check server connectivity and setup\n  pyro auth login                 Sign in with your dashboard password\n  pyro profiles list              Manage the same profiles as the dashboard\n  pyro playground 'hello' --profile local-secrets  After importing the local-only preset\n  PYRO_API_KEY=pf_… pyro classify 'hello'\n\nObserve: overview, usage, activity, playground\nConfigure: profiles, apps, keys, webhooks, settings\nUse `pyro <command> --help` for field flags and examples. No service is started automatically.");
+    .addHelpText("after", "\nGet started — no Docker, database or sign-in:\n  pyro classify 'hello'                   Bundled local rules, no network calls\n  pyro classify --file prompt.txt         Check a text file\n  pyro classify 'hello' --semantic        TypeSafe directly; TYPESAFE_API_KEY required\n  pyro doctor                            Verify the standalone installation\n\nOptional server: configure a gateway URL/key or use --remote.\nUse --local to override a saved server connection.\nServer commands: auth, profiles, apps, jobs, activity, team, reviews, evaluations.\nUse `pyro <command> --help` for options.");
   const groups = new Map<string, Command>([["", program]]);
-  program.command("doctor").description("Check server connectivity and semantic configuration without sending prompts")
+  program.command("doctor").description("Check the standalone install or a configured server without sending prompts")
+    .option("--remote", "check server services")
+    .option("--local", "check standalone even with saved server settings")
     .option("--semantic", "also require semantic classifier configuration")
-    .action(async (options: { semantic?: boolean }, command: Command) => {
+    .action(async (options: { semantic?: boolean; remote?: boolean; local?: boolean }, command: Command) => {
       const global = command.optsWithGlobals<GlobalOptions>();
-      const report = await diagnose(settings(global, await readConfig(configPath(global))));
+      const config = await readConfig(configPath(global));
+      if (options.remote && options.local) throw new Error("Choose --local or --remote.");
+      const hasServer = options.remote || global.gatewayUrl || global.controlUrl || process.env.PYRO_GATEWAY_URL || process.env.PYRO_CONTROL_URL || config.gatewayUrl || config.controlUrl || process.env.PYRO_API_KEY;
+      if (options.local || !hasServer) {
+        const { standaloneProfiles } = await import("./standalone.js");
+        await output({ mode: "standalone", localRulesReady: true, profiles: await standaloneProfiles(), semanticKeyConfigured: Boolean(process.env.TYPESAFE_API_KEY), serverRequired: false }, global);
+        if (options.semantic && !process.env.TYPESAFE_API_KEY) process.exitCode = 1;
+        return;
+      }
+      const report = await diagnose(settings(global, config));
       await output(report, global);
       if (!report.localRulesReady) process.exitCode = 4;
       else if (options.semantic && !report.semantic.ok) process.exitCode = 1;
@@ -188,6 +214,11 @@ export function createProgram(): Command {
       }
     }
     if (kind === "classification") command.argument("[text]", "text input; omit to read stdin").option("--file <path|->", "read text input from a file or stdin; use --input for structured JSON");
+    if (name === "classify") command.description("Classify standalone by default, or use a configured gateway")
+      .option("--local", "run in this process; override a saved gateway or PYRO_API_KEY")
+      .option("--remote", "use the configured Pyro gateway")
+      .option("--semantic", "standalone TypeSafe screening; sends input and can incur charges (TYPESAFE_API_KEY)")
+      .option("--profile-file <path>", "standalone policy YAML/JSON file; no import or server required");
     if (kind === "profile-yaml") command.option("--file <path|->", "read a portable profile YAML file or stdin");
     if (endpoint["x-websocket"]) command.option("--count <number>", "stop after this many events; otherwise stream until Ctrl-C");
     else command.option("-o, --output <path>", "write the response to a new file (never overwrite)");

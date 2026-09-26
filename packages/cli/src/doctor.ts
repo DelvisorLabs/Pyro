@@ -16,7 +16,7 @@ export async function diagnose(connection: { gateway: string; control: string; t
     gateway, control, semantic,
     localRulesReady: gateway.ok && control.ok,
     guidance: !gateway.ok || !control.ok
-      ? "Start the Pyro server with Docker, or set the URLs of an existing instance: https://delvisor.com/pyro/docs#setup. Installing the CLI does not start a server."
+      ? "These are server checks. For standalone checks use pyro doctor --local and pyro classify --local. For server features, start Docker or set an existing instance URL: https://delvisor.com/pyro/docs#setup. Installing the CLI does not start a server."
       : !semantic.ok
         ? "Local-only profiles work without a provider key. For semantic checks, add a TypeSafe key in Settings → Classifier provider, then run pyro doctor --semantic. Readiness checks configuration, not detector accuracy or provider availability."
         : "Server checks passed. Semantic configuration is present; test your policy against representative traffic before enforcement.",

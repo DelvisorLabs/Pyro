@@ -25,7 +25,17 @@ try {
   assert.match(stdout, /Pyro/);
   const version = await exec(executable, ["--version"], options);
   assert.equal(version.stdout.trim(), manifest.version);
+  const cleanEnv = { ...options.env };
+  for (const key of Object.keys(cleanEnv)) if (key.startsWith("PYRO_") || key === "TYPESAFE_API_KEY") delete cleanEnv[key];
+  const localOptions = { ...options, env: { ...cleanEnv, PYRO_CONFIG: join(directory, "fresh-config.json") } };
+  for (const [input, action] of [["hello", "allow"], ["-----BEGIN PRIVATE KEY-----", "block"]]) {
+    const result = await exec(executable, ["classify", "--local", "--", input], localOptions);
+    const decision = JSON.parse(result.stdout);
+    assert.equal(decision.action, action); assert.equal(decision.execution, "standalone");
+  }
+  const doctor = await exec(executable, ["doctor", "--local"], localOptions);
+  assert.equal(JSON.parse(doctor.stdout).serverRequired, false);
   const spec = await exec(executable, ["spec", "control"], options);
   assert.equal(JSON.parse(spec.stdout).openapi, "3.1.0");
-  console.log("Packed CLI installs globally and runs outside the repository.");
+  console.log("Packed CLI installs globally and classifies outside the repository without Docker or a server.");
 } finally { await rm(directory, { recursive: true, force: true }); }

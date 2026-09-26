@@ -51,6 +51,11 @@ publication, then update website links and the compatibility notes together.
 
 ## Support policy
 
+CLI 0.2+ supports standalone classification with no Docker or server. CLI 0.1
+was a server client. Publish the tested 0.2 archive before deploying the new
+standalone-first website instructions; verify a fresh install runs both local
+allow/block examples without a server.
+
 During beta, fixes target the newest published beta. main is development code,
 not a release channel. Pin the CLI version, server image digest, PostgreSQL major
 version and policy revision in deployments. Keep the previous release archive
