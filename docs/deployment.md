@@ -64,3 +64,19 @@ its outcome. An intent without an outcome means an interrupted operation that
 requires reconciliation. The API provides no edit/delete operation for audit
 history. PostgreSQL administrators remain trusted and can alter the database;
 use external backups or log shipping when tamper resistance is required.
+
+## Review workflow
+
+Review inbox lists decisions with action `review`, with application/trace context,
+age, assignment, severity, comments and disposition. Writes require the displayed
+revision; a stale or duplicate write returns 409. The original event is immutable.
+Reviewers and operators are restricted to their granted applications. A viewer
+cannot resolve a review. Comments and review state expire after the event
+retention period from their last update. Do not enter secrets in comments.
+
+Webhooks can opt into signed `review.resolved` callbacks. They use the existing
+application, profile, action and risk filters. Resolution intent is stored with
+the review and handed off to the durable delivery outbox with a stable ID;
+receivers must deduplicate IDs. Payloads include disposition and actor ID but omit
+comments and inputs. A resolution never runs a previously blocked or held action:
+your application decides whether and how to resume, with its own authorization.

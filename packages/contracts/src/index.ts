@@ -420,6 +420,7 @@ export const IntegrationSchema = z.object({
   profileIds: z.array(z.string().min(1).max(64)).max(100).default([]),
   appIds: z.array(z.string().min(1).max(64)).max(100).default([]),
   minimumRisk: z.number().min(0).max(1).default(0),
+  reviewResolutions: z.boolean().optional(),
   allowPrivateNetwork: z.boolean().default(false),
   createdAt: z.string(),
   updatedAt: z.string(),
@@ -432,9 +433,10 @@ export interface StoredIntegration extends Integration {
 }
 export interface WebhookEvent {
   id: string;
-  type: "decision.created" | "integration.test";
+  type: "decision.created" | "integration.test" | "review.resolved";
   createdAt: string;
   data: {
+    review?: { revision: number; disposition: string; actorId: string };
     id: string; profileId: string; appId?: string; action: PolicyAction; verdict: Verdict;
     risk: number; provider: string; latencyMs: number; traceId?: string; failed: boolean;
   };

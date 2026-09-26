@@ -1378,6 +1378,96 @@ paths:
         "403":
           description: Insufficient permissions
       security: []
+  /api/reviews:
+    get:
+      operationId: reviews_list
+      x-cli-command: reviews list
+      summary: reviews list
+      responses:
+        "200":
+          description: Review
+        "409":
+          description: Concurrent revision conflict
+      parameters:
+        - name: appId
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: assignedTo
+          in: query
+          schema:
+            type: string
+        - name: offset
+          in: query
+          schema:
+            type: string
+  /api/reviews/{id}:
+    get:
+      operationId: reviews_get
+      x-cli-command: reviews get
+      summary: reviews get
+      responses:
+        "200":
+          description: Review
+        "409":
+          description: Concurrent revision conflict
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+    put:
+      operationId: reviews_update
+      x-cli-command: reviews update
+      summary: reviews update
+      responses:
+        "200":
+          description: Review
+        "409":
+          description: Concurrent revision conflict
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - expectedRevision
+              properties:
+                expectedRevision:
+                  type: integer
+                assignedTo:
+                  type:
+                    - string
+                    - "null"
+                severity:
+                  type: string
+                  enum:
+                    - low
+                    - medium
+                    - high
+                disposition:
+                  type: string
+                  enum:
+                    - true_positive
+                    - false_positive
+                    - uncertain
+                comment:
+                  type: string
+                  maxLength: 2000
+                reopen:
+                  type: boolean
 components:
   securitySchemes:
     session:
