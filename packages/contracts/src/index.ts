@@ -38,6 +38,8 @@ export const AppSchema = z.object({
   defaultProfileId: z.string().regex(/^[a-z0-9][a-z0-9_-]{1,63}$/),
   allowedProfileIds: z.array(z.string()).max(100).default([]),
   rateLimitPerMinute: z.number().int().min(1).max(1_000_000).optional(),
+  profileRevisions: z.record(z.string(), z.number().int().positive()).optional(),
+  canary: z.object({ profileId: z.string(), revision: z.number().int().positive(), percent: z.number().min(0).max(100) }).optional(),
   localRules: LocalRulesSchema,
   createdAt: z.string(),
   updatedAt: z.string(),
@@ -63,6 +65,8 @@ export const DetectorSchema = z.object({
 
 export const ProfileSchema = z
   .object({
+    revision: z.number().int().positive().optional(),
+    contentHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
     id: z.string().regex(/^[a-z0-9][a-z0-9_-]{1,63}$/),
     name: z.string().min(1).max(100),
     description: z.string().max(500),
@@ -126,6 +130,9 @@ export const DetectorResultSchema = z.object({
 
 export const ShadowDecisionSchema = z.object({
   profileId: z.string(),
+  policyRevision: z.number().int().positive().optional(),
+  policyHash: z.string().optional(),
+  appRulesHash: z.string().optional(),
   verdict: VerdictSchema,
   action: PolicyActionSchema,
   risk: z.number().min(0).max(1),
@@ -140,6 +147,9 @@ export const ClassificationDecisionSchema = z.object({
   traceId: z.string().optional(),
   createdAt: z.string(),
   profileId: z.string(),
+  policyRevision: z.number().int().positive().optional(),
+  policyHash: z.string().optional(),
+  appRulesHash: z.string().optional(),
   verdict: VerdictSchema,
   action: PolicyActionSchema,
   risk: z.number().min(0).max(1),
@@ -186,6 +196,7 @@ export type DetectorResult = z.infer<typeof DetectorResultSchema>;
 export type ClassificationDecision = z.infer<typeof ClassificationDecisionSchema>;
 
 export interface ClassificationEvent extends ClassificationDecision {
+  appRulesSnapshot?: LocalRule[];
   inputHash: string;
   inputBytes?: number;
   inputPreview?: string;

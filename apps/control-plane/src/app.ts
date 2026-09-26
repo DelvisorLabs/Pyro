@@ -18,10 +18,11 @@ import {
   type StoredSecret,
   type UserRecord,
 } from "@pyro/contracts";
-import { encryptText, openDatabase } from "@pyro/storage";
+import { encryptText, openDatabase, PolicyStore, type PolicyRecord } from "@pyro/storage";
 import { createSession, ensureAdmin, sessionUserId, sha256, verifyAdminPassword } from "./auth.js";
 import type { ControlPlaneConfig } from "./config.js";
 
+import { registerPolicyHistory } from "./policies.js";
 import { registerIntegrations } from "./integrations.js";
 import { exportProfileYaml, loadPresetProfiles, parseProfileYaml } from "./profile-files.js";
 
@@ -58,7 +59,8 @@ export async function buildControlPlane(config: ControlPlaneConfig): Promise<Fas
   const sessionsStore = database.document<SessionRecord[]>("sessions", () => []);
   const keysStore = database.document<ApiKeyRecord[]>("api_keys", () => []);
   const appsStore = database.document<AppRecord[]>("apps", () => [createDefaultApp()]);
-  const profilesStore = database.document<Profile[]>("profiles", () => [createDefaultProfile()]);
+  const profilesStore = new PolicyStore(database.document<PolicyRecord[]>("profiles", () => [createDefaultProfile()]));
+  await profilesStore.initialize();
   const settingsStore = database.document<ProviderSettings>("provider_settings", () => ({
     ...createDefaultProviderSettings(),
     endpoint: config.typesafeEndpoint,
@@ -255,6 +257,8 @@ export async function buildControlPlane(config: ControlPlaneConfig): Promise<Fas
     }
   });
 
+  registerPolicyHistory(app, profilesStore, requireSession);
+
   const presets = await loadPresetProfiles();
   app.get("/api/profile-presets", { preHandler: requireSession }, async () => ({ presets }));
   app.post<{ Body: { yaml?: string } }>("/api/profiles/preview", { preHandler: requireSession }, async (request, reply) => {
@@ -273,7 +277,7 @@ export async function buildControlPlane(config: ControlPlaneConfig): Promise<Fas
         return conflict ? current : [...current, profile];
       });
       if (conflict) return reply.code(409).send({ error: "A profile with this ID or name already exists. Change it before importing." });
-      return reply.code(201).send({ profile });
+      return reply.code(201).send({ profile: (await profilesStore.read()).find((p) => p.id === profile.id) });
     } catch (error) { return reply.code(400).send({ error: error instanceof Error ? error.message : "Invalid YAML." }); }
   });
   app.get<{ Params: { id: string } }>("/api/profiles/:id/export", { preHandler: requireSession }, async (request, reply) => {
@@ -297,8 +301,8 @@ export async function buildControlPlane(config: ControlPlaneConfig): Promise<Fas
     for (let suffix = 2; profiles.some((profile) => profile.id === id); suffix += 1) id = `${baseId}-${suffix}`;
     const parsed = ProfileSchema.safeParse({ ...body, id, name, createdAt: now, updatedAt: now });
     if (!parsed.success) return reply.code(400).send({ error: parsed.error.issues[0]?.message ?? "Invalid profile." });
-    await profilesStore.update((current) => [...current, parsed.data]);
-    return reply.code(201).send({ profile: parsed.data });
+    const saved = await profilesStore.update((current) => [...current, parsed.data], request.user!.id);
+    return reply.code(201).send({ profile: saved.find((p) => p.id === parsed.data.id) });
   });
 
   app.put<{ Params: { id: string } }>("/api/profiles/:id", { preHandler: requireSession }, async (request, reply) => {
@@ -313,8 +317,8 @@ export async function buildControlPlane(config: ControlPlaneConfig): Promise<Fas
     if (!parsed.success) return reply.code(400).send({ error: parsed.error.issues[0]?.message ?? "Invalid profile." });
     const duplicateName = (await profilesStore.read()).some((profile) => profile.id !== request.params.id && profile.name.trim().toLocaleLowerCase() === parsed.data.name.trim().toLocaleLowerCase());
     if (duplicateName) return reply.code(409).send({ error: "A policy with this name already exists." });
-    await profilesStore.update((profiles) => profiles.map((item) => item.id === request.params.id ? parsed.data : item));
-    return { profile: parsed.data };
+    const saved = await profilesStore.update((profiles) => profiles.map((item) => item.id === request.params.id ? parsed.data : item), request.user!.id);
+    return { profile: saved.find((p) => p.id === request.params.id) };
   });
 
   app.delete<{ Params: { id: string } }>("/api/profiles/:id", { preHandler: requireSession }, async (request, reply) => {
@@ -365,6 +369,12 @@ export async function buildControlPlane(config: ControlPlaneConfig): Promise<Fas
       updatedAt: now,
     });
     if (!parsed.success) return reply.code(400).send({ error: parsed.error.issues[0]?.message ?? "Invalid application." });
+    const records = await profilesStore.records.read();
+    for (const [id, revision] of Object.entries(parsed.data.profileRevisions ?? {})) {
+      if (!records.find((p) => p.id === id && !p.archived)?.revisions?.some((r) => r.revision === revision && r.state === "published")) return reply.code(400).send({ error: "Pinned policy revision does not exist or is not published." });
+    }
+    const canary = parsed.data.canary;
+    if (canary && !records.find((p) => p.id === canary.profileId && !p.archived)?.revisions?.some((r) => r.revision === canary.revision && r.state === "published")) return reply.code(400).send({ error: "Canary revision must be published." });
     const profiles = new Set((await profilesStore.read()).map((profile) => profile.id));
     if (!profiles.has(parsed.data.defaultProfileId)) return reply.code(400).send({ error: "The default policy does not exist." });
     if (parsed.data.allowedProfileIds.some((profileId) => !profiles.has(profileId))) return reply.code(400).send({ error: "An allowed policy does not exist." });
@@ -384,6 +394,12 @@ export async function buildControlPlane(config: ControlPlaneConfig): Promise<Fas
       updatedAt: new Date().toISOString(),
     });
     if (!parsed.success) return reply.code(400).send({ error: parsed.error.issues[0]?.message ?? "Invalid application." });
+    const records = await profilesStore.records.read();
+    for (const [id, revision] of Object.entries(parsed.data.profileRevisions ?? {})) {
+      if (!records.find((p) => p.id === id && !p.archived)?.revisions?.some((r) => r.revision === revision && r.state === "published")) return reply.code(400).send({ error: "Pinned policy revision does not exist or is not published." });
+    }
+    const canary = parsed.data.canary;
+    if (canary && !records.find((p) => p.id === canary.profileId && !p.archived)?.revisions?.some((r) => r.revision === canary.revision && r.state === "published")) return reply.code(400).send({ error: "Canary revision must be published." });
     const profiles = new Set((await profilesStore.read()).map((profile) => profile.id));
     if (!profiles.has(parsed.data.defaultProfileId)) return reply.code(400).send({ error: "The default policy does not exist." });
     if (parsed.data.allowedProfileIds.some((profileId) => !profiles.has(profileId))) return reply.code(400).send({ error: "An allowed policy does not exist." });

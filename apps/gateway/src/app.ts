@@ -34,7 +34,7 @@ import {
   type StoredIntegration,
 } from "@pyro/contracts";
 import { ConcurrentQueue, QueueFullError } from "@pyro/queue";
-import { CachedDocument, decryptText, openDatabase } from "@pyro/storage";
+import { CachedDocument, decryptText, openDatabase, PolicyStore, revisionOf, type PolicyRecord, policyHash } from "@pyro/storage";
 import { decisionDeliveries, DeliveryWorker } from "@pyro/integrations";
 import type { GatewayConfig } from "./config.js";
 import { GatewayMetrics } from "./metrics.js";
@@ -144,7 +144,8 @@ export async function buildGateway(config: GatewayConfig): Promise<FastifyInstan
   app.addContentTypeParser("text/plain", { parseAs: "string" }, (_request, body, done) => done(null, body));
 
   const database = await openDatabase(config.databaseUrl);
-  const profilesStore = database.document<Profile[]>("profiles", () => [createDefaultProfile()]);
+  const profilesStore = database.document<PolicyRecord[]>("profiles", () => [createDefaultProfile()]);
+  await new PolicyStore(profilesStore).initialize();
   const appsStore = database.document<AppRecord[]>("apps", () => [createDefaultApp()]);
   const settingsStore = database.document<ProviderSettings>("provider_settings", createDefaultProviderSettings);
   const keysStore = database.document<ApiKeyRecord[]>("api_keys", () => []);
@@ -161,7 +162,7 @@ export async function buildGateway(config: GatewayConfig): Promise<FastifyInstan
   const storedProfiles = await profilesStore.read();
   const normalizedProfiles = storedProfiles.flatMap((profile) => {
     const parsed = ProfileSchema.safeParse(profile);
-    return parsed.success ? [parsed.data] : [];
+    return parsed.success ? [{ ...profile, ...parsed.data }] : [];
   });
   if (normalizedProfiles.length !== storedProfiles.length || JSON.stringify(normalizedProfiles) !== JSON.stringify(storedProfiles)) {
     await profilesStore.write(normalizedProfiles.length ? normalizedProfiles : [createDefaultProfile()]);
@@ -246,9 +247,13 @@ export async function buildGateway(config: GatewayConfig): Promise<FastifyInstan
     return allowedByApp && allowedByKey;
   };
 
-  const loadProfile = async (id?: string): Promise<Profile | undefined> => {
+  const loadProfile = async (id: string, firewallApp: AppRecord, requestId: string): Promise<Profile | undefined> => {
     const all = await profiles.read();
-    return all.find((profile) => profile.id === (id ?? "default"));
+    let revision = firewallApp.profileRevisions?.[id];
+    const canary = firewallApp.canary;
+    if (canary?.profileId === id && parseInt(hash(requestId).slice(0, 8), 16) / 0x100000000 * 100 < canary.percent) revision = canary.revision;
+    const record = all.find((p) => p.id === id);
+    return record ? revisionOf(record, revision) : undefined;
   };
 
   const resolveApiKey = async (): Promise<string | undefined> => {
@@ -362,6 +367,9 @@ export async function buildGateway(config: GatewayConfig): Promise<FastifyInstan
     requestId?: string,
   ): Promise<ClassificationDecision> => {
     const { decision, failure, localRuleId } = await evaluate(id, envelope, profile, queueMs, traceId, firewallApp);
+    decision.policyRevision = profile.revision;
+    decision.policyHash = profile.contentHash ?? policyHash(profile);
+    decision.appRulesHash = hash(JSON.stringify(firewallApp.localRules));
     decision.requestId = requestId;
     decision.labels = envelope.labels;
     const allProfiles = await profiles.read();
@@ -394,6 +402,7 @@ export async function buildGateway(config: GatewayConfig): Promise<FastifyInstan
       apiKeyName: apiKey?.name,
       appId: firewallApp.id,
       appName: firewallApp.name,
+      appRulesSnapshot: structuredClone(firewallApp.localRules),
       localRuleId,
       error: failure,
     };
@@ -448,6 +457,7 @@ export async function buildGateway(config: GatewayConfig): Promise<FastifyInstan
   app.get("/v1/profiles", { preHandler: requireApiKey }, async (request) => {
     const firewallApp = request.firewallApp!;
     return (await profiles.read())
+      .filter((profile) => !profile.archived)
       .filter((profile) => firewallApp.allowedProfileIds.length === 0 || firewallApp.allowedProfileIds.includes(profile.id))
       .map(({ id, name, description }) => ({ id, name, description }));
   });
@@ -465,7 +475,7 @@ export async function buildGateway(config: GatewayConfig): Promise<FastifyInstan
     const firewallApp = request.firewallApp!;
     const requestedProfile = selectedProfileId(envelope, apiKey, firewallApp);
     if (!profileAllowed(requestedProfile, apiKey, firewallApp)) return reply.code(403).send({ error: "This application is not allowed to use the requested policy." });
-    const profile = await loadProfile(requestedProfile);
+    const profile = await loadProfile(requestedProfile, firewallApp, identity.requestId);
     if (!profile) return reply.code(404).send({ error: "Profile not found." });
     const serialized = serializeInput(envelope.input);
     if (serialized.length > profile.maxInputChars) {
@@ -497,7 +507,7 @@ export async function buildGateway(config: GatewayConfig): Promise<FastifyInstan
     const firewallApp = request.firewallApp!;
     const requestedProfile = selectedProfileId(envelope, apiKey, firewallApp);
     if (!profileAllowed(requestedProfile, apiKey, firewallApp)) return reply.code(403).send({ error: "This application is not allowed to use the requested policy." });
-    const profile = await loadProfile(requestedProfile);
+    const profile = await loadProfile(requestedProfile, firewallApp, identity.requestId);
     if (!profile) return reply.code(404).send({ error: "Profile not found." });
     const serialized = serializeInput(envelope.input);
     if (serialized.length > profile.maxInputChars) return reply.code(413).send({ error: "Input is too large." });

@@ -585,6 +585,8 @@ class PostgresDatabase implements Database {
   }
 }
 
+const memoryLocks = new WeakMap<Map<string, unknown>, Map<string, Promise<unknown>>>();
+
 class MemoryDocument<T> implements DocumentStore<T> {
   constructor(private readonly documents: Map<string, unknown>, private readonly key: string, private readonly fallback: () => T) {}
 
@@ -598,9 +600,17 @@ class MemoryDocument<T> implements DocumentStore<T> {
   }
 
   async update(updater: (current: T) => T | Promise<T>): Promise<T> {
-    const updated = await updater(await this.read());
-    await this.write(updated);
-    return updated;
+    const locks = memoryLocks.get(this.documents) ?? new Map<string, Promise<unknown>>();
+    memoryLocks.set(this.documents, locks);
+    const previous = locks.get(this.key) ?? Promise.resolve();
+    const pending = previous.catch(() => {}).then(async () => {
+      const updated = await updater(await this.read());
+      await this.write(updated);
+      return updated;
+    });
+    locks.set(this.key, pending);
+    try { return await pending; }
+    finally { if (locks.get(this.key) === pending) locks.delete(this.key); }
   }
 }
 
@@ -846,3 +856,5 @@ export function decryptText(value: StoredSecret, secret: string): string {
     decipher.final(),
   ]).toString("utf8");
 }
+
+export * from "./policies.js";
