@@ -13,12 +13,13 @@ import { AppsPage } from "@/pages/AppsPage";
 import { LoginPage } from "@/pages/LoginPage";
 import { OverviewPage } from "@/pages/OverviewPage";
 import { PlaygroundPage } from "@/pages/PlaygroundPage";
+import { PolicyHistoryPage } from "@/pages/PolicyHistoryPage";
 import { ProfilesPage } from "@/pages/ProfilesPage";
 import { IntegrationsPage } from "@/pages/IntegrationsPage";
 import { SettingsPage } from "@/pages/SettingsPage";
 import { UsagePage } from "@/pages/UsagePage";
 
-type Page = "overview" | "apps" | "usage" | "playground" | "profiles" | "activity" | "keys" | "settings" | "integrations";
+type Page = "history" | "overview" | "apps" | "usage" | "playground" | "profiles" | "activity" | "keys" | "settings" | "integrations";
 interface User { id: string; username: string; role?: "admin" | "viewer" }
 
 const NAV: BranchedMenuItem[] = [
@@ -30,6 +31,7 @@ const NAV: BranchedMenuItem[] = [
   ] },
   { label: "Configure", children: [
     { value: "apps", label: "Applications", icon: <Boxes className="size-3.5" /> },
+    { value: "history", label: "Policy history", icon: <BookOpenCheck className="size-3.5" /> },
     { value: "profiles", label: "Protection Profiles", icon: <SlidersHorizontal className="size-3.5" /> },
     { value: "keys", label: "API keys", icon: <KeyRound className="size-3.5" /> },
     { value: "integrations", label: "Webhooks", icon: <Activity className="size-3.5" /> },
@@ -100,6 +102,7 @@ export default function App() {
     usage: <UsagePage refreshKey={refreshKey} />,
     playground: <PlaygroundPage onDecision={() => setRefreshKey((value) => value + 1)} />,
     profiles: <ProfilesPage />,
+    history: <PolicyHistoryPage />,
     activity: <ActivityPage refreshKey={refreshKey} />,
     keys: <ApiKeysPage />,
     settings: <SettingsPage />,

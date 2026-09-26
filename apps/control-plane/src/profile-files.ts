@@ -1,6 +1,7 @@
 import { readdir, readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { parseDocument, stringify } from "yaml";
+import { policyHash } from "@pyro/storage";
 import { ProfileSchema, type Profile } from "@pyro/contracts";
 
 export function parseProfileYaml(source: string): Profile {
@@ -21,7 +22,7 @@ export function parseProfileYaml(source: string): Profile {
 
 export function exportProfileYaml(profile: Profile): string {
   const { createdAt: _created, updatedAt: _updated, ...policy } = profile;
-  return stringify({ apiVersion: "pyro/v1", kind: "Profile", profile: { ...policy, shadowProfileIds: [] } });
+  return stringify({ apiVersion: "pyro/v1", kind: "Profile", profile: { ...policy, shadowProfileIds: [], contentHash: policyHash({ ...profile, shadowProfileIds: [] }) } });
 }
 
 export async function loadPresetProfiles(): Promise<Array<{ profile: Profile; yaml: string }>> {

@@ -1142,6 +1142,81 @@ paths:
           description: Invalid request
         "401":
           description: Session required
+  /api/profiles/{id}/revisions:
+    get:
+      operationId: profiles_history
+      x-cli-command: profiles history
+      summary: List immutable policy revisions
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+        "409":
+          description: Revision conflict
+    post:
+      operationId: profiles_draft
+      x-cli-command: profiles draft
+      summary: Save a draft without changing active policy
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+        "409":
+          description: Revision conflict
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - profile
+                - expectedRevision
+              properties:
+                profile:
+                  $ref: "#/components/schemas/ProfileInput"
+                expectedRevision:
+                  type: integer
+  /api/profiles/{id}/publish:
+    post:
+      operationId: profiles_publish
+      x-cli-command: profiles publish
+      summary: Publish a draft or roll back by creating a new revision
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+        "409":
+          description: Revision conflict
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - revision
+                - expectedRevision
+              properties:
+                revision:
+                  type: integer
+                expectedRevision:
+                  type: integer
 components:
   securitySchemes:
     session:
@@ -1727,6 +1802,13 @@ components:
               - question
               - enabled
               - weight
+        revision:
+          type: integer
+          minimum: 1
+          description: Current revision, required when updating an existing policy.
+        contentHash:
+          type: string
+          readOnly: true
       required:
         - name
         - description
@@ -1919,6 +2001,27 @@ components:
               - pattern
               - action
               - risk
+        profileRevisions:
+          type: object
+          additionalProperties:
+            type: integer
+            minimum: 1
+        canary:
+          type: object
+          required:
+            - profileId
+            - revision
+            - percent
+          properties:
+            profileId:
+              type: string
+            revision:
+              type: integer
+              minimum: 1
+            percent:
+              type: number
+              minimum: 0
+              maximum: 100
       required:
         - name
         - enabled
