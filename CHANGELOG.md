@@ -29,3 +29,7 @@ fixture passes; semantic attack detection has not been independently evaluated.
 See `docs/deployment.md` for backup, restore, retention and SSO setup. SDKs remain
 source distributions. The release workflows prepare container images, a CLI
 archive, checksums and a draft GitHub release; publication is a separate action.
+
+### Standalone CLI
+
+CLI 0.2.0 now classifies with bundled local rules immediately after installation. Docker and a server are optional. Explicit `--semantic` calls TypeSafe directly; configured gateways keep the server client workflow.

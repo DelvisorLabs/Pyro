@@ -24,12 +24,12 @@
 
 ## What Pyro does
 
-Pyro is a self-hosted policy API and dashboard for teams adding LLM features or
+Pyro is a standalone CLI, self-hosted policy API and dashboard for teams adding LLM features or
 tool-using agents. Call it before forwarding an untrusted prompt, retrieved
 passage, or tool payload. It returns `allow`, `review`, or `block`; your application
 must hold review decisions and reject blocked ones before executing work.
 
-Local rules run on your server. Semantic detectors currently use **TypeSafe
+Local rules run in the CLI process or on your server. Semantic detectors currently use **TypeSafe
 System One** and send inputs to that provider. Your application's LLM can be from
 any vendor, but the semantic classifier implementation is currently TypeSafe.
 Pyro does not automatically intercept a model or tool call and cannot guarantee
@@ -54,62 +54,79 @@ See [deployment and data retention](docs/deployment.md), [release/support notes]
 
 ## Quick start
 
-Pyro is early-beta software. The CLI connects to a server; installing it does not start one. Local rules need no provider account. Semantic screening uses TypeSafe's hosted API and sends the input there.
+### Install and classify — no Docker required
 
-### 1. Start a server, or use an existing instance
-
-Save [compose.yaml](https://delvisor.com/pyro/compose.yaml) and [.env.example](https://delvisor.com/pyro/pyro.env.example) in an empty folder. No source checkout is needed. With Docker Compose installed:
-
-```sh
-cp .env.example .env
-# Fill in the four required credentials using the template's generation commands.
-docker compose up --build -d
-```
-
-Open [the dashboard](http://localhost:3000) and sign in using `ADMIN_PASSWORD` from `.env`. The gateway listens on port 8080 and the management API on 8081. Keep those interfaces private; see [deployment guidance](./SECURITY.md).
-
-### 2. Install the published CLI
-
-Use Node.js 22.13+ and pnpm, or install the same package with your preferred npm-compatible package manager:
+With Node.js 22.13+ and pnpm:
 
 ```sh
 pnpm add --global @delvisor/pyro
+pyro classify 'Summarize this document.'
+pyro classify -- '-----BEGIN PRIVATE KEY-----'
+```
+
+CLI 0.2+ bundles the classification engine and local-secrets policy. Expect
+`allow` then `block`, with `execution: standalone`. No server, database, account,
+policy download or provider key is needed. The synthetic header tests a specific
+local rule; it is not a semantic detection benchmark.
+
+```sh
+pyro classify --file prompt.txt
+pyro classify 'A document to inspect' --profile-file ./my-policy.yaml
+pyro doctor --local
+```
+
+Standalone results go to stdout; no input history or background services are
+created. A configured gateway URL or `PYRO_API_KEY` selects the existing server
+mode. `--local` overrides those settings; `--remote` explicitly uses the server.
+See the [CLI guide](packages/cli/README.md) for files, stdin and structured inputs.
+
+### Optional semantic screening
+
+Set `TYPESAFE_API_KEY` in your environment, then run:
+
+```sh
+pyro classify 'Text to inspect' --semantic
+```
+
+This calls TypeSafe directly using the bundled balanced-assistant policy.
+`--semantic` explicitly authorizes sending inputs to that provider and its usage
+charges. It needs no Docker or Pyro server. Missing keys fail before the request;
+provider failures return an indeterminate verdict and the policy's failure action.
+A fail-closed block is not evidence that an attack was detected.
+
+### Optional shared dashboard and team workflows
+
+For durable jobs, activity history, policy rollouts, evaluations and team access,
+use an existing server or save [compose.yaml](https://delvisor.com/pyro/compose.yaml)
+and [.env.example](https://delvisor.com/pyro/pyro.env.example) in an empty folder.
+No source clone is needed. With Docker Compose installed:
+
+```sh
+cp .env.example .env
+# Fill in the four required credentials using the generation commands in the file.
+docker compose up --build --wait --wait-timeout 180
 pyro config set gateway-url http://localhost:8080
 pyro config set control-url http://localhost:8081
 pyro auth login
 ```
 
-Use your own server URLs if connecting to an existing instance. CLI 0.2.0 adds `pyro doctor` for connection diagnostics and `pyro doctor --semantic` to check provider configuration. These checks send no prompts; configured credentials do not prove that a provider is reachable or accurate.
-
-### 3. Get a decision without a provider key
-
-Download [local-secrets.yaml](https://delvisor.com/pyro/profiles/local-secrets.yaml), then run from that folder:
+Open [the dashboard](http://localhost:3000) and sign in with `ADMIN_PASSWORD`.
+Keep the interfaces private; see [deployment guidance](docs/deployment.md).
+Download [local-secrets.yaml](https://delvisor.com/pyro/profiles/local-secrets.yaml),
+then import it for server use and create an application key:
 
 ```sh
 pyro profiles import --file ./local-secrets.yaml
-pyro playground 'Summarize this document.' --profile local-secrets
-pyro playground 'Example: -----BEGIN PRIVATE KEY-----' --profile local-secrets
-```
-
-Expect `allow` for the first request and `block` for the second. Both use local rules and appear in Activity. The fake header is test data, not a real secret. This verifies integration, not general prompt-injection detection. Imports reject duplicate IDs; skip the import if already installed.
-
-### 4. Enable semantic screening explicitly
-
-Get a key from [TypeSafe](https://console.typesafe.ai/) and add it in **Settings → Classifier provider**. Hosted screening sends inputs to TypeSafe; review its data terms and usage charges. Download and import [balanced-assistant.yaml](https://delvisor.com/pyro/profiles/balanced-assistant.yaml), then select that profile. Local patterns can flag quoted or educational text; evaluate representative benign and attack examples before enforcement.
-
-Without a configured provider, a semantic request returns an `indeterminate` verdict and follows the profile's failure policy. A fail-closed `block` is not evidence of an attack. Keep fail-closed behavior for workloads that require it; use the explicit local-only preset to try Pyro without a key.
-
-### 5. Connect an application
-
-```sh
-pyro apps create --name 'Support' --default-profile-id local-secrets
-# Substitute the ID returned above.
+pyro apps create --name Support --default-profile-id local-secrets
 pyro keys create --name 'Support backend' --app-id APP_ID
-# Set PYRO_API_KEY to the one-time key shown in the response.
-pyro classify 'Summarize this document.' --profile local-secrets
+# Set PYRO_API_KEY to the one-time key shown above; use the returned APP_ID.
+pyro classify 'Summarize this document.' --remote --profile local-secrets
 ```
 
-Keep the key on your backend. Your application enforces `allow`, `review`, and `block`; Pyro does not automatically intercept model calls. Begin in staging, or record decisions without changing your existing controls. A successful CLI classification exits 0 for any decision; scripts must inspect `action` and `verdict`.
+Server semantic profiles use the provider configured in dashboard Settings.
+Standalone semantic checks use your local `TYPESAFE_API_KEY`. Your application
+must enforce the returned action: continue only on allow, hold review, and reject
+block. Successful classification exits 0 for any action; scripts must inspect it.
 
 ## Protection profiles
 

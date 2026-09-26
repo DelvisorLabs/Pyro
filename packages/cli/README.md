@@ -1,21 +1,58 @@
 # Pyro CLI
 
-Classify inputs, inspect decisions, and manage the same applications, profiles, keys,
-webhooks and provider settings as the dashboard. Requires Node.js 22 or newer and a
-running Pyro server. The CLI does not start services.
+Install once and classify immediately. Standalone checks run in the CLI process:
+no Docker, server, database, account or sign-in is required. Server administration
+commands remain available when you want a shared dashboard and team workflows.
 
-## Install
+## Install and get a decision
 
-The CLI is published on npm. With Node.js 22.13+ and pnpm:
+With Node.js 22.13+ and pnpm:
 
 ```sh
 pnpm add --global @delvisor/pyro
-pyro --help
+pyro classify 'Summarize this document.'
+pyro classify -- '-----BEGIN PRIVATE KEY-----'
 ```
 
-A running Pyro server is required. Follow the [Docker quickstart](https://delvisor.com/pyro/docs#setup) to start one without cloning the repository, or connect to an existing instance. The CLI does not host the gateway, dashboard or database.
+CLI 0.2+ includes the engine and local-secrets policy. Expect `allow` then `block`
+with `execution: standalone`; no provider key or network call is needed. These
+rules match specific credential shapes, not arbitrary semantic attacks. The
+private-key header above is synthetic test data. Check `pyro --version` when
+upgrading from the earlier server-client-only release.
 
-CLI 0.2.0 adds `pyro doctor` (server checks) and `pyro doctor --semantic` (also requires classifier configuration). No prompts or credentials are sent to a model during diagnostics. Missing semantic configuration does not prevent local-only profiles from working.
+```sh
+pyro classify --file prompt.txt
+printf '%s' 'A document to inspect' | pyro classify
+pyro classify --input '{"messages":[{"role":"user","content":"Hello"}]}'
+pyro classify --profile-file ./my-policy.yaml 'Text to inspect'
+pyro doctor --local
+```
+
+Built-in policies need no download or import. Custom YAML/JSON policies use the
+same profile schema as the server. Standalone results go to stdout (or a private
+`--output` file); the CLI does not retain inputs or start background services.
+Shadow policies and shared history/jobs/reviews require a server.
+
+### Optional semantic screening
+
+Set `TYPESAFE_API_KEY` in your environment, then opt into a direct provider call:
+
+```sh
+pyro classify 'Text to inspect' --semantic
+pyro classify --file prompt.txt --semantic --profile strict-tool-agent
+```
+
+`--semantic` authorizes sending the input to TypeSafe and its usage charges. It
+uses the bundled balanced-assistant policy unless you select another policy.
+A missing key is a setup error before any request. An unavailable provider
+returns an indeterminate decision following the profile's failure policy, not a
+claim that an attack was detected. There are no automatic provider retries in
+standalone mode. `pyro doctor --local --semantic` checks key presence only.
+
+A configured gateway URL or `PYRO_API_KEY` preserves the existing server mode.
+Use `--local` to force standalone execution despite saved server settings, or
+`--remote` to explicitly use the gateway. `--semantic` and `--profile-file` select
+standalone execution; they cannot be combined with `--remote`.
 
 For development from a checkout:
 
@@ -25,9 +62,9 @@ pnpm --filter @delvisor/pyro pack --pack-destination artifacts
 # Install the generated tarball from artifacts/.
 ```
 
-## Start with your dashboard
+## Optional: connect to a shared server
 
-First download and import [local-secrets.yaml](https://delvisor.com/pyro/profiles/local-secrets.yaml) after signing in: `pyro profiles import --file ./local-secrets.yaml`. That preset checks credential shapes locally and needs no TypeSafe key. Semantic profiles require a key in Settings → Classifier provider and send inputs to that provider. A missing or unavailable classifier produces an indeterminate verdict and follows the configured fail mode; it does not mean an attack was detected.
+For dashboard/team features, start the optional [Docker setup](https://delvisor.com/pyro/docs#setup) or use an existing server. Then download and import [local-secrets.yaml](https://delvisor.com/pyro/profiles/local-secrets.yaml) after signing in: `pyro profiles import --file ./local-secrets.yaml`. That preset checks credential shapes locally and needs no TypeSafe key. Semantic profiles require a key in Settings → Classifier provider and send inputs to that provider. A missing or unavailable classifier produces an indeterminate verdict and follows the configured fail mode; it does not mean an attack was detected.
 
 
 ```sh
@@ -90,13 +127,14 @@ gateway trace headers.
 | Webhooks | `webhooks list`, `create`, `update`, `delete`, `test`, `rotate-secret`, `deliveries`, `retry` |
 | Provider settings | `settings provider get`, `settings provider update` |
 | Dashboard authentication | `auth login`, `auth status`, `auth logout` |
-| Application gateway | `classify`, `jobs create`, `jobs get`, `events`, `gateway profiles` |
+| Standalone | `classify`, `classify --semantic`, `classify --profile-file`, `doctor --local` |
+| Application gateway | `classify --remote`, `jobs create`, `jobs get`, `events`, `gateway profiles` |
 | Service diagnostics | `health`, `ready`, `metrics`, `control health`, `gateway info` |
 | CLI configuration / API contracts | `config show`, `config set`, `spec gateway`, `spec control` |
 
 Browser-only preferences such as theme remain dashboard preferences; they are not
 server settings. `playground` uses the same session and gateway key as the
-dashboard playground. `classify`, `jobs` and `events` use your application key and
+dashboard playground. Remote `classify`, `jobs` and `events` use your application key and
 respect its permissions.
 
 Every HTTP operation and WebSocket endpoint in both OpenAPI contracts has a

@@ -209,12 +209,18 @@ importers:
         specifier: ^8.18.3
         version: 8.21.3
     devDependencies:
+      '@pyro/classifiers':
+        specifier: workspace:*
+        version: link:../classifiers
       '@pyro/contracts':
         specifier: workspace:*
         version: link:../contracts
       '@types/ws':
         specifier: ^8.18.1
         version: 8.18.1
+      esbuild:
+        specifier: ^0.28.2
+        version: 0.28.2
       tsx:
         specifier: ^4.20.6
         version: 4.23.15
