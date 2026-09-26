@@ -1,6 +1,6 @@
 {
   "name": "pyro",
-  "version": "0.2.1",
+  "version": "0.3.0-beta.1",
   "private": true,
   "type": "module",
   "scripts": {
@@ -13,7 +13,8 @@
     "webhook:receiver": "node scripts/webhook-receiver.mjs",
     "test:webhook": "node scripts/test-webhook.mjs",
     "pyro": "node packages/cli/dist/bin.js",
-    "evaluate": "node scripts/evaluate.mjs"
+    "evaluate": "node scripts/evaluate.mjs",
+    "release:prepare": "node scripts/release-artifacts.mjs"
   },
   "devDependencies": {
     "concurrently": "^9.2.1",

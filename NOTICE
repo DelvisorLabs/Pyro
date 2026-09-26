@@ -1,0 +1,6 @@
+Pyro
+Copyright 2026 Pyro contributors
+
+First-party source is Apache-2.0. Source-distributed UI components retain
+their original licenses; see THIRD_PARTY_NOTICES.md. Dependency licenses
+are distributed with their packages.

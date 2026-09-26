@@ -26,6 +26,7 @@ WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=production-deps --chown=node:node /prod/gateway ./apps/gateway
 COPY --from=build --chown=node:node /app/profiles ./profiles
+COPY --from=build /app/LICENSE /app/NOTICE /app/THIRD_PARTY_NOTICES.md ./
 USER node
 EXPOSE 8080
 CMD ["node", "apps/gateway/dist/server.js"]
@@ -35,6 +36,7 @@ WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=production-deps --chown=node:node /prod/control-plane ./apps/control-plane
 COPY --from=build --chown=node:node /app/profiles ./profiles
+COPY --from=build /app/LICENSE /app/NOTICE /app/THIRD_PARTY_NOTICES.md ./
 USER node
 EXPOSE 8081
 CMD ["node", "apps/control-plane/dist/server.js"]
@@ -42,6 +44,7 @@ CMD ["node", "apps/control-plane/dist/server.js"]
 FROM nginx:1.31-alpine AS dashboard
 COPY apps/dashboard/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/apps/dashboard/dist /usr/share/nginx/html
+COPY --from=build /app/LICENSE /app/NOTICE /app/THIRD_PARTY_NOTICES.md /usr/share/nginx/html/
 RUN sed -i 's|^pid .*;|pid /tmp/nginx.pid;|' /etc/nginx/nginx.conf \
   && sed -i '/^user  nginx;/d' /etc/nginx/nginx.conf \
   && chown -R nginx:nginx /var/cache/nginx /usr/share/nginx/html /etc/nginx/conf.d
