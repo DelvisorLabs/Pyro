@@ -1,7 +1,7 @@
 {
   "name": "@delvisor/pyro",
-  "version": "0.1.0",
-  "description": "The Pyro command line: classify inputs and manage your firewall.",
+  "version": "0.2.0",
+  "description": "Classify inputs, inspect decisions, and manage a self-hosted Pyro server.",
   "type": "module",
   "license": "Apache-2.0",
   "bin": {
@@ -36,5 +36,14 @@
   "publishConfig": {
     "access": "public",
     "registry": "https://registry.npmjs.org/"
+  },
+  "homepage": "https://delvisor.com/pyro/docs",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/DelvisorLabs/Pyro.git",
+    "directory": "packages/cli"
+  },
+  "bugs": {
+    "url": "https://github.com/DelvisorLabs/Pyro/issues"
   }
 }

@@ -6,35 +6,36 @@ running Pyro server. The CLI does not start services.
 
 ## Install
 
-With Node.js 22.13 or newer and pnpm 11.10.0, run from the Pyro repository:
+The CLI is published on npm. With Node.js 22.13+ and pnpm:
 
 ```sh
-pnpm install --frozen-lockfile
-pnpm --filter @delvisor/pyro run build
-pnpm add --global ./packages/cli
+pnpm add --global @delvisor/pyro
 pyro --help
 ```
 
-For a standalone install, build an npm tarball and install it. It includes both API
-contracts and has no dependency on other Pyro packages or the source checkout:
+A running Pyro server is required. Follow the [Docker quickstart](https://delvisor.com/pyro/docs#setup) to start one without cloning the repository, or connect to an existing instance. The CLI does not host the gateway, dashboard or database.
+
+CLI 0.2.0 adds `pyro doctor` (server checks) and `pyro doctor --semantic` (also requires classifier configuration). No prompts or credentials are sent to a model during diagnostics. Missing semantic configuration does not prevent local-only profiles from working.
+
+For development from a checkout:
 
 ```sh
-mkdir -p artifacts
+pnpm install --frozen-lockfile
 pnpm --filter @delvisor/pyro pack --pack-destination artifacts
-pnpm add --global ./artifacts/delvisor-pyro-0.1.0.tgz
+# Install the generated tarball from artifacts/.
 ```
 
-The package is prepared as `@delvisor/pyro`; it has not been published to npm. A registry
-install with `pnpm add --global @delvisor/pyro` will be available after publication.
-
 ## Start with your dashboard
+
+First download and import [local-secrets.yaml](https://delvisor.com/pyro/profiles/local-secrets.yaml) after signing in: `pyro profiles import --file ./local-secrets.yaml`. That preset checks credential shapes locally and needs no TypeSafe key. Semantic profiles require a key in Settings → Classifier provider and send inputs to that provider. A missing or unavailable classifier produces an indeterminate verdict and follows the configured fail mode; it does not mean an attack was detected.
+
 
 ```sh
 pyro auth login                    # hidden administrator-password prompt
 pyro overview
 pyro profiles list
 pyro apps list
-pyro playground 'Summarize this document.'
+pyro playground 'Summarize this document.' --profile local-secrets
 pyro activity list --limit 20
 ```
 

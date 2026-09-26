@@ -132,7 +132,7 @@ export function buildFailureDecision(
     action: closed ? "block" : "allow",
     risk: closed ? 1 : 0,
     confidence: 0,
-    reason: `Classifier unavailable; applied fail-${input.profile.failMode} policy.`,
+    reason: `${error instanceof ClassifierConfigurationError ? error.message : "Classifier unavailable."} Applied fail-${input.profile.failMode} policy; this is not a detected attack.`,
     detectors: [],
     model: input.profile.model,
     provider: input.provider.mode,

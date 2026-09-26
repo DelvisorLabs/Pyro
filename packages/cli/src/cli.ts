@@ -5,6 +5,7 @@ import { configPath, normalizeUrl, readConfig, settings, writeConfig, type Globa
 import { jsonSource, parseValue, passwordPrompt, readStdin, source } from "./input.js";
 import { bodyProperties, endpoints, kebab, optionKey, specs, type Endpoint } from "./spec.js";
 import { CliError, credentials, request, stream } from "./transport.js";
+import { diagnose } from "./doctor.js";
 
 type Options = Record<string, string | boolean | undefined>;
 
@@ -134,15 +135,24 @@ async function runEndpoint(endpoint: Endpoint, command: Command, args: string[])
 export function createProgram(): Command {
   const { version } = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as { version: string };
   const program = new Command().name("pyro").version(version)
-    .description("Pyro — classify inputs, observe decisions, and configure your firewall.")
+    .description("Pyro — classify inputs and manage a running Pyro server.")
     .option("--gateway-url <url>", "gateway URL (PYRO_GATEWAY_URL; default http://localhost:8080)")
     .option("--control-url <url>", "dashboard API URL (PYRO_CONTROL_URL; default http://localhost:8081)")
     .option("--config <path>", "config file (PYRO_CONFIG or ~/.config/pyro/config.json)")
     .option("--timeout <ms>", "request/authentication timeout (PYRO_TIMEOUT_MS; default 130000)")
     .option("--json", "compact JSON output for scripts (streams always use NDJSON)")
     .showHelpAfterError()
-    .addHelpText("after", "\nGet started:\n  pyro auth login                 Sign in with your dashboard password\n  pyro profiles list              Manage the same profiles as the dashboard\n  pyro playground 'hello'         Classify using your dashboard session\n  PYRO_API_KEY=pf_… pyro classify 'hello'\n\nObserve: overview, usage, activity, playground\nConfigure: profiles, apps, keys, webhooks, settings\nUse `pyro <command> --help` for field flags and examples. No service is started automatically.");
+    .addHelpText("after", "\nGet started (a running server is required):\n  pyro doctor                     Check server connectivity and setup\n  pyro auth login                 Sign in with your dashboard password\n  pyro profiles list              Manage the same profiles as the dashboard\n  pyro playground 'hello' --profile local-secrets  After importing the local-only preset\n  PYRO_API_KEY=pf_… pyro classify 'hello'\n\nObserve: overview, usage, activity, playground\nConfigure: profiles, apps, keys, webhooks, settings\nUse `pyro <command> --help` for field flags and examples. No service is started automatically.");
   const groups = new Map<string, Command>([["", program]]);
+  program.command("doctor").description("Check server connectivity and semantic configuration without sending prompts")
+    .option("--semantic", "also require semantic classifier configuration")
+    .action(async (options: { semantic?: boolean }, command: Command) => {
+      const global = command.optsWithGlobals<GlobalOptions>();
+      const report = await diagnose(settings(global, await readConfig(configPath(global))));
+      await output(report, global);
+      if (!report.localRulesReady) process.exitCode = 4;
+      else if (options.semantic && !report.semantic.ok) process.exitCode = 1;
+    });
   const descriptions: Record<string, string> = {
     auth: "Dashboard authentication", profiles: "Profiles and the curated profile library",
     apps: "Applications and local rules", keys: "Application API keys", webhooks: "Webhooks and delivery history",

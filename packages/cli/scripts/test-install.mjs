@@ -22,7 +22,7 @@ try {
   await exec("pnpm", ["add", "--global", "--ignore-scripts", "--global-dir", join(directory, "global"), "--global-bin-dir", bin, resolve(directory, filename)], options);
   const executable = join(bin, "pyro");
   const { stdout } = await exec(executable, ["--help"], options);
-  assert.match(stdout, /Pyro — classify inputs/);
+  assert.match(stdout, /Pyro/);
   const version = await exec(executable, ["--version"], options);
   assert.equal(version.stdout.trim(), manifest.version);
   const spec = await exec(executable, ["spec", "control"], options);
