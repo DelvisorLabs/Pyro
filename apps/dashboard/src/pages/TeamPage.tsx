@@ -1,31 +1,131 @@
 import { useEffect, useState } from "react";
+import { KeyRound, Pencil, RefreshCw, Save, UserPlus } from "lucide-react";
 import type { UserRecord, AppRecord } from "@pyro/contracts";
 import { api } from "@/lib/api";
-import { PageHeader } from "@/components/shared";
+import { EmptyState, PageHeader } from "@/components/shared";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { FieldLabel } from "@/components/ui/field";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+
 const roles = ["admin", "operator", "reviewer", "viewer"] as const;
-export function TeamPage() {
-  const [users, setUsers] = useState<UserRecord[]>([]), [apps, setApps] = useState<AppRecord[]>([]);
-  const [draft, setDraft] = useState<Partial<UserRecord>>({ username: "", role: "viewer", appIds: [] });
-  const [message, setMessage] = useState(""); const [password, setPassword] = useState("");
-  const [oidc, setOidc] = useState(false); const [busy, setBusy] = useState(false);
-  const [audit, setAudit] = useState<Array<{ id: string; at: string; actorId: string; action: string; resource: string; status: number; revision?: number }>>([]);
-  const load = async () => { const [team, applications, log] = await Promise.all([api.get<{ users: UserRecord[]; oidcConfigured: boolean }>("/api/team"), api.get<{ apps: AppRecord[] }>("/api/apps"), api.get<{ entries: typeof audit }>("/api/audit")]); setUsers(team.users); setOidc(team.oidcConfigured); setApps(applications.apps); setAudit(log.entries); };
-  useEffect(() => { void load().catch((e) => setMessage(e.message)); }, []);
-  const run = async (work: () => Promise<unknown>) => { setBusy(true); setMessage(""); setPassword(""); try { await work(); await load(); } catch (e) { setMessage(e instanceof Error ? e.message : "Save failed."); } finally { setBusy(false); } };
-  return <div className="space-y-6"><PageHeader title="Team & audit" description="Grant access to specific applications. Global policies, provider settings, webhooks and team management require an administrator." />
-    {message && <p role="status" className="border border-line p-3">{message}</p>}
-    {password && <div role="status" className="space-y-2 border border-line p-4"><p>Copy this password now and share it securely. It will not be shown again.</p><code className="break-all">{password}</code><Button variant="outline" onClick={() => setPassword("")}>Dismiss</Button></div>}
-    <Card><CardContent className="space-y-4 p-5"><h2 className="font-semibold">{draft.id ? "Edit account" : "Create account"}</h2><label className="block">Username<Input value={draft.username ?? ""} disabled={Boolean(draft.id)} onChange={(e) => setDraft({ ...draft, username: e.target.value })} /></label><label className="flex items-center gap-3">Role<select className="border border-line bg-surface p-2" value={draft.role} onChange={(e) => setDraft({ ...draft, role: e.target.value as UserRecord["role"] })}>{roles.map((r) => <option key={r}>{r}</option>)}</select></label><p className="text-sm text-muted">Operators manage application keys, evaluations and reviews. Reviewers triage decisions. Viewers can inspect activity and aggregate usage. Only administrators change shared configuration.</p>
-      {draft.role !== "admin" && <fieldset className="space-y-2"><legend>Applications</legend>{apps.map((a) => <label key={a.id} className="mr-4 inline-flex gap-2"><input type="checkbox" checked={draft.appIds?.includes(a.id) ?? false} onChange={(e) => setDraft({ ...draft, appIds: e.target.checked ? [...draft.appIds ?? [], a.id] : draft.appIds?.filter((id) => id !== a.id) })} />{a.name}</label>)}</fieldset>}
-      <label className="flex gap-2"><input type="checkbox" checked={draft.rawPreviews ?? false} onChange={(e) => setDraft({ ...draft, rawPreviews: e.target.checked })} />Allow raw input previews and caller metadata</label>
-      {oidc && <label className="block">SSO subject (optional; exact identity provider subject)<Input disabled={Boolean(draft.id)} value={draft.oidcSubject ?? ""} onChange={(e) => setDraft({ ...draft, oidcSubject: e.target.value || undefined })} /></label>}
-      {draft.id && <label className="flex gap-2"><input type="checkbox" checked={draft.disabled ?? false} onChange={(e) => setDraft({ ...draft, disabled: e.target.checked })} />Disable account and revoke sessions</label>}
-      <div className="flex gap-3"><Button disabled={busy || !draft.username} onClick={() => void run(async () => { const result = draft.id ? await api.put<{ password?: string }>(`/api/team/${draft.id}`, draft) : await api.post<{ password?: string }>("/api/team", draft); setPassword(result.password ?? ""); setMessage("Account saved. Existing sessions were revoked for changes."); setDraft({ username: "", role: "viewer", appIds: [] }); })}>Save account</Button><Button variant="outline" onClick={() => { setDraft({ username: "", role: "viewer", appIds: [] }); setPassword(""); }}>New account</Button></div>
-    </CardContent></Card>
-    <Card><CardContent className="overflow-auto p-4"><table className="w-full text-left text-sm"><thead><tr><th>User</th><th>Role</th><th>Applications</th><th>Access</th><th>Sessions</th></tr></thead><tbody>{users.map((u) => <tr className="border-t border-line" key={u.id}><td className="py-3"><button className="underline" disabled={u.username === "admin"} onClick={() => setDraft(u)}>{u.username}</button></td><td>{u.role}</td><td>{u.role === "admin" ? "All" : u.appIds?.join(", ") || "None"}</td><td>{u.disabled ? "Disabled" : u.oidcSubject ? "SSO" : "Password"}</td><td><Button variant="outline" size="sm" disabled={busy} onClick={() => void run(() => api.delete(`/api/team/${u.id}/sessions`))}>Revoke sessions</Button></td></tr>)}</tbody></table></CardContent></Card>
-    <h2 className="font-semibold">Audit log (latest 1,000 entries)</h2><Card><CardContent className="max-h-96 overflow-auto p-4"><table className="w-full text-left text-xs"><thead><tr><th>Time</th><th>Actor</th><th>Action</th><th>Resource</th><th>Result</th></tr></thead><tbody>{audit.map((a) => <tr className="border-t border-line" key={a.id}><td className="py-2">{new Date(a.at).toLocaleString()}</td><td>{users.find((u) => u.id === a.actorId)?.username ?? a.actorId}</td><td>{a.action}</td><td>{a.resource}{a.revision ? ` → revision ${a.revision}` : ""}</td><td>{a.status}</td></tr>)}</tbody></table></CardContent></Card>
-  </div>;
+const roleDescriptions = {
+  admin: "Full access to all applications, raw previews, shared policies, provider settings, webhooks and team management.",
+  operator: "Manage API keys, run evaluations and resolve reviews for the selected applications.",
+  reviewer: "Inspect activity and resolve reviews for the selected applications.",
+  viewer: "Read activity, usage, evaluations and reviews for the selected applications.",
+};
+const newAccount = (): Partial<UserRecord> => ({ username: "", role: "viewer", appIds: [] });
+interface AuditEntry { id: string; at: string; actorId: string; action: string; resource: string; status: number; revision?: number }
+
+export function TeamPage({ currentUserId }: { currentUserId: string }) {
+  const [users, setUsers] = useState<UserRecord[]>([]);
+  const [apps, setApps] = useState<AppRecord[]>([]);
+  const [draft, setDraft] = useState<Partial<UserRecord>>(newAccount);
+  const [accountOpen, setAccountOpen] = useState(false);
+  const [message, setMessage] = useState("");
+  const [password, setPassword] = useState("");
+  const [oidc, setOidc] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [audit, setAudit] = useState<AuditEntry[]>([]);
+
+  const load = async () => {
+    const [team, applications, log] = await Promise.all([
+      api.get<{ users: UserRecord[]; oidcConfigured: boolean }>("/api/team"),
+      api.get<{ apps: AppRecord[] }>("/api/apps"),
+      api.get<{ entries: AuditEntry[] }>("/api/audit"),
+    ]);
+    setUsers(team.users); setOidc(team.oidcConfigured); setApps(applications.apps); setAudit(log.entries);
+  };
+  useEffect(() => { void load().catch((error) => setMessage(error.message)); }, []);
+  const run = async (work?: () => Promise<unknown>) => {
+    setBusy(true); setMessage("");
+    try { await work?.(); await load(); }
+    catch (error) { setMessage(error instanceof Error ? error.message : "Save failed."); }
+    finally { setBusy(false); }
+  };
+  const edit = (user?: UserRecord) => {
+    setDraft(user ? { ...user, appIds: [...user.appIds ?? []] } : newAccount());
+    setMessage(""); setAccountOpen(true);
+  };
+  const save = () => void run(async () => {
+    const result = draft.id
+      ? await api.put<{ password?: string }>(`/api/team/${draft.id}`, draft)
+      : await api.post<{ password?: string }>("/api/team", draft);
+    setPassword(result.password ?? "");
+    setMessage(draft.id ? "Account updated. Its existing sessions were revoked." : "Account created.");
+    setAccountOpen(false); setDraft(newAccount());
+  });
+
+  return (
+    <>
+      <PageHeader title="Team & audit" description="Manage access to your applications and inspect account and configuration changes." actions={
+        <div className="flex gap-2"><Button variant="outline" disabled={busy} onClick={() => void run()}><RefreshCw className="size-4" />Refresh</Button><Button disabled={busy} onClick={() => edit()}><UserPlus className="size-4" />New account</Button></div>
+      } />
+      <div className="space-y-5">
+        {message && !accountOpen && <div role="status" className="rounded-control border border-line-strong bg-surface-subtle px-4 py-3 text-[13px]">{message}</div>}
+        {password && <Card>
+          <CardHeader><CardTitle>Account password</CardTitle><CardDescription>Copy this password and share it securely. It will not be shown again after dismissal.</CardDescription></CardHeader>
+          <CardContent className="flex flex-wrap items-center justify-between gap-4"><code className="min-w-0 break-all rounded-control bg-surface-subtle px-3 py-2 text-sm">{password}</code><Button variant="outline" onClick={() => setPassword("")}>Dismiss password</Button></CardContent>
+        </Card>}
+        <Card className="min-w-0">
+          <CardHeader><div className="flex flex-wrap items-start justify-between gap-3"><div><CardTitle>Team members</CardTitle><CardDescription>Application access and sign-in methods for each account.</CardDescription></div><div className="flex flex-wrap gap-2"><Badge>{users.length} {users.length === 1 ? "account" : "accounts"}</Badge><Badge>{oidc ? "SSO configured" : "Password sign-in"}</Badge></div></div></CardHeader>
+          <CardContent className={users.length ? "p-0" : undefined}>
+            {users.length ? <Table>
+              <TableHeader><TableRow><TableHead>User</TableHead><TableHead>Role</TableHead><TableHead>Applications</TableHead><TableHead>Access</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
+              <TableBody>{users.map((user) => <TableRow key={user.id}>
+                <TableCell><div className="flex flex-wrap items-center gap-2"><span className="font-medium">{user.username}</span>{user.id === currentUserId && <Badge>You</Badge>}</div>{user.username === "admin" && <p className="mt-1 text-xs text-muted">Bootstrap administrator</p>}</TableCell>
+                <TableCell><Badge className="capitalize">{user.role ?? "viewer"}</Badge></TableCell>
+                <TableCell className="max-w-xs"><p className="text-secondary">{user.role === "admin" ? "All applications" : user.appIds?.map((id) => apps.find((app) => app.id === id)?.name ?? id).join(", ") || "No applications"}</p></TableCell>
+                <TableCell><Badge className={user.disabled ? "text-muted" : undefined}>{user.disabled ? "Disabled" : "Active"}</Badge><p className="mt-1 text-xs text-muted">{user.oidcSubject ? "Single sign-on" : "Password"}</p></TableCell>
+                <TableCell><div className="flex justify-end gap-2"><Button variant="ghost" size="sm" aria-label={`Edit ${user.username}`} disabled={busy || user.username === "admin" || user.id === currentUserId} onClick={() => edit(user)}><Pencil className="size-3.5" />Edit</Button><Button variant="outline" size="sm" aria-label={`Revoke sessions for ${user.username}`} disabled={busy} onClick={() => void run(async () => { await api.delete(`/api/team/${user.id}/sessions`); setMessage(`Sessions revoked for ${user.username}.`); })}><KeyRound className="size-3.5" />Revoke sessions</Button></div></TableCell>
+              </TableRow>)}</TableBody>
+            </Table> : <EmptyState title="No accounts to display">Create an account to give a teammate access to Pyro.</EmptyState>}
+          </CardContent>
+        </Card>
+        <Card className="min-w-0">
+          <CardHeader><div className="flex flex-wrap items-start justify-between gap-3"><div><CardTitle>Audit log</CardTitle><CardDescription>Latest 1,000 entries. Each change records a request intent and a separate outcome.</CardDescription></div><Badge>{audit.length} {audit.length === 1 ? "entry" : "entries"}</Badge></div></CardHeader>
+          <CardContent className={audit.length ? "max-h-[480px] overflow-auto p-0" : undefined}>
+            {audit.length ? <Table>
+              <TableHeader><TableRow><TableHead>Time</TableHead><TableHead>Actor</TableHead><TableHead>Action</TableHead><TableHead>Resource</TableHead><TableHead>Result</TableHead></TableRow></TableHeader>
+              <TableBody>{audit.map((entry) => <TableRow key={entry.id}>
+                <TableCell className="whitespace-nowrap text-muted">{new Date(entry.at).toLocaleString()}</TableCell>
+                <TableCell className="font-medium">{users.find((user) => user.id === entry.actorId)?.username ?? entry.actorId}</TableCell>
+                <TableCell><Badge className="font-mono">{entry.action}</Badge></TableCell>
+                <TableCell><code className="break-all text-xs">{entry.resource}</code>{entry.revision !== undefined && <p className="mt-1 text-xs text-muted">Revision {entry.revision}</p>}</TableCell>
+                <TableCell><Badge className={entry.status >= 400 ? "border-danger/30 bg-danger-surface text-danger" : "whitespace-nowrap"}>{entry.status === 0 ? "Request recorded" : `${entry.status < 400 ? "Success" : "Failed"} · ${entry.status}`}</Badge></TableCell>
+              </TableRow>)}</TableBody>
+            </Table> : <EmptyState title="No audit entries yet">Account and configuration changes will appear here with their actor and result.</EmptyState>}
+          </CardContent>
+        </Card>
+      </div>
+
+      <Dialog open={accountOpen} onOpenChange={(open) => { if (!busy) { setAccountOpen(open); setMessage(""); } }}>
+        <DialogContent className="flex max-w-2xl flex-col overflow-hidden">
+          <DialogHeader className="shrink-0"><DialogTitle>{draft.id ? "Edit account" : "Create account"}</DialogTitle><DialogDescription>{draft.id ? "Update application access and permissions. Saving revokes this account’s existing sessions." : "Choose a role and the applications this teammate can access."}</DialogDescription></DialogHeader>
+          <div className="min-h-0 space-y-5 overflow-y-auto px-6 py-5">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div><FieldLabel htmlFor="team-username">Username</FieldLabel><Input id="team-username" autoFocus value={draft.username ?? ""} disabled={busy || Boolean(draft.id)} maxLength={100} onChange={(event) => setDraft({ ...draft, username: event.target.value })} placeholder="alex" /></div>
+              <div><FieldLabel htmlFor="team-role">Role</FieldLabel><Select disabled={busy} value={draft.role ?? "viewer"} onValueChange={(role) => setDraft({ ...draft, role: role as UserRecord["role"] })}><SelectTrigger id="team-role"><SelectValue /></SelectTrigger><SelectContent>{roles.map((role) => <SelectItem key={role} value={role}><span className="capitalize">{role}</span></SelectItem>)}</SelectContent></Select></div>
+            </div>
+            <p className="rounded-control border border-line bg-surface-subtle px-3 py-3 text-xs leading-5 text-muted">{roleDescriptions[draft.role ?? "viewer"]}</p>
+            {draft.role !== "admin" && <>
+              <fieldset><legend className="text-[13px] font-medium text-secondary">Application access</legend><p className="mt-1 text-xs leading-5 text-muted">Select the applications this account can access. No selection grants access to none.</p><div className="mt-3 grid gap-2 sm:grid-cols-2">{apps.map((app) => <label key={app.id} className="flex cursor-pointer items-start gap-2.5 rounded-control border border-line px-3 py-2.5 text-[13px] text-secondary"><Checkbox className="mt-0.5" disabled={busy} checked={draft.appIds?.includes(app.id) ?? false} onCheckedChange={(checked) => setDraft({ ...draft, appIds: checked === true ? [...draft.appIds ?? [], app.id] : draft.appIds?.filter((id) => id !== app.id) })} /><span className="min-w-0 break-words">{app.name}</span></label>)}</div></fieldset>
+              <div className="flex items-start gap-2.5"><Checkbox id="team-previews" className="mt-0.5" disabled={busy} checked={draft.rawPreviews ?? false} onCheckedChange={(checked) => setDraft({ ...draft, rawPreviews: checked === true })} /><div><Label htmlFor="team-previews" className="cursor-pointer">Allow raw input previews and caller metadata</Label><p className="mt-1 text-xs leading-5 text-muted">Applies to the selected applications. Previews are available only when a policy stores them.</p></div></div>
+            </>}
+            {oidc && <div><FieldLabel htmlFor="team-subject">SSO subject <span className="font-normal text-muted">(optional)</span></FieldLabel><Input id="team-subject" disabled={busy || Boolean(draft.id)} value={draft.oidcSubject ?? ""} onChange={(event) => setDraft({ ...draft, oidcSubject: event.target.value || undefined })} placeholder="Exact subject from your identity provider" /><p className="mt-2 text-xs leading-5 text-muted">{draft.id ? "The sign-in identity cannot be changed after creation." : "Leave empty to generate a password. SSO accounts use the identity provider instead."}</p></div>}
+            {draft.id && <div className="flex items-start gap-2.5 border-t border-line pt-4"><Checkbox id="team-disabled" className="mt-0.5" disabled={busy} checked={draft.disabled ?? false} onCheckedChange={(checked) => setDraft({ ...draft, disabled: checked === true })} /><div><Label htmlFor="team-disabled" className="cursor-pointer">Disable account</Label><p className="mt-1 text-xs leading-5 text-muted">Prevents sign-in and revokes existing sessions when saved.</p></div></div>}
+            {message && <p role="alert" className="rounded-control border border-danger/30 bg-danger-surface px-3 py-2 text-[13px] text-danger">{message}</p>}
+          </div>
+          <DialogFooter className="shrink-0"><Button variant="outline" disabled={busy} onClick={() => setAccountOpen(false)}>Cancel</Button><Button disabled={busy || (draft.username?.trim().length ?? 0) < 2} onClick={save}><Save className="size-4" />{busy ? "Saving…" : draft.id ? "Save changes" : "Create account"}</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
 }

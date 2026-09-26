@@ -116,7 +116,7 @@ export default function App() {
     activity: <ActivityPage refreshKey={refreshKey} />,
     keys: <ApiKeysPage />,
     settings: <SettingsPage />,
-    team: <TeamPage />,
+    team: <TeamPage currentUserId={user.id} />,
     integrations: <IntegrationsPage />,
   }[visiblePages && !visiblePages.includes(page) ? "overview" : page];
 
