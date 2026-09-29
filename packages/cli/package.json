@@ -23,7 +23,7 @@
     "test:install": "pnpm run build && node scripts/test-install.mjs"
   },
   "dependencies": {
-    "commander": "^14.0.0",
+    "commander": "^15.0.0",
     "ws": "^8.18.3"
   },
   "devDependencies": {
