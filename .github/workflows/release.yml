@@ -39,7 +39,7 @@ jobs:
             echo "This release tag already exists. Use a new version."
             exit 1
           fi
-      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-qemu-action@v4
       - name: Build versioned images
         env:
           PUBLISH_IMAGES: ${{ inputs.publish_images }}
