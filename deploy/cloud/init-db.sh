@@ -1,0 +1,8 @@
+#!/bin/sh
+set -eu
+psql --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" --set=ON_ERROR_STOP=1 --set=runtime_password="$PYRO_RUNTIME_PASSWORD" <<'SQL'
+CREATE ROLE pyro_tenant NOLOGIN NOSUPERUSER NOBYPASSRLS;
+CREATE ROLE pyro_runtime LOGIN PASSWORD :'runtime_password' NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS;
+GRANT pyro_tenant TO pyro_runtime;
+REVOKE CREATE ON SCHEMA public FROM PUBLIC;
+SQL

@@ -1,3 +1,4 @@
+import { CloudLoginPage } from "./CloudLoginPage";
 import { useState, useEffect, type FormEvent } from "react";
 import type { UserRecord } from "@pyro/contracts";
 import { Loader2 } from "lucide-react";
@@ -10,8 +11,10 @@ import { PyroMark } from "@/components/PyroMark";
 
 export function LoginPage({ onLogin }: { onLogin: (user: UserRecord) => void }) {
   const [username, setUsername] = useState("admin");
+  const [checking, setChecking] = useState(true);
+  const [cloud, setCloud] = useState(false);
   const [oidc, setOidc] = useState(false);
-  useEffect(() => { void api.get<{ oidc: boolean }>("/api/auth/options").then((r) => setOidc(r.oidc)).catch(() => {}); }, []);
+  useEffect(() => { void api.get<{ oidc: boolean; cloud?: boolean }>("/api/auth/options").then((r) => { setOidc(r.oidc); setCloud(Boolean(r.cloud)); }).catch(() => {}).finally(() => setChecking(false)); }, []);
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>();
@@ -23,6 +26,8 @@ export function LoginPage({ onLogin }: { onLogin: (user: UserRecord) => void }) 
     } catch (reason) { setError(reason instanceof Error ? reason.message : "Sign in failed."); }
     finally { setLoading(false); }
   };
+  if (checking) return <main className="flex min-h-screen items-center justify-center text-sm text-muted" role="status">Loading sign-in…</main>;
+  if (cloud) return <CloudLoginPage onLogin={onLogin} />;
   return (
     <main className="subtle-grid flex min-h-screen items-center justify-center p-5">
       <Card className="w-full max-w-md">

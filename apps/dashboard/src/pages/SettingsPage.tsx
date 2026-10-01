@@ -1,3 +1,4 @@
+import { useCloud } from "@/lib/cloud";
 import { useEffect, useState, type ReactNode } from "react";
 import { Monitor, Moon, Sun } from "lucide-react";
 import type { ProviderSettings } from "@pyro/contracts";
@@ -67,12 +68,13 @@ function PreferenceRow({ id, title, description, children }: { id: string; title
 }
 
 export function SettingsPage() {
+  const cloud = useCloud();
   const [view, setView] = useState<"dashboard" | "provider">("dashboard");
   const { preferences, updatePreferences, resetPreferences } = useDashboardPreferences();
   return <>
     <PageHeader title="Settings" description="Personalize your dashboard and configure the classifier." />
     <ViewTabs label="Settings sections" value={view} onChange={setView} options={[{ value: "dashboard", label: "Dashboard" }, { value: "provider", label: "Classifier provider" }]} />
-    {view === "provider" ? <ProviderSettingsPanel /> : <div className="max-w-3xl space-y-5">
+    {view === "provider" ? cloud ? <Card><CardHeader><CardTitle>Managed classifier</CardTitle><CardDescription>Pyro Cloud manages the classifier connection and credentials. Semantic checks consume your organization’s prepaid credits.</CardDescription></CardHeader><CardContent><p className="text-sm text-muted">Configure detector questions, thresholds and local rules in Protection Profiles. Provider settings remain managed by the platform.</p></CardContent></Card> : <ProviderSettingsPanel /> : <div className="max-w-3xl space-y-5">
       <Card><CardHeader><CardTitle>Appearance</CardTitle><CardDescription>A quieter workspace, tuned to you.</CardDescription></CardHeader><CardContent>
         <PreferenceRow id="appearance-theme" title="Theme" description="Choose a theme or follow your system appearance.">
           <div id="appearance-theme" role="group" aria-label="Theme" className="grid grid-cols-3 gap-2">{([{ value: "light", label: "Light", icon: Sun }, { value: "dark", label: "Dark", icon: Moon }, { value: "system", label: "System", icon: Monitor }] as const).map(({ value, label, icon: Icon }) => <Button key={value} variant={preferences.theme === value ? "default" : "outline"} className="h-auto flex-col gap-1.5 px-2 py-3 text-xs" aria-label={`${label} theme`} aria-pressed={preferences.theme === value} onClick={() => updatePreferences({ theme: value })}><Icon className="size-4" />{label}</Button>)}</div>

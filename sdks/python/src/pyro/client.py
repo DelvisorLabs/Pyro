@@ -16,10 +16,11 @@ class PyroError(RuntimeError):
 
 
 class Pyro:
-    def __init__(self, api_key: str, base_url: str = "http://localhost:8080", timeout: float = 10.0):
+    def __init__(self, api_key: str, base_url: str | None = None, timeout: float = 10.0):
         if not api_key:
             raise ValueError("api_key is required")
         self.api_key = api_key
+        base_url = base_url or ("https://api.pyro.delvisor.com" if api_key.startswith("pyro_") else "http://localhost:8080")
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
 
@@ -42,8 +43,9 @@ class Pyro:
         metadata: dict[str, Any] | None = None,
         labels: dict[str, str] | None = None,
         request_id: str | None = None,
+        idempotency_key: str | None = None,
     ) -> dict[str, Any]:
-        return self._request("POST", "/v1/jobs", self._envelope(input, profile, metadata, labels), request_id)
+        return self._request("POST", "/v1/jobs", self._envelope(input, profile, metadata, labels), request_id, idempotency_key)
 
     def get_job(self, job_id: str) -> dict[str, Any]:
         return self._request("GET", f"/v1/jobs/{quote(job_id, safe='')}")
@@ -84,8 +86,11 @@ class Pyro:
         path: str,
         body: dict[str, Any] | None = None,
         request_id: str | None = None,
+        idempotency_key: str | None = None,
     ) -> Any:
         headers = {"Authorization": f"Bearer {self.api_key}", "Accept": "application/json"}
+        if idempotency_key:
+            headers["Idempotency-Key"] = idempotency_key
         if request_id:
             headers["X-Request-Id"] = request_id
         encoded = None

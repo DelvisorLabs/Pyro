@@ -134,3 +134,7 @@ Webhooks shows delivery history. Keep one gateway/control-plane replica for an
 initial pilot, then test shared PostgreSQL quotas and worker recovery before
 scaling. The bounded document queue and audit/history documents are deliberately
 suited to pilot volumes, not an unmeasured high-volume service.
+
+## Optional managed cloud deployment
+
+See [cloud deployment and migration](cloud.md) for the organization-aware service, restricted database roles, prepaid billing, encrypted backups, recovery and launch prerequisites. Existing self-hosted instructions above remain supported; do not run pre-migration binaries against the new organization schema.

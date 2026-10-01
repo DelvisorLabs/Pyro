@@ -151,3 +151,7 @@ export { MockClassifier } from "./mock.js";
 
 export { evaluatePolicy } from "./engine.js";
 export { evaluationReport, type EvaluationRow } from "./evaluation.js";
+
+export { PolicyExecutionDenied, type ProviderHooks } from "./engine.js";
+
+export { jevRequest } from "./jev.js";

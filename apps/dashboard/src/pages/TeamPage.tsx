@@ -1,3 +1,4 @@
+import { useCloud } from "@/lib/cloud";
 import { useEffect, useState } from "react";
 import { KeyRound, Pencil, RefreshCw, Save, UserPlus } from "lucide-react";
 import type { UserRecord, AppRecord } from "@pyro/contracts";
@@ -25,6 +26,8 @@ const newAccount = (): Partial<UserRecord> => ({ username: "", role: "viewer", a
 interface AuditEntry { id: string; at: string; actorId: string; action: string; resource: string; status: number; revision?: number }
 
 export function TeamPage({ currentUserId }: { currentUserId: string }) {
+  const cloud = useCloud();
+  const [invitations, setInvitations] = useState<Array<{ email: string; role: string; expiresAt: number }>>([]);
   const [users, setUsers] = useState<UserRecord[]>([]);
   const [apps, setApps] = useState<AppRecord[]>([]);
   const [draft, setDraft] = useState<Partial<UserRecord>>(newAccount);
@@ -37,11 +40,11 @@ export function TeamPage({ currentUserId }: { currentUserId: string }) {
 
   const load = async () => {
     const [team, applications, log] = await Promise.all([
-      api.get<{ users: UserRecord[]; oidcConfigured: boolean }>("/api/team"),
+      api.get<{ users: UserRecord[]; oidcConfigured: boolean; invitations?: typeof invitations }>("/api/team"),
       api.get<{ apps: AppRecord[] }>("/api/apps"),
       api.get<{ entries: AuditEntry[] }>("/api/audit"),
     ]);
-    setUsers(team.users); setOidc(team.oidcConfigured); setApps(applications.apps); setAudit(log.entries);
+    setInvitations(team.invitations ?? []); setUsers(team.users); setOidc(team.oidcConfigured); setApps(applications.apps); setAudit(log.entries);
   };
   useEffect(() => { void load().catch((error) => setMessage(error.message)); }, []);
   const run = async (work?: () => Promise<unknown>) => {
@@ -57,16 +60,16 @@ export function TeamPage({ currentUserId }: { currentUserId: string }) {
   const save = () => void run(async () => {
     const result = draft.id
       ? await api.put<{ password?: string }>(`/api/team/${draft.id}`, draft)
-      : await api.post<{ password?: string }>("/api/team", draft);
+      : await api.post<{ password?: string }>(cloud ? "/api/invitations" : "/api/team", cloud ? { ...draft, email: draft.username } : draft);
     setPassword(result.password ?? "");
-    setMessage(draft.id ? "Account updated. Its existing sessions were revoked." : "Account created.");
+    setMessage(draft.id ? cloud ? "Membership updated." : "Account updated. Its existing sessions were revoked." : cloud ? "Invitation sent." : "Account created.");
     setAccountOpen(false); setDraft(newAccount());
   });
 
   return (
     <>
       <PageHeader title="Team & audit" description="Manage access to your applications and inspect account and configuration changes." actions={
-        <div className="flex gap-2"><Button variant="outline" disabled={busy} onClick={() => void run()}><RefreshCw className="size-4" />Refresh</Button><Button disabled={busy} onClick={() => edit()}><UserPlus className="size-4" />New account</Button></div>
+        <div className="flex gap-2"><Button variant="outline" disabled={busy} onClick={() => void run()}><RefreshCw className="size-4" />Refresh</Button><Button disabled={busy} onClick={() => edit()}><UserPlus className="size-4" />{cloud ? "Invite member" : "New account"}</Button></div>
       } />
       <div className="space-y-5">
         {message && !accountOpen && <div role="status" className="rounded-control border border-line-strong bg-surface-subtle px-4 py-3 text-[13px]">{message}</div>}
@@ -80,15 +83,16 @@ export function TeamPage({ currentUserId }: { currentUserId: string }) {
             {users.length ? <Table>
               <TableHeader><TableRow><TableHead>User</TableHead><TableHead>Role</TableHead><TableHead>Applications</TableHead><TableHead>Access</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
               <TableBody>{users.map((user) => <TableRow key={user.id}>
-                <TableCell><div className="flex flex-wrap items-center gap-2"><span className="font-medium">{user.username}</span>{user.id === currentUserId && <Badge>You</Badge>}</div>{user.username === "admin" && <p className="mt-1 text-xs text-muted">Bootstrap administrator</p>}</TableCell>
-                <TableCell><Badge className="capitalize">{user.role ?? "viewer"}</Badge></TableCell>
+                <TableCell><div className="flex flex-wrap items-center gap-2"><span className="font-medium">{user.username}</span>{user.id === currentUserId && <Badge>You</Badge>}</div>{!cloud && user.username === "admin" && <p className="mt-1 text-xs text-muted">Bootstrap administrator</p>}</TableCell>
+                <TableCell><Badge className="capitalize">{user.organizationRole ?? user.role ?? "viewer"}</Badge></TableCell>
                 <TableCell className="max-w-xs"><p className="text-secondary">{user.role === "admin" ? "All applications" : user.appIds?.map((id) => apps.find((app) => app.id === id)?.name ?? id).join(", ") || "No applications"}</p></TableCell>
                 <TableCell><Badge className={user.disabled ? "text-muted" : undefined}>{user.disabled ? "Disabled" : "Active"}</Badge><p className="mt-1 text-xs text-muted">{user.oidcSubject ? "Single sign-on" : "Password"}</p></TableCell>
-                <TableCell><div className="flex justify-end gap-2"><Button variant="ghost" size="sm" aria-label={`Edit ${user.username}`} disabled={busy || user.username === "admin" || user.id === currentUserId} onClick={() => edit(user)}><Pencil className="size-3.5" />Edit</Button><Button variant="outline" size="sm" aria-label={`Revoke sessions for ${user.username}`} disabled={busy} onClick={() => void run(async () => { await api.delete(`/api/team/${user.id}/sessions`); setMessage(`Sessions revoked for ${user.username}.`); })}><KeyRound className="size-3.5" />Revoke sessions</Button></div></TableCell>
+                <TableCell><div className="flex justify-end gap-2"><Button variant="ghost" size="sm" aria-label={`Edit ${user.username}`} disabled={busy || user.organizationRole === "owner" || user.username === "admin" || user.id === currentUserId} onClick={() => edit(user)}><Pencil className="size-3.5" />Edit</Button><Button variant="outline" size="sm" aria-label={`${cloud ? "Disable access for" : "Revoke sessions for"} ${user.username}`} disabled={busy || cloud && (user.organizationRole === "owner" || user.id === currentUserId)} onClick={() => void run(async () => { await api.delete(`/api/team/${user.id}/sessions`); setMessage(cloud ? `Organization access disabled for ${user.username}.` : `Sessions revoked for ${user.username}.`); })}><KeyRound className="size-3.5" />{cloud ? "Disable access" : "Revoke sessions"}</Button></div></TableCell>
               </TableRow>)}</TableBody>
             </Table> : <EmptyState title="No accounts to display">Create an account to give a teammate access to Pyro.</EmptyState>}
           </CardContent>
         </Card>
+        {cloud && invitations.length > 0 && <Card><CardHeader><CardTitle>Pending invitations</CardTitle><CardDescription>Invitations expire after seven days.</CardDescription></CardHeader><CardContent className="p-0"><Table><TableHeader><TableRow><TableHead>Email</TableHead><TableHead>Role</TableHead><TableHead>Expires</TableHead><TableHead>Action</TableHead></TableRow></TableHeader><TableBody>{invitations.map((invitation) => <TableRow key={invitation.email}><TableCell>{invitation.email}</TableCell><TableCell>{invitation.role}</TableCell><TableCell>{new Date(invitation.expiresAt).toLocaleDateString()}</TableCell><TableCell><Button variant="outline" size="sm" disabled={busy} onClick={() => void run(() => api.delete("/api/invitations", { email: invitation.email }))}>Revoke invitation</Button></TableCell></TableRow>)}</TableBody></Table></CardContent></Card>}
         <Card className="min-w-0">
           <CardHeader><div className="flex flex-wrap items-start justify-between gap-3"><div><CardTitle>Audit log</CardTitle><CardDescription>Latest 1,000 entries. Each change records a request intent and a separate outcome.</CardDescription></div><Badge>{audit.length} {audit.length === 1 ? "entry" : "entries"}</Badge></div></CardHeader>
           <CardContent className={audit.length ? "max-h-[480px] overflow-auto p-0" : undefined}>
@@ -108,22 +112,22 @@ export function TeamPage({ currentUserId }: { currentUserId: string }) {
 
       <Dialog open={accountOpen} onOpenChange={(open) => { if (!busy) { setAccountOpen(open); setMessage(""); } }}>
         <DialogContent className="flex max-w-2xl flex-col overflow-hidden">
-          <DialogHeader className="shrink-0"><DialogTitle>{draft.id ? "Edit account" : "Create account"}</DialogTitle><DialogDescription>{draft.id ? "Update application access and permissions. Saving revokes this account’s existing sessions." : "Choose a role and the applications this teammate can access."}</DialogDescription></DialogHeader>
+          <DialogHeader className="shrink-0"><DialogTitle>{draft.id ? cloud ? "Edit membership" : "Edit account" : cloud ? "Invite member" : "Create account"}</DialogTitle><DialogDescription>{draft.id ? cloud ? "Update access to this organization. Changes take effect on the next request." : "Update application access and permissions. Saving revokes this account’s existing sessions." : "Choose a role and the applications this teammate can access."}</DialogDescription></DialogHeader>
           <div className="min-h-0 space-y-5 overflow-y-auto px-6 py-5">
             <div className="grid gap-4 sm:grid-cols-2">
-              <div><FieldLabel htmlFor="team-username">Username</FieldLabel><Input id="team-username" autoFocus value={draft.username ?? ""} disabled={busy || Boolean(draft.id)} maxLength={100} onChange={(event) => setDraft({ ...draft, username: event.target.value })} placeholder="alex" /></div>
+              <div><FieldLabel htmlFor="team-username">{cloud && !draft.id ? "Email" : "Username"}</FieldLabel><Input id="team-username" autoFocus value={draft.username ?? ""} disabled={busy || Boolean(draft.id)} maxLength={100} onChange={(event) => setDraft({ ...draft, username: event.target.value })} placeholder={cloud ? "alex@example.com" : "alex"} /></div>
               <div><FieldLabel htmlFor="team-role">Role</FieldLabel><Select disabled={busy} value={draft.role ?? "viewer"} onValueChange={(role) => setDraft({ ...draft, role: role as UserRecord["role"] })}><SelectTrigger id="team-role"><SelectValue /></SelectTrigger><SelectContent>{roles.map((role) => <SelectItem key={role} value={role}><span className="capitalize">{role}</span></SelectItem>)}</SelectContent></Select></div>
             </div>
-            <p className="rounded-control border border-line bg-surface-subtle px-3 py-3 text-xs leading-5 text-muted">{roleDescriptions[draft.role ?? "viewer"]}</p>
+            <p className="rounded-control border border-line bg-surface-subtle px-3 py-3 text-xs leading-5 text-muted">{cloud && draft.role === "admin" ? "Full access to this organization’s applications, policies, webhooks and team. Ownership and payments stay with the owner." : roleDescriptions[draft.role ?? "viewer"]}</p>
             {draft.role !== "admin" && <>
               <fieldset><legend className="text-[13px] font-medium text-secondary">Application access</legend><p className="mt-1 text-xs leading-5 text-muted">Select the applications this account can access. No selection grants access to none.</p><div className="mt-3 grid gap-2 sm:grid-cols-2">{apps.map((app) => <label key={app.id} className="flex cursor-pointer items-start gap-2.5 rounded-control border border-line px-3 py-2.5 text-[13px] text-secondary"><Checkbox className="mt-0.5" disabled={busy} checked={draft.appIds?.includes(app.id) ?? false} onCheckedChange={(checked) => setDraft({ ...draft, appIds: checked === true ? [...draft.appIds ?? [], app.id] : draft.appIds?.filter((id) => id !== app.id) })} /><span className="min-w-0 break-words">{app.name}</span></label>)}</div></fieldset>
               <div className="flex items-start gap-2.5"><Checkbox id="team-previews" className="mt-0.5" disabled={busy} checked={draft.rawPreviews ?? false} onCheckedChange={(checked) => setDraft({ ...draft, rawPreviews: checked === true })} /><div><Label htmlFor="team-previews" className="cursor-pointer">Allow raw input previews and caller metadata</Label><p className="mt-1 text-xs leading-5 text-muted">Applies to the selected applications. Previews are available only when a policy stores them.</p></div></div>
             </>}
             {oidc && <div><FieldLabel htmlFor="team-subject">SSO subject <span className="font-normal text-muted">(optional)</span></FieldLabel><Input id="team-subject" disabled={busy || Boolean(draft.id)} value={draft.oidcSubject ?? ""} onChange={(event) => setDraft({ ...draft, oidcSubject: event.target.value || undefined })} placeholder="Exact subject from your identity provider" /><p className="mt-2 text-xs leading-5 text-muted">{draft.id ? "The sign-in identity cannot be changed after creation." : "Leave empty to generate a password. SSO accounts use the identity provider instead."}</p></div>}
-            {draft.id && <div className="flex items-start gap-2.5 border-t border-line pt-4"><Checkbox id="team-disabled" className="mt-0.5" disabled={busy} checked={draft.disabled ?? false} onCheckedChange={(checked) => setDraft({ ...draft, disabled: checked === true })} /><div><Label htmlFor="team-disabled" className="cursor-pointer">Disable account</Label><p className="mt-1 text-xs leading-5 text-muted">Prevents sign-in and revokes existing sessions when saved.</p></div></div>}
+            {draft.id && <div className="flex items-start gap-2.5 border-t border-line pt-4"><Checkbox id="team-disabled" className="mt-0.5" disabled={busy} checked={draft.disabled ?? false} onCheckedChange={(checked) => setDraft({ ...draft, disabled: checked === true })} /><div><Label htmlFor="team-disabled" className="cursor-pointer">{cloud ? "Disable organization access" : "Disable account"}</Label><p className="mt-1 text-xs leading-5 text-muted">{cloud ? "Removes access to this organization. Other memberships are unaffected." : "Prevents sign-in and revokes existing sessions when saved."}</p></div></div>}
             {message && <p role="alert" className="rounded-control border border-danger/30 bg-danger-surface px-3 py-2 text-[13px] text-danger">{message}</p>}
           </div>
-          <DialogFooter className="shrink-0"><Button variant="outline" disabled={busy} onClick={() => setAccountOpen(false)}>Cancel</Button><Button disabled={busy || (draft.username?.trim().length ?? 0) < 2} onClick={save}><Save className="size-4" />{busy ? "Saving…" : draft.id ? "Save changes" : "Create account"}</Button></DialogFooter>
+          <DialogFooter className="shrink-0"><Button variant="outline" disabled={busy} onClick={() => setAccountOpen(false)}>Cancel</Button><Button disabled={busy || (draft.username?.trim().length ?? 0) < 2} onClick={save}><Save className="size-4" />{busy ? "Saving…" : draft.id ? "Save changes" : cloud ? "Send invitation" : "Create account"}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </>

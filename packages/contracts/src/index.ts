@@ -224,6 +224,10 @@ export interface ApiKeyRecord {
 }
 
 export interface UserRecord {
+  cloud?: boolean;
+  cloudModel?: string;
+  organizationId?: string;
+  organizationRole?: "owner" | "admin" | "operator" | "reviewer" | "viewer";
   id: string;
   username: string;
   role?: "admin" | "operator" | "reviewer" | "viewer";

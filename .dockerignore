@@ -4,6 +4,7 @@ node_modules
 .git
 .env*
 !.env.example
+!.env.cloud.example
 data
 npm-debug.log
 coverage

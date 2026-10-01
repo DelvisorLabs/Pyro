@@ -19,6 +19,46 @@ importers:
         specifier: ^7.0.2
         version: 7.0.2
 
+  apps/cloud:
+    dependencies:
+      '@fastify/cookie':
+        specifier: ^11.0.2
+        version: 11.1.2
+      '@fastify/websocket':
+        specifier: ^11.2.0
+        version: 11.3.1
+      '@pyro/classifiers':
+        specifier: workspace:*
+        version: link:../../packages/classifiers
+      '@pyro/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@pyro/control-plane':
+        specifier: workspace:*
+        version: link:../control-plane
+      '@pyro/gateway':
+        specifier: workspace:*
+        version: link:../gateway
+      '@pyro/storage':
+        specifier: workspace:*
+        version: link:../../packages/storage
+      fastify:
+        specifier: ^5.6.1
+        version: 5.12.5
+      ws:
+        specifier: ^8.18.3
+        version: 8.21.3
+      zod:
+        specifier: ^4.6.5
+        version: 4.6.5
+    devDependencies:
+      '@types/ws':
+        specifier: ^8.18.1
+        version: 8.18.1
+      tsx:
+        specifier: ^4.20.6
+        version: 4.23.15
+
   apps/control-plane:
     dependencies:
       '@fastify/cookie':

@@ -1,3 +1,4 @@
+import { useCloud, useCloudModel } from "@/lib/cloud";
 import { useEffect, useMemo, useState } from "react";
 import { ChevronDown, Download, Plus, Settings2, Trash2 } from "lucide-react";
 import { LocalRulesSchema, type Profile } from "@pyro/contracts";
@@ -18,7 +19,7 @@ import { FieldLabel, FieldError } from "@/components/ui/field";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { api } from "@/lib/api";
+import { api, controlDownloadUrl } from "@/lib/api";
 import { percent } from "@/lib/format";
 import { readProfiles } from "@/lib/responses";
 import { editProfile, editorDetector, profilePayload, type EditorProfile } from "@/lib/profile-editor";
@@ -117,6 +118,7 @@ function validateProfile(profile: Profile | undefined, profiles: Profile[], serv
 }
 
 export function ProfilesPage() {
+  const cloud = useCloud(), cloudModel = useCloudModel();
   const [view, setView] = useState<"profiles" | "library">("profiles");
   const [presets, setPresets] = useState<ProfilePreset[]>([]);
   const [presetLoading, setPresetLoading] = useState(true);
@@ -141,14 +143,14 @@ export function ProfilesPage() {
   const formIsValid = Object.keys(validation).length === 0;
 
   const beginEditing = (profile: Profile) => {
-    setEditing(cloneProfile(profile));
+    setEditing({ ...cloneProfile(profile), ...(cloud ? { model: cloudModel } : {}) });
     setIsNew(false);
     setError(undefined);
     setExpandedDetector(null);
   };
 
   const createProfile = () => {
-    setEditing(createProfileDraft());
+    setEditing({ ...createProfileDraft(), ...(cloud ? { model: cloudModel } : {}) });
     setIsNew(true);
     setError(undefined);
     setExpandedDetector(null);
@@ -199,7 +201,7 @@ export function ProfilesPage() {
         {profiles.map((profile) => <Card key={profile.id}>
           <CardHeader className="flex flex-row items-start justify-between gap-4">
             <div><div className="flex items-center gap-2"><CardTitle>{profile.name}</CardTitle>{profile.id === "default" && <span className="border-l border-line-strong pl-2 text-xs font-medium text-muted">Default</span>}</div><CardDescription>{profile.description || "No description"}</CardDescription></div>
-            <div className="flex gap-1"><a className="inline-flex size-9 items-center justify-center" href={`/control/api/profiles/${profile.id}/export`} aria-label={`Export ${profile.name}`}><Download className="size-4" /></a><Button variant="ghost" size="icon" aria-label={`Edit ${profile.name}`} onClick={() => beginEditing(profile)}><Settings2 className="size-4" /></Button>{profile.id !== "default" && <Button variant="ghost" size="icon" aria-label={`Delete ${profile.name}`} onClick={() => void remove(profile.id)}><Trash2 className="size-4" /></Button>}</div>
+            <div className="flex gap-1"><a className="inline-flex size-9 items-center justify-center" href={controlDownloadUrl(`/api/profiles/${profile.id}/export`)} aria-label={`Export ${profile.name}`}><Download className="size-4" /></a><Button variant="ghost" size="icon" aria-label={`Edit ${profile.name}`} onClick={() => beginEditing(profile)}><Settings2 className="size-4" /></Button>{profile.id !== "default" && <Button variant="ghost" size="icon" aria-label={`Delete ${profile.name}`} onClick={() => void remove(profile.id)}><Trash2 className="size-4" /></Button>}</div>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-3 gap-3 border-b border-line pb-4"><div><span className="field-caption text-muted">Review</span><strong className="mt-1 block text-lg">{percent(profile.reviewThreshold, 0)}</strong></div><div><span className="field-caption text-muted">Block</span><strong className="mt-1 block text-lg">{percent(profile.blockThreshold, 0)}</strong></div><div><span className="field-caption text-muted">Detectors</span><strong className="mt-1 block text-lg">{profile.detectors.filter((item) => item.enabled).length}</strong></div></div>
@@ -235,7 +237,7 @@ export function ProfilesPage() {
               <FieldError id="profile-name-error" message={validation.name} />
             </div>
             <div className="space-y-2"><FieldLabel htmlFor="profile-description" invalid={Boolean(validation.description)}>Description</FieldLabel><Input id="profile-description" value={editing.description} aria-invalid={Boolean(validation.description)} className={validation.description ? invalidControl : undefined} onChange={(event) => setEditing({ ...editing, description: event.target.value })} /><FieldError message={validation.description} /></div>
-            <div className="space-y-2"><FieldLabel htmlFor="profile-model" required invalid={Boolean(validation.model)}>Model</FieldLabel><Input id="profile-model" value={editing.model} aria-invalid={Boolean(validation.model)} className={validation.model ? invalidControl : undefined} onChange={(event) => setEditing({ ...editing, model: event.target.value })} /><FieldError message={validation.model} /></div>
+            <div className="space-y-2"><FieldLabel htmlFor="profile-model" required invalid={Boolean(validation.model)}>Model</FieldLabel><Input id="profile-model" disabled={cloud} value={editing.model} aria-invalid={Boolean(validation.model)} className={validation.model ? invalidControl : undefined} onChange={(event) => setEditing({ ...editing, model: event.target.value })} /><FieldError message={validation.model} />{cloud && <p className="text-xs text-muted">The classifier model is managed by Pyro Cloud.</p>}</div>
 
             <div className="grid gap-4 border-y border-line bg-surface-subtle/60 py-4 sm:grid-cols-[150px_150px_1fr]">
               <div className="flex flex-col items-center"><FieldLabel required invalid={Boolean(validation.reviewThreshold)} className="mb-1">Review threshold</FieldLabel><CometDial className={validation.reviewThreshold ? "ring-1 ring-danger" : ""} value={Math.round(editing.reviewThreshold * 100)} size={132} label="Review threshold" onChange={(value) => setEditing({ ...editing, reviewThreshold: value / 100 })} /><FieldError message={validation.reviewThreshold} /></div>

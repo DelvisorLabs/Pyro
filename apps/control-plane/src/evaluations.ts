@@ -104,7 +104,8 @@ export function registerEvaluations(app: FastifyInstance, database: Database, co
       if (Date.parse(run.expiresAt) <= Date.now() || Date.parse(job.expiresAt) <= Date.now()) throw new Error("Evaluation deadline or dataset retention expired. Resume with a retained dataset.");
       if (run.rows.some((r) => r.caseId === sample.id && r.profileId === profile.id && r.revision === profile.revision)) continue;
       if (JSON.stringify(sample.input).length > profile.maxInputChars) throw new Error(`Case ${sample.id} exceeds policy input limit.`);
-      const result = await evaluatePolicy({ id: randomUUID(), envelope: { input: sample.input }, profile, traceId: runId, firewallApp: run.app, provider: run.provider, apiKey: async () => run!.credential ? decryptText(run!.credential, config.controlPlaneSecret) : undefined });
+      await config.authorizeEvaluation?.(run.actorId, run.appId);
+      const result = await evaluatePolicy({ id: digest({ runId, caseId: sample.id, profileId: profile.id, revision: profile.revision }), envelope: { input: sample.input }, profile, providerHooks: config.providerHooks, traceId: runId, firewallApp: run.app, provider: run.provider, apiKey: async () => run!.credential ? decryptText(run!.credential, config.controlPlaneSecret) : undefined });
       delete result.decision.metadata;
       result.decision.policyRevision = profile.revision; result.decision.policyHash = profile.contentHash ?? policyHash(profile);
       const row: EvaluationRow = { caseId: sample.id, category: sample.category, expected: sample.expected, profileId: profile.id, revision: profile.revision!, inputHash: digest(sample.input), decision: result.decision };

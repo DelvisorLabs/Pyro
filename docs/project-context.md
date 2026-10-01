@@ -1,6 +1,6 @@
 # Pyro project context
 
-Updated October 1, 2026. This is the shared brief for future Pyro conversations and work. It records the founder's direction, separates proposals from decisions, and provides a dated implementation baseline. Read it alongside `AGENTS.md`; the current task determines what work is authorized. Update it when product decisions change.
+Updated October 2, 2026. This is the shared brief for future Pyro conversations and work. It records the founder's direction, separates proposals from decisions, and provides a dated implementation baseline. Read it alongside `AGENTS.md`; the current task determines what work is authorized. Update it when product decisions change.
 
 ## Product direction
 
@@ -58,13 +58,19 @@ The beta also includes policy revisions and publishing, application pins/canarie
 
 Existing benchmarks describe particular datasets and configurations; they are not proof of universal attack prevention. Confidence and risk scores must not be presented as calibrated correctness without evidence. An allow/review/block response requires the integrating application to enforce the corresponding action. Do not imply output inspection, tool authorization, independent security validation, production SLOs, or complete multi-tenant enterprise support merely from the policy-suite positioning.
 
+## Cloud implementation (October 2, 2026)
+
+The founder authorized implementing an optional managed cloud version with organizations and API-key SDK access, while preserving self-hosting and the offline CLI. The investment envelope is ₹1 lakh for at least six months including later marketing. The local implementation now includes accounts/recovery/invitations, organization memberships/roles, PostgreSQL RLS, scoped runtime instances, prepaid credits and provider budget admission, optional signed payment capture, organization export/deletion and a single-VM deployment/backup runbook. See [cloud architecture and operations](cloud.md).
+
+This is a capped beta architecture using the existing document stores; it is not a deployed service, proven business, independently security-audited product or enterprise scale/availability guarantee. Public DNS, provider/email/payment accounts, operational alerting/backups, public terms/pricing and real integration smoke tests remain operator launch prerequisites. No publish or deployment was authorized by this implementation task.
+
 ## Commercial plan and constraints
 
 The founder has a full-time job. Pyro is a serious side project, with roughly a month of polishing envisioned before outreach and attempts at sales, followed by several months of continued work. That is a reasonable pilot horizon, not a commitment to enterprise completeness or a prediction of revenue.
 
 The advice discussed was to focus that month on a reliable install, one compelling policy-design/testing workflow, a real integration example, useful traces and regression cases, and documentation that lets outsiders try it. Early conversations during development were recommended; the founder has not committed to a specific outreach schedule.
 
-An initial audience of teams building customer-facing AI/support assistants was suggested, but the first buyer and use case remain undecided. Scoped paid pilots, deployment help, and support are possible revenue models. Pricing, support commitments, managed hosting, customer targets, and traction have not been established. Suggested validation milestones—external evaluations, a recurring real integration, and a paid pilot—are goals, not achieved results.
+An initial audience of teams building customer-facing AI/support assistants was suggested, but the first buyer and use case remain undecided. Scoped paid pilots, deployment help, and support are possible revenue models. Managed hosting now has a local implementation and launch runbook; final pricing, support commitments, customer targets and traction have not been established. Suggested validation milestones—external evaluations, a recurring real integration, and a paid pilot—are goals, not achieved results.
 
 ## Competitive context
 

@@ -1,5 +1,14 @@
 export interface ControlPlaneConfig {
   oidc?: { issuer: string; clientId: string; clientSecret: string; redirectUri: string };
+  organizationId?: string;
+  resolveUser?: (request: import("fastify").FastifyRequest) => Promise<import("@pyro/contracts").UserRecord | undefined>;
+  authorizeEvaluation?: (userId: string, appId: string) => Promise<void>;
+  validateProfile?: (profile: import("@pyro/contracts").Profile) => void;
+  documentLimits?: Record<string, { count: number; bytes: number }>;
+  listUsers?: () => Promise<import("@pyro/contracts").UserRecord[]>;
+  providerHooks?: import("@pyro/classifiers").ProviderHooks;
+  gatewayHealth?: () => Promise<unknown>;
+  classify?: (body: unknown) => Promise<{ status: number; body: unknown }>;
   host: string;
   port: number;
   databaseUrl: string;

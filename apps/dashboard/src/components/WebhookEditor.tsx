@@ -1,3 +1,4 @@
+import { useCloud } from "@/lib/cloud";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import type { ResourceChoice } from "@/lib/resource-scope";
@@ -20,6 +21,7 @@ interface WebhookEditorProps {
 }
 
 export function WebhookEditor({ initialDraft, busy, error, onSave, onCancel }: WebhookEditorProps) {
+  const cloud = useCloud();
   const [draft, setDraft] = useState(initialDraft);
   const [apps, setApps] = useState<ResourceChoice[]>([]);
   const [profiles, setProfiles] = useState<ResourceChoice[]>([]);
@@ -99,9 +101,9 @@ export function WebhookEditor({ initialDraft, busy, error, onSave, onCancel }: W
         <div className="flex items-center justify-between gap-4 border-t border-line pt-3">
           <div>
             <FieldLabel htmlFor="webhook-private-network" help="Allows delivery to private or local addresses and permits unencrypted HTTP. Enable only for a receiver you trust, such as a local development server. Otherwise, Pyro requires a public HTTPS endpoint.">Allow private network / HTTP</FieldLabel>
-            <p className="text-xs text-muted">For local development or internal receivers.</p>
+            <p className="text-xs text-muted">{cloud ? "Cloud webhooks require a public HTTPS receiver." : "For local development or internal receivers."}</p>
           </div>
-          <Switch id="webhook-private-network" checked={draft.allowPrivateNetwork} onCheckedChange={(allowPrivateNetwork) => setDraft({ ...draft, allowPrivateNetwork })} />
+          <Switch id="webhook-private-network" disabled={cloud} checked={!cloud && draft.allowPrivateNetwork} onCheckedChange={(allowPrivateNetwork) => setDraft({ ...draft, allowPrivateNetwork })} />
         </div>
         {error && <p role="alert" className="text-sm text-danger">{error}</p>}
       </fieldset>

@@ -26,7 +26,7 @@ export function exportProfileYaml(profile: Profile): string {
 }
 
 export async function loadPresetProfiles(): Promise<Array<{ profile: Profile; yaml: string }>> {
-  const directory = fileURLToPath(new URL("../../../profiles/", import.meta.url));
+  const directory = process.env.PYRO_PROFILES_DIRECTORY ?? fileURLToPath(new URL("../../../profiles/", import.meta.url));
   const names = (await readdir(directory)).filter((name) => /\.ya?ml$/.test(name)).sort();
   const presets = await Promise.all(names.map(async (name) => {
     const yaml = await readFile(`${directory}/${name}`, "utf8");

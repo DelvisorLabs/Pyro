@@ -12,6 +12,7 @@ export interface ClassifyOptions {
   metadata?: Record<string, unknown>;
   labels?: Record<string, string>;
   requestId?: string;
+  idempotencyKey?: string;
   signal?: AbortSignal;
 }
 
@@ -47,7 +48,7 @@ export class PyroClient {
 
   constructor(private readonly options: PyroClientOptions) {
     if (!options.apiKey) throw new Error("apiKey is required");
-    this.baseUrl = (options.baseUrl ?? "http://localhost:8080").replace(/\/$/, "");
+    this.baseUrl = (options.baseUrl ?? (options.apiKey.startsWith("pyro_") ? "https://api.pyro.delvisor.com" : "http://localhost:8080")).replace(/\/$/, "");
     this.timeoutMs = options.timeoutMs ?? 10_000;
     if (!Number.isFinite(this.timeoutMs) || this.timeoutMs <= 0) throw new Error("timeoutMs must be positive.");
     const url = new URL(this.baseUrl);
@@ -68,7 +69,7 @@ export class PyroClient {
     return this.request("/v1/jobs", {
       method: "POST",
       body: JSON.stringify(this.envelope(input, options)),
-      headers: options.requestId ? { "X-Request-Id": options.requestId } : undefined,
+      headers: { ...(options.requestId ? { "X-Request-Id": options.requestId } : {}), ...(options.idempotencyKey ? { "Idempotency-Key": options.idempotencyKey } : {}) },
       signal: options.signal,
     });
   }

@@ -50,6 +50,8 @@ function usageWindow(value: string | undefined): { name: "24h" | "7d" | "30d"; b
 }
 
 export async function buildControlPlane(config: ControlPlaneConfig): Promise<FastifyInstance> {
+  // Resolve packaged assets before opening databases or starting background workers.
+  const presets = await loadPresetProfiles();
   const app = Fastify({
     logger: { level: process.env.LOG_LEVEL ?? "info" },
     logController: new LogController({ disableRequestLogging: true }),
@@ -59,12 +61,30 @@ export async function buildControlPlane(config: ControlPlaneConfig): Promise<Fas
   await app.register(cookie);
   await app.register(websocket);
 
-  const database = await openDatabase(config.databaseUrl);
+  const storedDatabase = await openDatabase(config.databaseUrl, config.organizationId);
+  const database = config.listUsers || config.documentLimits ? new Proxy(storedDatabase, { get(target, property) {
+    if (property === "document") return (key: string, fallback: () => unknown) => {
+      if (key === "users" && config.listUsers) return { read: config.listUsers, update: async () => { throw new Error("Use organization memberships."); }, write: async () => { throw new Error("Use organization memberships."); } };
+      const document = target.document(key, fallback), limit = config.documentLimits?.[key];
+      if (key === "audit_log" && config.organizationId) return { read: () => document.read(), update: (updater: (rows: unknown[]) => unknown[] | Promise<unknown[]>) => document.update(async (current) => (await updater(current as unknown[])).slice(-10000)), write: (rows: unknown[]) => document.write(rows.slice(-10000)) };
+      if (!limit) return document;
+      const update = (updater: (current: unknown) => unknown | Promise<unknown>) => document.update(async (current) => {
+        const previousCount = Array.isArray(current) ? current.length : 0, previousBytes = Buffer.byteLength(JSON.stringify(current));
+        const next = await updater(current);
+        if ((Array.isArray(next) && next.length > limit.count && next.length > previousCount) || Buffer.byteLength(JSON.stringify(next)) > limit.bytes && Buffer.byteLength(JSON.stringify(next)) > previousBytes) {
+          const error = new Error("Organization resource limit reached. Remove unused records or contact support."); Object.assign(error, { statusCode: 409 }); throw error;
+        }
+        return next;
+      });
+      return { read: () => document.read(), update, write: async (value: unknown) => { await update(() => value); } };
+    };
+    const value = Reflect.get(target, property); return typeof value === "function" ? value.bind(target) : value;
+  } }) : storedDatabase;
   const usersStore = database.document<UserRecord[]>("users", () => []);
   const sessionsStore = database.document<SessionRecord[]>("sessions", () => []);
   const keysStore = database.document<ApiKeyRecord[]>("api_keys", () => []);
   const appsStore = database.document<AppRecord[]>("apps", () => [createDefaultApp()]);
-  const profilesStore = new PolicyStore(database.document<PolicyRecord[]>("profiles", () => [createDefaultProfile()]));
+  const profilesStore = new PolicyStore(database.document<PolicyRecord[]>("profiles", () => [{ ...createDefaultProfile(), model: config.typesafeModel }]), config.validateProfile);
   await profilesStore.initialize();
   const settingsStore = database.document<ProviderSettings>("provider_settings", () => ({
     ...createDefaultProviderSettings(),
@@ -74,7 +94,7 @@ export async function buildControlPlane(config: ControlPlaneConfig): Promise<Fas
   const secretsStore = database.document<SecretFile>("provider_secrets", () => ({}));
   const eventsStore = database.events;
 
-  await ensureAdmin(usersStore);
+  if (!config.organizationId) await ensureAdmin(usersStore);
   await appsStore.update((stored) => {
     const valid = stored.flatMap((record) => { const parsed = AppSchema.safeParse(record); return parsed.success ? [parsed.data] : []; });
     return valid.length ? valid : [createDefaultApp()];
@@ -85,7 +105,7 @@ export async function buildControlPlane(config: ControlPlaneConfig): Promise<Fas
     return parsed.success ? parsed.data : { ...createDefaultProviderSettings(), endpoint: config.typesafeEndpoint, model: config.typesafeModel };
   });
 
-  const requireSession = accessGuard(database);
+  const requireSession = accessGuard(database, config.resolveUser);
 
   app.decorateRequest("user", null);
   const stopEvaluations = registerEvaluations(app, database, config, requireSession);
@@ -140,8 +160,8 @@ export async function buildControlPlane(config: ControlPlaneConfig): Promise<Fas
     const aggregate = await eventsStore.overview(undefined, appScope(request.user!));
     let gateway: unknown = { status: "offline" };
     try {
-      const response = await fetch(`${config.gatewayInternalUrl}/v1/health`, { signal: AbortSignal.timeout(1_500) });
-      gateway = response.ok ? await response.json() : { status: "degraded" };
+      if (config.gatewayHealth) gateway = await config.gatewayHealth();
+      else { const response = await fetch(`${config.gatewayInternalUrl}/v1/health`, { signal: AbortSignal.timeout(1_500) }); gateway = response.ok ? await response.json() : { status: "degraded" }; }
     } catch {
       gateway = { status: "offline" };
     }
@@ -215,6 +235,7 @@ export async function buildControlPlane(config: ControlPlaneConfig): Promise<Fas
 
   app.post("/api/classify", { preHandler: requireSession }, async (request, reply) => {
     try {
+      if (config.classify) { const result = await config.classify(request.body); return reply.code(result.status).send(result.body); }
       const response = await fetch(`${config.gatewayInternalUrl}/v1/classify`, {
         method: "POST",
         headers: {
@@ -234,7 +255,6 @@ export async function buildControlPlane(config: ControlPlaneConfig): Promise<Fas
 
   registerPolicyHistory(app, profilesStore, requireSession);
 
-  const presets = await loadPresetProfiles();
   app.get("/api/profile-presets", { preHandler: requireSession }, async () => ({ presets }));
   app.post<{ Body: { yaml?: string } }>("/api/profiles/preview", { preHandler: requireSession }, async (request, reply) => {
     try {
@@ -404,7 +424,7 @@ export async function buildControlPlane(config: ControlPlaneConfig): Promise<Fas
     const appId = request.body.appId ?? "default";
     const firewallApp = (await appsStore.read()).find((record) => record.id === appId);
     if (!firewallApp) return reply.code(400).send({ error: "Application not found." });
-    const raw = `pf_${randomBytes(28).toString("base64url")}`;
+    const raw = config.organizationId ? `pyro_${config.organizationId}_${randomBytes(28).toString("base64url")}` : `pf_${randomBytes(28).toString("base64url")}`;
     const profileIds = new Set((await profilesStore.read()).map((profile) => profile.id));
     const appAllows = (profileId: string) => firewallApp.allowedProfileIds.length === 0
       || firewallApp.allowedProfileIds.includes(profileId);

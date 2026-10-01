@@ -3,6 +3,7 @@ WORKDIR /app
 # npm is only used to bootstrap the pinned package manager in the Node image.
 RUN npm install --global pnpm@11.10.0
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY apps/cloud/package.json apps/cloud/package.json
 COPY apps/gateway/package.json apps/gateway/package.json
 COPY apps/control-plane/package.json apps/control-plane/package.json
 COPY apps/dashboard/package.json apps/dashboard/package.json
@@ -19,7 +20,8 @@ RUN pnpm run build
 
 FROM build AS production-deps
 RUN pnpm --filter @pyro/gateway deploy --prod /prod/gateway \
-  && pnpm --filter @pyro/control-plane deploy --prod /prod/control-plane
+  && pnpm --filter @pyro/control-plane deploy --prod /prod/control-plane \
+  && pnpm --filter @pyro/cloud deploy --prod /prod/cloud
 
 FROM node:26-alpine AS gateway
 WORKDIR /app
@@ -51,3 +53,19 @@ RUN sed -i 's|^pid .*;|pid /tmp/nginx.pid;|' /etc/nginx/nginx.conf \
 USER nginx
 EXPOSE 8080
 ENTRYPOINT ["nginx", "-g", "daemon off;"]
+
+FROM node:26-alpine AS cloud
+WORKDIR /app
+ENV NODE_ENV=production
+ENV PYRO_PROFILES_DIRECTORY=/app/profiles
+COPY --from=production-deps --chown=node:node /prod/cloud ./apps/cloud
+COPY --from=build --chown=node:node /app/profiles ./profiles
+COPY --from=build /app/LICENSE /app/NOTICE /app/THIRD_PARTY_NOTICES.md ./
+USER node
+EXPOSE 8082
+CMD ["node", "apps/cloud/dist/server.js"]
+
+FROM caddy:2-alpine AS cloud-web
+COPY deploy/cloud/Caddyfile /etc/caddy/Caddyfile
+COPY --from=build /app/apps/dashboard/dist /srv
+COPY --from=build /app/LICENSE /app/NOTICE /app/THIRD_PARTY_NOTICES.md /srv/

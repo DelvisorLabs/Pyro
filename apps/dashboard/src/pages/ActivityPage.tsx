@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useDashboardPreferences } from "@/components/ui/theme";
-import { api } from "@/lib/api";
+import { api, controlDownloadUrl } from "@/lib/api";
 import { duration, money, percent, providerLabel, timeAgo } from "@/lib/format";
 import { readActivity, readEvent, readProfiles } from "@/lib/responses";
 import type { ClassificationEvent } from "@/lib/types";
@@ -90,7 +90,7 @@ export function ActivityPage({ refreshKey }: { refreshKey: number }) {
     try { const data = await api.get<TraceDetail>(`/api/activity/${id}`); setDetail({ event: readEvent(data.event) }); }
     catch (reason) { setError(reason instanceof Error ? reason.message : "Could not load this request trace."); }
   };
-  const exportData = (format: "json" | "csv") => window.open(`/control/api/activity?${query}&format=${format}`, "_blank", "noopener");
+  const exportData = (format: "json" | "csv") => window.open(controlDownloadUrl(`/api/activity?${query}&format=${format}`), "_blank", "noopener");
   return (
     <>
       <PageHeader title="Activity" description="Find decisions by application, policy, outcome, or request labels, then inspect the complete trace." actions={<div className="flex gap-2"><Button variant="outline" onClick={() => exportData("csv")}><Download className="size-4" />CSV</Button><Button variant="outline" onClick={() => exportData("json")}><Download className="size-4" />JSON</Button></div>} />

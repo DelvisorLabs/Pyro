@@ -29,5 +29,9 @@
   },
   "files": [
     "dist"
-  ]
+  ],
+  "exports": {
+    "./app": "./dist/app.js",
+    "./config": "./dist/config.js"
+  }
 }

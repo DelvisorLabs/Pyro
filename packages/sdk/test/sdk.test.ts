@@ -50,3 +50,16 @@ test("webhook verification rejects tampered bytes, stale timestamps and malforme
   assert.equal(await verifyWebhook({ ...options, now: 1234569999 }), false);
   assert.equal(await verifyWebhook({ ...options, signature: "v1=no" }), false);
 });
+
+
+test("cloud keys select the hosted endpoint and queued retries carry idempotency keys", async () => {
+  const requests: Array<{ url: string; headers: Headers }> = [];
+  const fetcher: typeof fetch = async (url, init) => { requests.push({ url: String(url), headers: new Headers(init?.headers) }); return Response.json({ id: "job", status: "queued" }); };
+  await new PyroClient({ apiKey: "pyro_test", fetch: fetcher }).createJob("hello", { idempotencyKey: "same-operation" });
+  await new PyroClient({ apiKey: "pf_test", fetch: fetcher }).createJob("hello");
+  await new PyroClient({ apiKey: "pyro_test", baseUrl: "http://localhost:8082", fetch: fetcher }).createJob("hello");
+  assert.equal(requests[0]!.url, "https://api.pyro.delvisor.com/v1/jobs");
+  assert.equal(requests[0]!.headers.get("Idempotency-Key"), "same-operation");
+  assert.equal(requests[1]!.url, "http://localhost:8080/v1/jobs");
+  assert.equal(requests[2]!.url, "http://localhost:8082/v1/jobs");
+});

@@ -6,15 +6,16 @@ for (const kind of ["memory", "postgres"] as const) test(`${kind}: durable recov
   const db = await openDatabase(kind === "memory" ? `memory://${randomUUID()}` : process.env.TEST_DATABASE_URL!);
   try {
     const name = `test_jobs_${randomUUID().replaceAll("-", "")}`;
-    const first = new DurableJobs(db, "a-secret-longer-than-sixteen", name, 10, 50);
-    const second = new DurableJobs(db, "a-secret-longer-than-sixteen", name, 10, 50);
+    const first = new DurableJobs(db, "a-secret-longer-than-sixteen", name, 10, 30_000);
+    const second = new DurableJobs(db, "a-secret-longer-than-sixteen", name, 10, 30_000);
     const id = randomUUID(); const appId = randomUUID();
     const data = { id, appId, input: { prompt: "sensitive-example" }, fingerprint: "one", idempotencyKey: "one" };
     assert.equal((await first.enqueue(data)).id, (await second.enqueue({ ...data, id: randomUUID() })).id);
     await assert.rejects(second.enqueue({ ...data, fingerprint: "different" }));
     assert.ok(!JSON.stringify(await db.document(name, () => ({})).read()).includes("sensitive-example"));
-    const stale = (await first.claim())!;
-    await new Promise((r) => setTimeout(r, 70));
+    // Expire the first lease deterministically; finishing the recovered lease must
+    // not depend on a 50 ms wall-clock window under PostgreSQL/build contention.
+    const stale = (await first.claim(Date.now() - 31_000))!;
     const recovered = (await second.claim())!;
     assert.equal(recovered.id, id); assert.equal(recovered.attempts, 2);
     assert.deepEqual(second.input(recovered), data.input);

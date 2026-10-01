@@ -41,3 +41,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 `Error::Api` preserves HTTP status, request ID, and numeric Retry-After. Error messages omit URLs from transport failures. Redirects are not followed and POSTs are not automatically retried, avoiding duplicate billable classifications. Gateway jobs currently expire after about ten minutes and are process-local.
 
 Run `cargo test --manifest-path sdks/rust/Cargo.toml` from the Pyro root. The integration tests use a local TCP HTTP receiver; no external credentials are required.
+
+## Cloud (unreleased source)
+
+The cloud convenience endpoint is `https://api.pyro.delvisor.com`. TypeScript/Python cloud keys (`pyro_`) select it automatically; legacy/self-hosted keys retain localhost defaults. Rust uses `PyroClient::cloud`. Explicit base URLs always work for local tests, migrated legacy keys or custom hosting. Public DNS/service and package publication are separate launch steps; do not assume this source change is already available from a package registry.
+
+```rust
+let pyro = PyroClient::cloud(&std::env::var("PYRO_API_KEY")?)?;
+```
+
+Use keys on your backend. HTTP 402 stops semantic usage at a credit/platform limit; HTTP 429 indicates a request limit. Queued jobs can return a failed status with an exhaustion reason. Local-only checks do not consume cloud credits. Organization is derived from the authenticated key.

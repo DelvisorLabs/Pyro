@@ -4,6 +4,10 @@ function integer(name: string, fallback: number, minimum: number): number {
 }
 
 export interface GatewayConfig {
+  organizationId?: string;
+  providerHooks?: import("@pyro/classifiers").ProviderHooks;
+  beforePersist?: (event: import("@pyro/contracts").ClassificationEvent) => Promise<void>;
+  authorizeWork?: () => Promise<void>;
   host: string;
   port: number;
   databaseUrl: string;

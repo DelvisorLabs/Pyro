@@ -13,12 +13,12 @@ export function visibleEvent(user: UserRecord, event: ClassificationEvent): Clas
   const { inputPreview, metadata, appRulesSnapshot, ...safe } = event;
   return safe;
 }
-export function accessGuard(database: Database) {
+export function accessGuard(database: Database, resolveUser?: (request: FastifyRequest) => Promise<UserRecord | undefined>) {
   const users = database.document<UserRecord[]>("users", () => []);
   const sessions = database.document<import("@pyro/contracts").SessionRecord[]>("sessions", () => []);
   return async (request: FastifyRequest, reply: FastifyReply) => {
     const id = await sessionUserId(sessions, request.cookies.pf_session);
-    const user = (await users.read()).find((u) => u.id === id && !u.disabled);
+    const user = resolveUser ? await resolveUser(request) : (await users.read()).find((u) => u.id === id && !u.disabled);
     if (!user) return reply.code(401).send({ error: "Authentication required." });
     request.user = user;
     const grant = async () => {

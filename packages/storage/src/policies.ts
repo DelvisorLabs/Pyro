@@ -34,7 +34,7 @@ export function revisionOf(record: PolicyRecord, revision?: number): Profile | u
 // Active policy and immutable history live in one locked PostgreSQL document.
 // The same transaction both publishes a revision and updates the active pointer.
 export class PolicyStore implements DocumentStore<Profile[]> {
-  constructor(readonly records: DocumentStore<PolicyRecord[]>) {}
+  constructor(readonly records: DocumentStore<PolicyRecord[]>, private readonly validate?: (profile: Profile) => void) {}
   async initialize(): Promise<void> {
     await this.records.update((records) => records.map((record) => {
       if (record.revisions?.length) return record;
@@ -55,6 +55,7 @@ export class PolicyStore implements DocumentStore<Profile[]> {
         if (current?.archived) throw new PolicyConflict("This policy ID is archived. Choose a new ID.");
         const contentHash = policyHash(candidate);
         if (current?.contentHash === contentHash) continue;
+        this.validate?.(candidate);
         if (current && candidate.revision !== current.revision) throw new PolicyConflict("Policy changed since it was loaded. Reload before saving.");
         const revision = Math.max(0, ...(current?.revisions ?? []).map((r) => r.revision)) + 1;
         const profile = ProfileSchema.parse({ ...candidate, revision, contentHash });
@@ -72,6 +73,7 @@ export class PolicyStore implements DocumentStore<Profile[]> {
       if (record.revision !== expectedRevision) throw new PolicyConflict("Policy changed. Reload before saving a draft.");
       const revision = Math.max(...record.revisions!.map((r) => r.revision)) + 1;
       const profile = ProfileSchema.parse({ ...(input as object), id, createdAt: record.createdAt, updatedAt: new Date().toISOString(), revision });
+      this.validate?.(profile);
       profile.contentHash = policyHash(profile);
       draft = { revision, contentHash: profile.contentHash, state: "draft", actorId, createdAt: profile.updatedAt, profile };
       return { ...record, revisions: [...record.revisions!, draft] };

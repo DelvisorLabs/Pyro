@@ -1,5 +1,6 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes, randomUUID } from "node:crypto";
 import { Pool, type PoolClient } from "pg";
+import { organizationPool } from "./tenant-pool.js";
 import type { ClassificationEvent, StoredSecret, Delivery } from "@pyro/contracts";
 
 export interface DocumentStore<T> {
@@ -116,6 +117,7 @@ export interface Database {
   readonly events: EventStore;
   readonly deliveries: DeliveryStore;
   prune(before: string): Promise<void>;
+  erase(): Promise<void>;
   ping(): Promise<void>;
   close(): Promise<void>;
 }
@@ -163,6 +165,42 @@ const migrations = [
   );
   CREATE INDEX IF NOT EXISTS pyro_deliveries_due_idx ON pyro_deliveries(next_attempt_at) WHERE status IN ('pending', 'delivering');
   CREATE INDEX IF NOT EXISTS pyro_deliveries_integration_idx ON pyro_deliveries(integration_id, created_at DESC);`,
+  `
+  ALTER TABLE pyro_documents ADD COLUMN org_id text NOT NULL DEFAULT 'default';
+  ALTER TABLE pyro_events ADD COLUMN org_id text NOT NULL DEFAULT 'default';
+  ALTER TABLE pyro_deliveries ADD COLUMN org_id text NOT NULL DEFAULT 'default';
+  DO $$ DECLARE constraint_row record; BEGIN
+    FOR constraint_row IN SELECT conrelid::regclass AS table_name, conname FROM pg_constraint
+      WHERE conrelid IN ('pyro_documents'::regclass, 'pyro_events'::regclass, 'pyro_deliveries'::regclass)
+      AND (contype = 'p' OR conrelid = 'pyro_deliveries'::regclass AND contype = 'u')
+    LOOP EXECUTE format('ALTER TABLE %s DROP CONSTRAINT %I', constraint_row.table_name, constraint_row.conname); END LOOP;
+  END $$;
+  ALTER TABLE pyro_documents ADD PRIMARY KEY (org_id, key);
+  ALTER TABLE pyro_events ADD PRIMARY KEY (org_id, id);
+  ALTER TABLE pyro_deliveries ADD PRIMARY KEY (org_id, id);
+  ALTER TABLE pyro_deliveries ADD UNIQUE (org_id, integration_id, event_id);
+  CREATE INDEX pyro_events_org_created_idx ON pyro_events (org_id, created_at DESC, id DESC);
+  CREATE INDEX pyro_deliveries_org_due_idx ON pyro_deliveries (org_id, next_attempt_at);
+  DO $$ BEGIN
+    IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'pyro_tenant') THEN
+      BEGIN CREATE ROLE pyro_tenant NOLOGIN NOSUPERUSER NOBYPASSRLS;
+      EXCEPTION WHEN duplicate_object OR unique_violation THEN NULL; END;
+    END IF;
+    IF EXISTS (SELECT FROM pg_roles WHERE rolname = 'pyro_tenant' AND (rolsuper OR rolbypassrls OR rolcanlogin)) THEN
+      RAISE EXCEPTION 'pyro_tenant must be NOLOGIN NOSUPERUSER NOBYPASSRLS';
+    END IF;
+    EXECUTE format('GRANT pyro_tenant TO %I', current_user);
+  END $$;
+  GRANT USAGE ON SCHEMA public TO pyro_tenant;
+  GRANT SELECT, INSERT, UPDATE, DELETE ON pyro_documents, pyro_events, pyro_deliveries TO pyro_tenant;
+  ` + ['pyro_documents', 'pyro_events', 'pyro_deliveries'].map((table) => `
+    ALTER TABLE ${table} ALTER COLUMN org_id SET DEFAULT current_setting('pyro.organization_id');
+    ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY;
+    ALTER TABLE ${table} FORCE ROW LEVEL SECURITY;
+    CREATE POLICY organization_isolation ON ${table} TO pyro_tenant
+      USING (org_id = current_setting('pyro.organization_id', true))
+      WITH CHECK (org_id = current_setting('pyro.organization_id', true));
+  `).join(''),
 ];
 
 async function adoptLegacyTableNames(client: PoolClient): Promise<void> {
@@ -227,7 +265,7 @@ class PostgresDocument<T> implements DocumentStore<T> {
   private async initialize(client: Pool | PoolClient): Promise<T> {
     const initial = this.fallback();
     await client.query(
-      "INSERT INTO pyro_documents (key, value) VALUES ($1, $2::jsonb) ON CONFLICT (key) DO NOTHING",
+      "INSERT INTO pyro_documents (key, value) VALUES ($1, $2::jsonb) ON CONFLICT (org_id, key) DO NOTHING",
       [this.key, JSON.stringify(initial)],
     );
     const result = await client.query<{ value: T }>("SELECT value FROM pyro_documents WHERE key = $1", [this.key]);
@@ -243,7 +281,7 @@ class PostgresDocument<T> implements DocumentStore<T> {
     await this.pool.query(
       `INSERT INTO pyro_documents (key, value, updated_at)
        VALUES ($1, $2::jsonb, now())
-       ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()`,
+       ON CONFLICT (org_id, key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()`,
       [this.key, JSON.stringify(value)],
     );
   }
@@ -315,7 +353,7 @@ class PostgresEvents implements EventStore {
       `INSERT INTO pyro_events
         (id, created_at, app_id, profile_id, verdict, action, risk, provider, api_key_id, labels, payload)
        VALUES ($1, $2::timestamptz, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11::jsonb)
-       ON CONFLICT (id) DO NOTHING`,
+       ON CONFLICT (org_id, id) DO NOTHING`,
       [event.id, event.createdAt, event.appId ?? null, event.profileId, event.verdict, event.action, event.risk,
         event.provider, event.apiKeyId ?? null, JSON.stringify(event.labels ?? {}), JSON.stringify(event)],
     );
@@ -590,6 +628,12 @@ class PostgresDatabase implements Database {
     await this.pool.query("DELETE FROM pyro_events WHERE created_at < $1", [before]);
   }
 
+  async erase(): Promise<void> {
+    const client = await this.pool.connect();
+    try { await client.query("BEGIN"); for (const table of ["pyro_deliveries", "pyro_events", "pyro_documents"]) await client.query(`DELETE FROM ${table}`); await client.query("COMMIT"); }
+    catch (error) { await client.query("ROLLBACK"); throw error; } finally { client.release(); }
+  }
+
   async ping(): Promise<void> {
     await this.pool.query("SELECT 1");
   }
@@ -786,29 +830,45 @@ class MemoryDatabase implements Database {
   async prune(before: string): Promise<void> {
     this.eventRows.splice(0, this.eventRows.length, ...this.eventRows.filter((e) => e.createdAt >= before));
   }
+  async erase(): Promise<void> { this.documents.clear(); this.eventRows.splice(0); this.deliveryRows.clear(); }
   async ping(): Promise<void> {}
   async close(): Promise<void> {}
 }
 
 const memoryDatabases = new Map<string, MemoryDatabase>();
+const postgresPools = new Map<string, { pool: Pool; ready: Promise<void>; references: number }>();
 
-export async function openDatabase(connectionString: string): Promise<Database> {
+export async function openDatabase(connectionString: string, organizationId = "default"): Promise<Database> {
+  if (!/^[a-zA-Z0-9_-]{1,80}$/.test(organizationId)) throw new Error("Invalid organization ID.");
   if (connectionString.startsWith("memory://")) {
-    const existing = memoryDatabases.get(connectionString);
+    const existing = memoryDatabases.get(`${connectionString}#${organizationId}`);
     if (existing) return existing;
     const database = new MemoryDatabase();
-    memoryDatabases.set(connectionString, database);
+    memoryDatabases.set(`${connectionString}#${organizationId}`, database);
     return database;
   }
   if (!connectionString.startsWith("postgres://") && !connectionString.startsWith("postgresql://")) {
     throw new Error("DATABASE_URL must use PostgreSQL.");
   }
-  const pool = new Pool({ connectionString, max: 20, idleTimeoutMillis: 30_000, connectionTimeoutMillis: 5_000 });
+  let shared = postgresPools.get(connectionString);
+  if (!shared) {
+    const pool = new Pool({ connectionString, max: 20, idleTimeoutMillis: 30_000, connectionTimeoutMillis: 5_000 });
+    const ready = process.env.PYRO_SKIP_MIGRATIONS === "true" ? Promise.resolve() : migrate(pool);
+    shared = { pool, ready, references: 0 };
+    postgresPools.set(connectionString, shared);
+  }
+  shared.references++;
   try {
-    await migrate(pool);
-    return new PostgresDatabase(pool);
+    await shared.ready;
+    const current = shared;
+    let closed = false;
+    return new PostgresDatabase(organizationPool(shared.pool, organizationId, async () => {
+      if (closed) return;
+      closed = true;
+      if (--current.references === 0) { postgresPools.delete(connectionString); await current.pool.end(); }
+    }));
   } catch (error) {
-    await pool.end();
+    if (--shared.references === 0) { postgresPools.delete(connectionString); await shared.pool.end(); }
     throw error;
   }
 }

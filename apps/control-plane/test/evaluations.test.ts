@@ -5,8 +5,11 @@ import { readFile } from "node:fs/promises";
 import { openDatabase } from "@pyro/storage";
 import { buildControlPlane } from "../src/app.js";
 test("evaluation compares immutable revisions, resumes checkpoints, encrypts inputs and requires paid consent", async (t) => {
+ let release!: () => void;
+ const gate = new Promise<void>((resolve) => { release = resolve; });
+ t.after(() => release());
  const config = { host: "127.0.0.1", port: 0, databaseUrl: `memory://evaluation-${randomUUID()}`, adminPassword: "correct-horse-battery-staple", controlPlaneSecret: "control-plane-test-secret", gatewayInternalUrl: "http://127.0.0.1:1", gatewayApiKey: "test-key", typesafeEndpoint: "https://api.typesafe.ai/v1/systemone", typesafeModel: "jev-latest" };
- const app = await buildControlPlane(config); t.after(() => app.close()); const db = await openDatabase(config.databaseUrl);
+ const app = await buildControlPlane({ ...config, authorizeEvaluation: () => gate }); t.after(() => app.close()); const db = await openDatabase(config.databaseUrl);
  const login = await app.inject({ method: "POST", url: "/api/auth/login", payload: { password: config.adminPassword } }); const headers = { cookie: login.headers["set-cookie"]!.split(";")[0]! };
  const post = (url: string, payload: unknown) => app.inject({ method: "POST", url, headers, payload: payload as object });
  const yaml = await readFile(new URL("../../../profiles/local-secrets.yaml", import.meta.url), "utf8");
@@ -21,6 +24,7 @@ test("evaluation compares immutable revisions, resumes checkpoints, encrypts inp
  assert.equal(start.statusCode, 202, start.body); const id = start.json().run.id;
  await app.inject({ method: "PUT", url: `/api/evaluations/${id}`, headers, payload: { action: "cancel" } });
  assert.equal((await app.inject({ url: `/api/evaluations/${id}`, headers })).json().run.status, "cancelled");
+ release();
  await app.inject({ method: "PUT", url: `/api/evaluations/${id}`, headers, payload: { action: "resume" } });
  let result;
  for (let i = 0; i < 100; i++) { result = (await app.inject({ url: `/api/evaluations/${id}`, headers })).json().run; if (["complete", "failed"].includes(result.status)) break; await new Promise((r) => setTimeout(r, 50)); }

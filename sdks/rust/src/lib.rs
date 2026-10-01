@@ -131,6 +131,10 @@ pub struct PyroClient {
     base_url: Url,
 }
 impl PyroClient {
+    /// Connect to Pyro Cloud with an application API key.
+    pub fn cloud(api_key: &str) -> Result<Self, Error> {
+        Self::new("https://api.pyro.delvisor.com", api_key)
+    }
     pub fn new(base_url: &str, api_key: &str) -> Result<Self, Error> {
         Self::with_timeout(base_url, api_key, Duration::from_secs(10))
     }

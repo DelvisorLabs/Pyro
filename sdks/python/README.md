@@ -22,3 +22,17 @@ if decision["action"] != "allow":
 ```
 
 The API key selects the application and its policy/rules; an application ID is never trusted from request data. The client also exposes `create_job`, `get_job`, `wait_for_job`, and `list_profiles`.
+
+## Cloud (unreleased source)
+
+The cloud convenience endpoint is `https://api.pyro.delvisor.com`. TypeScript/Python cloud keys (`pyro_`) select it automatically; legacy/self-hosted keys retain localhost defaults. Rust uses `PyroClient::cloud`. Explicit base URLs always work for local tests, migrated legacy keys or custom hosting. Public DNS/service and package publication are separate launch steps; do not assume this source change is already available from a package registry.
+
+```python
+import os
+from pyro import Pyro
+pyro = Pyro(os.environ["PYRO_API_KEY"])
+result = pyro.classify("Hello")
+job = pyro.create_job("Hello", idempotency_key="operation-123")
+```
+
+Use keys on your backend. HTTP 402 stops semantic usage at a credit/platform limit; HTTP 429 indicates a request limit. Queued jobs can return a failed status with an exhaustion reason. Local-only checks do not consume cloud credits. Organization is derived from the authenticated key.

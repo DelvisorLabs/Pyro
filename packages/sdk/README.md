@@ -64,3 +64,16 @@ if (!valid) return new Response("Invalid signature", { status: 401 });
 ```
 
 The default timestamp tolerance is five minutes. After verification, parse the JSON and deduplicate using X-Pyro-Delivery-Id. Retries keep the same ID and body but receive a fresh timestamp/signature. This helper uses Web Crypto and works in Node.js 22 and modern browser runtimes.
+
+## Cloud (unreleased source)
+
+The cloud convenience endpoint is `https://api.pyro.delvisor.com`. TypeScript/Python cloud keys (`pyro_`) select it automatically; legacy/self-hosted keys retain localhost defaults. Rust uses `PyroClient::cloud`. Explicit base URLs always work for local tests, migrated legacy keys or custom hosting. Public DNS/service and package publication are separate launch steps; do not assume this source change is already available from a package registry.
+
+```ts
+const pyro = new PyroClient({ apiKey: process.env.PYRO_API_KEY! });
+const result = await pyro.classify("Hello");
+// Retry queued submission with the same idempotency key.
+const job = await pyro.createJob("Hello", { idempotencyKey: "operation-123" });
+```
+
+Use keys on your backend. HTTP 402 stops semantic usage at a credit/platform limit; HTTP 429 indicates a request limit. Queued jobs can return a failed status with an exhaustion reason. Local-only checks do not consume cloud credits. Organization is derived from the authenticated key.

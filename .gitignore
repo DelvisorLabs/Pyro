@@ -2,6 +2,7 @@ node_modules/
 dist/
 .env*
 !.env.example
+!.env.cloud.example
 npm-debug.log*
 .DS_Store
 coverage/

@@ -37,9 +37,16 @@ function localRuleDecision(
   };
 }
 
-export async function evaluatePolicy({ id, envelope, profile, queueMs = 0, traceId, firewallApp, provider, apiKey, circuit = { consecutiveFailures: 0, openUntil: 0 }, onRetry, onCircuitOpen }: {
+export class PolicyExecutionDenied extends Error { constructor(message: string, readonly statusCode = 402) { super(message); } }
+export interface ProviderHooks {
+  before(input: ClassifierInput): Promise<void>;
+  after?(input: ClassifierInput, usage: ClassificationDecision["usage"]): Promise<void>;
+}
+
+export async function evaluatePolicy({ id, envelope, profile, queueMs = 0, traceId, firewallApp, provider, apiKey, circuit = { consecutiveFailures: 0, openUntil: 0 }, onRetry, onCircuitOpen, providerHooks }: {
   id: string; envelope: ClassificationEnvelope; profile: Profile; queueMs?: number; traceId: string;
   firewallApp: AppRecord; provider: ProviderSettings; apiKey: () => Promise<string | undefined>;
+  providerHooks?: ProviderHooks;
   circuit?: { consecutiveFailures: number; openUntil: number };
   onRetry?: (mode: string) => void; onCircuitOpen?: (mode: string) => void;
 }): Promise<{ decision: ClassificationDecision; failure?: string; localRuleId?: string }> {
@@ -89,11 +96,14 @@ export async function evaluatePolicy({ id, envelope, profile, queueMs = 0, trace
       let lastError: unknown;
       for (let attempt = 0; attempt <= provider.maxRetries; attempt += 1) {
         try {
+          try { await providerHooks?.before(classifierInput); }
+          catch (error) { throw error instanceof PolicyExecutionDenied ? error : new PolicyExecutionDenied("Cloud usage authorization is unavailable. Please retry later."); }
           raw = await classifier.classify(classifierInput);
           circuit.consecutiveFailures = 0;
           circuit.openUntil = 0;
           break;
         } catch (error) {
+          if (error instanceof PolicyExecutionDenied) throw error;
           lastError = error;
           const nonRetryableUpstream = error instanceof UpstreamClassifierError
             && error.status !== undefined
@@ -113,11 +123,14 @@ export async function evaluatePolicy({ id, envelope, profile, queueMs = 0, trace
         }
         throw lastError ?? new Error("Classifier provider failed.");
       }
+      try { await providerHooks?.after?.(classifierInput, raw.usage); }
+      catch { throw new PolicyExecutionDenied("Cloud usage recording is unavailable. Please retry later."); }
       providerMs = performance.now() - providerStarted;
       const policyStarted = performance.now();
       decision = buildDecision(classifierInput, raw, performance.now() - started);
       policyMs = performance.now() - policyStarted;
     } catch (error) {
+      if (error instanceof PolicyExecutionDenied) throw error;
       providerMs = performance.now() - started;
       failure = error instanceof Error ? error.message : "Unknown classifier error";
       decision = buildFailureDecision(classifierInput, error, performance.now() - started);

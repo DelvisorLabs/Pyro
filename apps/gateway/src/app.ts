@@ -4,7 +4,7 @@ import cors from "@fastify/cors";
 import websocket from "@fastify/websocket";
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest, LogController } from "fastify";
 import type { WebSocket } from "ws";
-import { evaluatePolicy } from "@pyro/classifiers";
+import { evaluatePolicy, PolicyExecutionDenied } from "@pyro/classifiers";
 import {
   AppSchema,
   ClassificationEnvelopeSchema,
@@ -89,7 +89,7 @@ export async function buildGateway(config: GatewayConfig): Promise<FastifyInstan
   app.decorateRequest("firewallApp", null);
   app.addContentTypeParser("text/plain", { parseAs: "string" }, (_request, body, done) => done(null, body));
 
-  const database = await openDatabase(config.databaseUrl);
+  const database = await openDatabase(config.databaseUrl, config.organizationId);
   const profilesStore = database.document<PolicyRecord[]>("profiles", () => [createDefaultProfile()]);
   await new PolicyStore(profilesStore).initialize();
   const appsStore = database.document<AppRecord[]>("apps", () => [createDefaultApp()]);
@@ -102,7 +102,7 @@ export async function buildGateway(config: GatewayConfig): Promise<FastifyInstan
   const profiles = new CachedDocument(profilesStore);
   const apps = new CachedDocument(appsStore);
   const settings = new CachedDocument(settingsStore);
-  const keys = new CachedDocument(keysStore);
+  const keys = new CachedDocument(keysStore, config.organizationId ? 0 : 500);
   const secrets = new CachedDocument(secretsStore);
 
   await appsStore.update((stored) => {
@@ -130,6 +130,7 @@ export async function buildGateway(config: GatewayConfig): Promise<FastifyInstan
   };
 
   const requireApiKey = async (request: FastifyRequest, reply: FastifyReply) => {
+    await config.authorizeWork?.();
     const apiKey = await authenticate(bearer(request));
     if (!apiKey) {
       return reply.code(401).send({ error: "A valid gateway API key is required." });
@@ -177,6 +178,7 @@ export async function buildGateway(config: GatewayConfig): Promise<FastifyInstan
 
   const evaluate = async (id: string, envelope: ClassificationEnvelope, profile: Profile, queueMs: number, traceId: string, firewallApp: AppRecord) => evaluatePolicy({
     id, envelope, profile, queueMs, traceId, firewallApp, provider: await settings.read(), apiKey: resolveApiKey, circuit,
+    providerHooks: config.providerHooks,
     onRetry: (mode) => metrics.recordRetry(mode), onCircuitOpen: (mode) => metrics.recordCircuitOpen(mode),
   });
 
@@ -190,6 +192,7 @@ export async function buildGateway(config: GatewayConfig): Promise<FastifyInstan
     traceId = randomUUID().replaceAll("-", ""),
     requestId?: string,
   ): Promise<ClassificationDecision> => {
+    await config.authorizeWork?.();
     const { decision, failure, localRuleId } = await evaluate(id, envelope, profile, queueMs, traceId, firewallApp);
     decision.policyRevision = profile.revision;
     decision.policyHash = profile.contentHash ?? policyHash(profile);
@@ -232,6 +235,7 @@ export async function buildGateway(config: GatewayConfig): Promise<FastifyInstan
       localRuleId,
       error: failure,
     };
+    await config.beforePersist?.(event);
     await eventsStore.append(event, decisionDeliveries(event, await integrations.read()));
     app.log.info({ decisionId: id, requestId, traceId, profile: profile.id, action: decision.action, risk: decision.risk, latencyMs: decision.latencyMs }, "classification completed");
     metrics.record(decision, Boolean(failure));
@@ -316,6 +320,7 @@ export async function buildGateway(config: GatewayConfig): Promise<FastifyInstan
       const result = await enqueue(identity.decisionId, envelope, profile, firewallApp, apiKey, identity.traceId, identity.requestId);
       return reply.send(result.value);
     } catch (error) {
+      if (error instanceof PolicyExecutionDenied) return reply.code(error.statusCode).send({ error: error.message });
       if (error instanceof QueueFullError) {
         reply.header("Retry-After", "1");
         return reply.code(429).send({ error: error.message, queue: queue.snapshot() });
@@ -362,6 +367,11 @@ export async function buildGateway(config: GatewayConfig): Promise<FastifyInstan
 
   const jobWorker = new DurableWorker(jobs, config.queueConcurrency, async (job) => {
     const { envelope, profile, firewallApp, apiKey, identity } = jobs.input<{ envelope: ClassificationEnvelope; profile: Profile; firewallApp: AppRecord; apiKey: ApiKeyRecord; identity: ReturnType<typeof requestIdentity> }>(job);
+    if (config.organizationId) {
+      const currentKey = (await keysStore.read()).find((key) => key.id === apiKey.id && !key.revokedAt);
+      const currentApp = (await appsStore.read()).find((a) => a.id === firewallApp.id && a.enabled);
+      if (!currentKey || !currentApp) throw new Error("Queued work authorization was revoked.");
+    }
     const existing = await eventsStore.findById(job.id);
     if (existing) { const { inputPreview, inputHash, appRulesSnapshot, ...decision } = existing; return decision; }
     return classify(job.id, envelope, profile, Date.now() - Date.parse(job.createdAt), firewallApp, apiKey, identity.traceId, identity.requestId);
