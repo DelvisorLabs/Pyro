@@ -51,7 +51,7 @@ For a complete local cloud dashboard and API, run `pnpm cloud:local` from the re
 
 1. Open **http://127.0.0.1:3001** and create an account.
 2. Run `pnpm cloud:local:mail your@email.test` and open the verification link. The same command reads local invitations and recovery messages.
-3. Create an organization. The sidebar now shows its switcher and **Organization & billing**. Create keys under **API keys**, invite teammates under **Team & audit**, and design a pipeline under **Policy Playground → New pipeline**.
+3. Create an organization. The sidebar now shows its switcher and **Manage → Org & billing**. Create keys under **API keys**, invite teammates under **Team & audit**, and design a pipeline under **Policies → Playground → New pipeline**.
 4. SDK calls can use `baseUrl: "http://127.0.0.1:3001"` or the direct local API at `http://127.0.0.1:9082`. Local mock inference only tests integration and branching, not semantic accuracy. Payments are unconfigured.
 
 Run `pnpm cloud:local:stop` to stop the preview without deleting its data. Keep `.env.cloud.local` with that data volume: changing the encryption secret makes retained data unreadable. To invoke Compose directly after first setup, use `docker compose --env-file .env.cloud.local -f docker-compose.cloud.local.yml up -d --build`.

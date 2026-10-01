@@ -1,4 +1,5 @@
-import { useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useId, useState, type CSSProperties, type ReactNode } from "react";
+import { ChevronDown } from "lucide-react";
 import "./BranchedMenu.css";
 
 export interface BranchedMenuChild {
@@ -10,6 +11,7 @@ export interface BranchedMenuChild {
 export interface BranchedMenuItem {
   label: string;
   value?: string;
+  icon?: ReactNode;
   children?: BranchedMenuChild[];
 }
 
@@ -20,71 +22,61 @@ interface Props {
   onSelect?: (value: string, item: BranchedMenuChild | BranchedMenuItem) => void;
   width?: number;
   rowHeight?: number;
-  indent?: number;
   className?: string;
+  ariaLabel?: string;
 }
 
-const PAD = 5;
-const MARK = 15;
-const toSet = (open: number | number[]) => new Set(Array.isArray(open) ? open : open >= 0 ? [open] : []);
+const sectionKey = (item: BranchedMenuItem) => item.value ?? item.label;
 
-export function BranchedMenu({ items, defaultOpen = 0, activeValue = "", onSelect, width = 210, rowHeight = 34, indent = 34, className = "" }: Props) {
-  const [open, setOpen] = useState(() => toSet(defaultOpen));
-  const navRef = useRef<HTMLElement>(null);
-  const heads = useRef<Array<HTMLButtonElement | null>>([]);
-  const markerRef = useRef<HTMLSpanElement>(null);
-  const activeSection = items.findIndex((item) => item.children?.some((child) => child.value === activeValue));
-  const markerShown = activeSection >= 0 && open.has(activeSection);
+export function BranchedMenu({ items, defaultOpen = 0, activeValue = "", onSelect, width, rowHeight = 34, className = "", ariaLabel = "Main navigation" }: Props) {
+  const id = useId();
+  const activeSection = items.find((item) => item.children?.some((child) => child.value === activeValue));
+  const activeKey = activeSection && sectionKey(activeSection);
+  // Section identities survive role filtering and organization changes.
+  const [open, setOpen] = useState(() => {
+    const indices = Array.isArray(defaultOpen) ? defaultOpen : [defaultOpen];
+    return new Set([...items.filter((_, index) => indices.includes(index)).map(sectionKey), ...(activeKey ? [activeKey] : [])]);
+  });
 
-  useLayoutEffect(() => {
-    const marker = markerRef.current;
-    const heading = heads.current[activeSection];
-    if (!marker) return;
-    if (markerShown && heading) marker.style.top = `${heading.offsetTop + (heading.offsetHeight - MARK) / 2}px`;
-    marker.toggleAttribute("data-on", Boolean(markerShown && heading));
-  }, [activeSection, markerShown, items]);
+  useEffect(() => {
+    if (activeKey) setOpen((current) => current.has(activeKey) ? current : new Set(current).add(activeKey));
+  }, [activeKey, activeValue]);
 
-  const radius = 7;
-  const trunk = 12;
-  const endX = indent - 7;
-  const rowY = (index: number) => PAD + index * rowHeight + rowHeight / 2;
-  const branch = (index: number) => `M ${trunk} ${rowY(index) - radius} A ${radius} ${radius} 0 0 0 ${trunk + radius} ${rowY(index)} H ${endX}`;
-  const reach = (index: number) => `M ${trunk} 0 V ${rowY(index) - radius} A ${radius} ${radius} 0 0 0 ${trunk + radius} ${rowY(index)} H ${endX}`;
-  const length = (index: number) => rowY(index) - radius + (Math.PI * radius) / 2 + (endX - trunk - radius);
+  const link = (item: BranchedMenuChild | BranchedMenuItem) => {
+    const value = item.value ?? item.label;
+    const active = value === activeValue;
+    return <button type="button" className="branched-menu__item" aria-current={active ? "page" : undefined} data-active={active ? "" : undefined} onClick={() => onSelect?.(value, item)}>
+      {item.icon && <span className="branched-menu__icon" aria-hidden="true">{item.icon}</span>}
+      <span className="branched-menu__label">{item.label}</span>
+    </button>;
+  };
 
   return (
-    <nav ref={navRef} className={`branched-menu ${className}`} style={{ "--bm-width": `${width}px`, "--bm-row": `${rowHeight}px`, "--bm-indent": `${indent}px` } as CSSProperties}>
-      <span ref={markerRef} className="branched-menu__marker" aria-hidden="true" />
+    <nav aria-label={ariaLabel} className={`branched-menu ${className}`} style={{ "--bm-width": width ? `${width}px` : "100%", "--bm-row": `${rowHeight}px` } as CSSProperties}>
       {items.map((item, index) => {
         const children = item.children;
-        const isOpen = children ? open.has(index) : false;
-        const leafValue = item.value ?? item.label;
+        const key = sectionKey(item);
+        if (!children) return <div key={key}>{link(item)}</div>;
+        const isOpen = open.has(key);
+        const bodyId = `${id}-section-${index}`;
         return (
-          <div key={leafValue} className="branched-menu__section" data-open={isOpen ? "" : undefined}>
+          <div key={key} className="branched-menu__section" data-open={isOpen ? "" : undefined}>
             <button
-              ref={(element) => { heads.current[index] = element; }}
               type="button"
               className="branched-menu__head"
-              aria-expanded={children ? isOpen : undefined}
-              data-active={!children && leafValue === activeValue ? "" : undefined}
-              onClick={() => {
-                if (children) setOpen((current) => { const next = new Set(current); if (next.has(index)) next.delete(index); else next.add(index); return next; });
-                else onSelect?.(leafValue, item);
-              }}
+              aria-expanded={isOpen}
+              aria-controls={bodyId}
+              onClick={() => setOpen((current) => { const next = new Set(current); if (next.has(key)) next.delete(key); else next.add(key); return next; })}
             >
-              {item.label}
+              <span>{item.label}</span>
+              <span className="branched-menu__divider" aria-hidden="true" />
+              <ChevronDown className="branched-menu__chevron" size={12} aria-hidden="true" />
             </button>
-            {children && <div className="branched-menu__body"><div className="branched-menu__fold"><div className="branched-menu__tree" style={{ height: PAD * 2 + children.length * rowHeight }}>
-              <svg className="branched-menu__lines" width={indent} height={PAD * 2 + children.length * rowHeight} aria-hidden="true">
-                <path className="branched-menu__base" d={`M ${trunk} 0 V ${rowY(children.length - 1) - radius}`} />
-                {children.map((child, childIndex) => <path key={child.value} className="branched-menu__base" d={branch(childIndex)} />)}
-                {children.map((child, childIndex) => <path key={child.value} className="branched-menu__reach" d={reach(childIndex)} style={{ strokeDasharray: length(childIndex), strokeDashoffset: child.value === activeValue ? 0 : length(childIndex) }} />)}
-              </svg>
-              {children.map((child) => <button key={child.value} type="button" className="branched-menu__item" data-active={child.value === activeValue ? "" : undefined} tabIndex={isOpen ? 0 : -1} onClick={() => onSelect?.(child.value, child)}>
-                {child.icon && <span className="branched-menu__icon" aria-hidden="true">{child.icon}</span>}
-                <span>{child.label}</span>
-              </button>)}
-            </div></div></div>}
+            <div id={bodyId} className="branched-menu__body" inert={!isOpen} aria-hidden={!isOpen}>
+              <div className="branched-menu__fold"><ul className="branched-menu__items">
+                {children.map((child) => <li key={child.value}>{link(child)}</li>)}
+              </ul></div>
+            </div>
           </div>
         );
       })}

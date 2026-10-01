@@ -194,7 +194,7 @@ export function ProfilesPage() {
     <>
       <PageHeader title="Policies" description="Manage versioned pipelines and signal-based policies. Use Policy Playground to design and test an ordered workflow." actions={<div className="flex flex-wrap gap-2"><Button variant="outline" onClick={() => { setImporting(true); setImportError(undefined); }}>Import YAML</Button><Button onClick={createProfile}><Plus className="size-4" />New signal policy</Button></div>} />
       {error && !editing && <p role="alert" className="mb-4 text-sm text-danger">{error}</p>}
-      <ViewTabs label="Profile views" value={view} onChange={setView} options={[{ value: "profiles", label: "Your policies", count: profiles.length }, { value: "library", label: "Policy library", count: presets.length }]} />
+      <ViewTabs label="Policy views" value={view} onChange={setView} options={[{ value: "profiles", label: "Your policies", count: profiles.length }, { value: "library", label: "Templates", count: presets.length }]} />
       {view === "library" ? <ProfileLibrary presets={presets} loading={presetLoading} error={presetError} onRetry={loadPresets} onCustomize={(profile) => {
         let name = profile.name;
         for (let suffix = 1; profiles.some((item) => normalizeName(item.name) === normalizeName(name)); suffix += 1) name = `${profile.name} copy${suffix === 1 ? "" : ` ${suffix}`}`;

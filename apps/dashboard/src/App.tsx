@@ -2,12 +2,13 @@ import { CloudContext, CloudModelContext, type Organization } from "@/lib/cloud"
 import { OrganizationPage } from "@/pages/OrganizationPage";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useEffect, useRef, useState } from "react";
-import { Activity, BookOpenCheck, Boxes, ChartColumn, KeyRound, LogOut, Menu, Settings, SlidersHorizontal, TerminalSquare, X } from "lucide-react";
+import { Activity, BookOpenCheck, Boxes, ChartColumn, KeyRound, LogOut, Menu, Settings, SlidersHorizontal, Users, Webhook, X } from "lucide-react";
 import type { ClassificationEvent, UserRecord } from "@pyro/contracts";
 import { PyroMark } from "@/components/PyroMark";
 import { PageErrorBoundary } from "@/components/PageErrorBoundary";
 import { BranchedMenu, type BranchedMenuItem } from "@/components/react-bits/BranchedMenu";
 import { Button } from "@/components/ui/button";
+import { ViewTabs } from "@/components/ui/view-tabs";
 import { useDashboardPreferences } from "@/components/ui/theme";
 import { api, ApiError, controlWebSocketUrl, selectOrganization } from "@/lib/api";
 import { ActivityPage } from "@/pages/ActivityPage";
@@ -28,22 +29,29 @@ import { UsagePage } from "@/pages/UsagePage";
 type Page = "organization" | "evaluations" | "reviews" | "team" | "history" | "overview" | "apps" | "usage" | "playground" | "profiles" | "activity" | "keys" | "settings" | "integrations";
 type User = UserRecord;
 
+const POLICY_SECTIONS: Array<{ value: Page; label: string }> = [
+  { value: "profiles", label: "Library" },
+  { value: "playground", label: "Playground" },
+  { value: "history", label: "History" },
+  { value: "evaluations", label: "Evaluations" },
+];
+const isPolicyPage = (value: string | null) => POLICY_SECTIONS.some((section) => section.value === value);
+
 const NAV: BranchedMenuItem[] = [
-  { label: "Observe", children: [
+  { value: "workspace", label: "Workspace", children: [
     { value: "overview", label: "Overview", icon: <Activity className="size-3.5" /> },
-    { value: "usage", label: "Usage", icon: <ChartColumn className="size-3.5" /> },
-    { value: "evaluations", label: "Evaluation lab", icon: <ChartColumn className="size-3.5" /> },
-    { value: "reviews", label: "Review inbox", icon: <BookOpenCheck className="size-3.5" /> },
-    { value: "activity", label: "Activity", icon: <BookOpenCheck className="size-3.5" /> },
-    { value: "playground", label: "Policy Playground", icon: <TerminalSquare className="size-3.5" /> },
-  ] },
-  { label: "Configure", children: [
-    { value: "team", label: "Team & audit", icon: <KeyRound className="size-3.5" /> },
-    { value: "apps", label: "Applications", icon: <Boxes className="size-3.5" /> },
-    { value: "history", label: "Policy history", icon: <BookOpenCheck className="size-3.5" /> },
     { value: "profiles", label: "Policies", icon: <SlidersHorizontal className="size-3.5" /> },
+    { value: "apps", label: "Applications", icon: <Boxes className="size-3.5" /> },
+  ] },
+  { value: "observe", label: "Observe", children: [
+    { value: "activity", label: "Activity", icon: <Activity className="size-3.5" /> },
+    { value: "usage", label: "Usage", icon: <ChartColumn className="size-3.5" /> },
+    { value: "reviews", label: "Review inbox", icon: <BookOpenCheck className="size-3.5" /> },
+  ] },
+  { value: "manage", label: "Manage", children: [
     { value: "keys", label: "API keys", icon: <KeyRound className="size-3.5" /> },
-    { value: "integrations", label: "Webhooks", icon: <Activity className="size-3.5" /> },
+    { value: "integrations", label: "Webhooks", icon: <Webhook className="size-3.5" /> },
+    { value: "team", label: "Team & audit", icon: <Users className="size-3.5" /> },
   ] },
 ];
 
@@ -57,7 +65,7 @@ export default function App() {
   const [checking, setChecking] = useState(true);
   const [page, setPage] = useState<Page>(() => {
     const saved = localStorage.getItem("pf-page");
-    return saved === "settings" || saved === "organization" || NAV.some((group) => group.children?.some((item) => item.value === saved)) ? saved as Page : "overview";
+    return saved === "settings" || saved === "organization" || isPolicyPage(saved) || NAV.some((group) => group.children?.some((item) => item.value === saved)) ? saved as Page : "overview";
   });
   const [refreshKey, setRefreshKey] = useState(0);
   const [toast, setToast] = useState<string>();
@@ -124,7 +132,17 @@ export default function App() {
   if (!user) return <LoginPage onLogin={(next) => { setUser(next); void refreshSession().catch((e) => setScopeError(e.message)); }} />;
 
   const visiblePages = user.role === "admin" ? undefined : ["overview", "usage", "activity", "reviews", "evaluations", ...(user.role === "operator" ? ["keys"] : [])];
-  const navigation = [...NAV, ...(user.cloud ? [{ label: "Workspace", children: [{ value: "organization", label: "Organization & billing", icon: <Boxes className="size-3.5" /> }] }] : [])].map((group) => ({ ...group, children: group.children?.filter((item) => !visiblePages || item.value === "organization" || visiblePages.includes(String(item.value))) })).filter((group) => group.children?.length);
+  const policySections = POLICY_SECTIONS.filter((section) => !visiblePages || visiblePages.includes(section.value));
+  const policyEntry = policySections[0]!.value;
+  const navigation = NAV.map((group) => ({
+    ...group,
+    children: [
+      ...group.children!.map((item) => item.value === "profiles" ? { ...item, value: policyEntry } : item),
+      ...(group.value === "manage" && user.cloud ? [{ value: "organization", label: "Org & billing", icon: <Boxes className="size-3.5" /> }] : []),
+    ].filter((item) => !visiblePages || item.value === "organization" || visiblePages.includes(item.value)),
+  })).filter((group) => group.children.length);
+  const currentPage = user.cloud && !user.organizationId ? "organization" : !user.cloud && page === "organization" || visiblePages && !visiblePages.includes(page) && page !== "organization" ? "overview" : page;
+  const activeNavigation = isPolicyPage(currentPage) ? policyEntry : currentPage;
   const organization = organizations.find((o) => o.id === user.organizationId);
   const content = {
     organization: <OrganizationPage user={user} organization={organization} onChanged={refreshSession} />,
@@ -141,7 +159,7 @@ export default function App() {
     settings: <SettingsPage />,
     team: <TeamPage currentUserId={user.id} />,
     integrations: <IntegrationsPage />,
-  }[user.cloud && !user.organizationId ? "organization" : !user.cloud && page === "organization" || visiblePages && !visiblePages.includes(page) && page !== "organization" ? "overview" : page];
+  }[currentPage];
 
   return (
     <CloudContext.Provider value={Boolean(user.cloud)}><CloudModelContext.Provider value={user.cloudModel ?? "jev-latest"}><div className="app-grid">
@@ -152,11 +170,14 @@ export default function App() {
         </div>
         <div id="dashboard-navigation" className={`flex min-h-0 flex-1 flex-col ${mobileNavOpen ? "" : "max-sm:hidden"}`}>
           {user.cloud && organizations.length > 0 && <div className="px-4 pt-4"><label htmlFor="organization-switcher" className="mb-2 block text-xs font-medium text-muted">Organization</label><Select value={user.organizationId} disabled={switching} onValueChange={(id) => void switchOrganization(id)}><SelectTrigger id="organization-switcher"><SelectValue placeholder="Select organization" /></SelectTrigger><SelectContent>{organizations.map((org) => <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>)}</SelectContent></Select></div>}
-          <div className="flex-1 overflow-y-auto px-4 py-5"><BranchedMenu rowHeight={38} indent={26} items={navigation} defaultOpen={[0, 1]} activeValue={page} onSelect={(value) => navigate(value as Page)} /></div>
-          <div className="flex items-center justify-between border-t border-line px-3 py-3"><button type="button" className={`flex h-9 flex-1 items-center gap-3 px-3 text-left text-[13px] hover:text-foreground ${page === "settings" ? "font-semibold text-foreground" : "text-muted"}`} aria-current={page === "settings" ? "page" : undefined} onClick={() => navigate("settings")}><Settings className="size-4" />{user.role === "admin" ? "Settings" : user.username}</button><Button variant="ghost" size="icon" className="size-8 hover:bg-transparent" onClick={() => void logout()} aria-label="Log out" title="Log out"><LogOut className="size-3.5" /></Button></div>
+          <div className="flex-1 overflow-y-auto px-3 py-4"><BranchedMenu items={navigation} defaultOpen={[0, 1, 2]} activeValue={activeNavigation} onSelect={(value) => navigate(value as Page)} /></div>
+          <div className="flex items-center justify-between gap-1 border-t border-line px-3 py-3"><button type="button" className="branched-menu__item flex-1" data-active={currentPage === "settings" ? "" : undefined} aria-current={currentPage === "settings" ? "page" : undefined} onClick={() => navigate("settings")}><span className="branched-menu__icon"><Settings className="size-3.5" /></span><span className="branched-menu__label">{user.role === "admin" ? "Settings" : user.username}</span></button><Button variant="ghost" size="icon" className="size-8 shrink-0" onClick={() => void logout()} aria-label="Log out" title="Log out"><LogOut className="size-3.5" /></Button></div>
         </div>
       </aside>
-      <main className="min-w-0"><div className="page-shell">{scopeError && <p role="alert" className="mb-5 rounded-control border border-danger/30 p-3 text-sm text-danger">{scopeError}</p>}{invite && user.cloud && <div className="mb-5 flex flex-wrap items-center gap-3 rounded-control border border-line bg-surface-subtle p-4"><p className="text-sm">You have an organization invitation.</p><Button size="sm" disabled={switching} onClick={() => { setSwitching(true); void api.post("/api/invitations/accept", { token: invite }).then(async () => { sessionStorage.removeItem("pyro-invite"); setInvite(null); history.replaceState(null, "", "/"); selectOrganization(undefined); await refreshSession(); }).catch((e) => setScopeError(e.message)).finally(() => setSwitching(false)); }}>Accept invitation</Button><Button variant="ghost" size="sm" onClick={() => { sessionStorage.removeItem("pyro-invite"); setInvite(null); }}>Dismiss</Button></div>}{switching ? <p role="status" className="p-5 text-sm text-muted">Opening organization…</p> : <PageErrorBoundary key={`${user.organizationId ?? "local"}:${page}`}>{content}</PageErrorBoundary>}</div></main>
+      <main className="min-w-0"><div className="page-shell">{scopeError && <p role="alert" className="mb-5 rounded-control border border-danger/30 p-3 text-sm text-danger">{scopeError}</p>}{invite && user.cloud && <div className="mb-5 flex flex-wrap items-center gap-3 rounded-control border border-line bg-surface-subtle p-4"><p className="text-sm">You have an organization invitation.</p><Button size="sm" disabled={switching} onClick={() => { setSwitching(true); void api.post("/api/invitations/accept", { token: invite }).then(async () => { sessionStorage.removeItem("pyro-invite"); setInvite(null); history.replaceState(null, "", "/"); selectOrganization(undefined); await refreshSession(); }).catch((e) => setScopeError(e.message)).finally(() => setSwitching(false)); }}>Accept invitation</Button><Button variant="ghost" size="sm" onClick={() => { sessionStorage.removeItem("pyro-invite"); setInvite(null); }}>Dismiss</Button></div>}{switching ? <p role="status" className="p-5 text-sm text-muted">Opening organization…</p> : <PageErrorBoundary key={`${user.organizationId ?? "local"}:${currentPage}`}>
+        {isPolicyPage(currentPage) && <ViewTabs label="Policy sections" value={currentPage} options={policySections} onChange={navigate} />}
+        {content}
+      </PageErrorBoundary>}</div></main>
       {toast && <div className="fixed bottom-5 right-5 z-50 max-w-sm border border-accent bg-accent px-4 py-3 text-sm leading-5 text-inverse shadow-xl">{toast}</div>}
     </div></CloudModelContext.Provider></CloudContext.Provider>
   );

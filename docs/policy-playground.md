@@ -4,7 +4,9 @@ Implemented in the October 2, 2026 source build. This workflow is not a claim th
 
 ## Workflow
 
-1. Open **Policy Playground → New pipeline**. The starter uses a fictional Northstar support company; replace its context and examples.
+The **Policies** sidebar destination groups **Library**, **Playground**, **History** and **Evaluations**. Policy editing sections are administrator-only; other roles retain their evaluation access.
+
+1. Open **Policies → Playground → New pipeline**. The starter uses a fictional Northstar support company; replace its context and examples.
 2. Choose an application. Its local rules execute first, as they do for gateway traffic.
 3. Arrange up to 16 checks in order. Each check has a stable ID, a name and explicit Yes/No branches. Add text checks or semantic conditions; move or remove them using the shared controls.
 4. Set the final outcome, uncertainty behavior and error behavior. Choose review or block for uncertainty/errors.

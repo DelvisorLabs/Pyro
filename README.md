@@ -40,7 +40,7 @@ pnpm cloud:local
 
 Open **http://127.0.0.1:3001**, create an account, then run `pnpm cloud:local:mail your@email.test` to get its verification link. Create an organization to see the organization switcher, **Organization & billing**, scoped API keys and team invitations. The preview uses mock inference, a local email outbox and its own persistent database; it needs no paid services. `pnpm cloud:local:stop` stops it while preserving data.
 
-Plain `docker compose up -d --build` starts **self-hosted mode** at http://localhost:3000. It does not enable cloud accounts or billing. In either mode, sign in as an administrator and open **Policy Playground → New pipeline** for the ordered policy editor. Existing signal-based policies remain unchanged and do not become pipelines automatically.
+Plain `docker compose up -d --build` starts **self-hosted mode** at http://localhost:3000. It does not enable cloud accounts or billing. In either mode, sign in as an administrator and open **Policies → Playground → New pipeline** for the ordered policy editor. Existing signal-based policies remain unchanged and do not become pipelines automatically.
 
 ## What Pyro does
 
@@ -138,10 +138,10 @@ In **Settings → Classifier provider**, select **Hosted classifier**, enter you
 TypeSafe key in **Provider API key**, and click **Save provider settings**.
 The server needs its own key configuration; it does not inherit your terminal's key.
 
-To create a detector in the dashboard, open **Policies → New signal policy**,
+To create a detector in the dashboard, open **Policies → Library → New signal policy**,
 name the policy, and click **Add detector**. Enter its name, ID, description, and
 question; leave it enabled with **Risk weight** `1`. Set review/block thresholds,
-click **Create policy**, and try it in **Policy Playground**.
+click **Create policy**, and try it in **Policies → Playground**.
 
 Alternatively, import the YAML from the CLI tutorial and create an application key:
 
