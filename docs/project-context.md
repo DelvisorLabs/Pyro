@@ -4,7 +4,7 @@ Updated October 2, 2026. This is the shared brief for future Pyro conversations 
 
 ## Product direction
 
-Pyro is an open-source, self-hostable product for designing, testing, and enforcing policies for AI applications. The founder wants to explore positioning it as **“Design AI policies”**, broadening the framing from an LLM firewall to a policy suite while keeping the underlying primitive focused and useful. This direction does not itself authorize changes to the website or public claims.
+Pyro is an open-source, self-hostable product for designing, testing, and enforcing policies for AI applications. The founder authorized the migration to **“Design AI policies”** and corresponding Pyro website changes on October 2, 2026. The framing broadens from an LLM firewall to a policy suite while keeping the underlying primitive focused. This authorization covers local implementation; publishing still requires a separate request.
 
 The original problem remains central: given user input, determine whether it violates security constraints and whether it semantically matches a set of application rules. Security and business policies can share an interface, but they need different evidence. A profanity match, an off-topic request, and an attempted prompt injection are different findings.
 
@@ -12,31 +12,13 @@ Open source and self-hosting are core advantages the founder wants to build arou
 
 The founder accepts that competition exists in almost every worthwhile category and wants to pursue Pyro for at least several months. The objective is demonstrable superiority for a specific use case, rather than finding a category with no competitors.
 
-## First feature to work out: Policy Playground
+## Policy Playground implementation (October 2, 2026)
 
-The founder's first proposed feature is a playground for creating a validation pipeline:
+The founder requested implementation of this brief, including the website. The first implementation uses a guided stack of up to 16 ordered checks. Text contains/equals/whole-word/RE2 checks and semantic conditions have explicit Yes/No branches. Continue advances to the next check; allow/review/block terminates. Uncertain and failed semantic checks stop with an explicit review/block outcome. Company context and positive/negative examples inform the existing semantic provider.
 
-```text
-User input
-  → Text/regex check: “cuss word check” (a configured word list)
-      Match → Block
-      No match → Semantic check: “Is it related to my company?”
-          Yes → Allow
-          No → Block
-```
+The dashboard supports testing a working copy before publication, inspecting executed/skipped checks, saving expected outcomes as encrypted regression datasets, YAML export, and revision publication. The same shared schema/engine executes through CLI, gateway, queued jobs, SDKs and evaluations. Existing signal-based policies preserve their behavior and application rules run before either policy type. See [Policy Playground semantics](policy-playground.md).
 
-Users should be able to understand the checks, their yes/no branches, and the resulting actions. The founder is exploring the best form factor: a flow diagram is an illustration of the mental model, not a settled requirement for a freeform canvas. A simpler stack of rule blocks may be preferable.
-
-The following design ideas were proposed and remain open:
-
-- Make the versioned, executable policy the core artifact, with consistent behavior across the editor, CLI, SDK, and gateway.
-- Start with text checks (literal, word list, regex), semantic conditions, explicit branches, and terminal outcomes. Consider a guided decision tree with automatic layout.
-- Give semantic conditions relevant context and positive/negative examples. “Related to my company” needs a definition of the company and acceptable scope.
-- Show sample input, the executed path, matched evidence, skipped checks, and the final outcome together.
-- Turn incorrect results into saved regression cases and compare behavior across policy revisions.
-- Treat uncertainty and execution errors explicitly. A failed semantic check must not silently mean “No.” Whether an unresolved result blocks or goes to review is a policy choice.
-
-These are design candidates, not a completed specification. The discussion did not settle the editor layout, first release scope, or new runtime semantics.
+These are implementation choices for the first version, not evidence of a novel model or enterprise security assurance. A freeform graph is not implemented. Text trace evidence names configured terms/patterns without retaining raw input; semantic traces show scores and thresholds, not grounded evidence attribution. Condition scores are not calibrated correctness. The source feature and website changes remain unpublished until explicitly released.
 
 ## Long-term engine ambition
 
@@ -81,8 +63,8 @@ One correction to preserve: the October 1, 2026 check found Portkey's public gat
 ## Decisions still open
 
 - First customer, concrete workflow, and measurable advantage to optimize for.
-- Policy Playground's editor form, initial checks/actions, and handling of unknown/error outcomes.
-- How plain-language policies become precise, testable behavior and how policy conflicts resolve.
+- Further Policy Playground graph/editor needs and semantic evidence attribution beyond the implemented guided stack.
+- Automatic compilation of plain-language policies; the current editor requires explicit checks/branches and first-terminal-outcome semantics.
 - Research architecture, datasets, evaluation criteria, and eventual inference/deployment model.
 - Paid offering and support scope compatible with a founder working alongside a full-time job.
 

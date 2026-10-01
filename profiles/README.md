@@ -7,6 +7,7 @@ Each `.yaml` file is an opt-in, editable configuration, loaded by the control pl
 | balanced-assistant | General prompt-injection and exfiltration checks with common local review rules |
 | strict-tool-agent | Lower thresholds and checks for destructive commands and privileged tool names |
 | support-assistant | Prompt injection, data disclosure and bypassing account verification |
+| support-workflow | Ordered word-list and company-scope checks with explicit Yes/No and uncertainty outcomes |
 | local-secrets | Common private-key/token shapes using local regex only; no inference |
 
 These are starting points, not benchmarked guarantees. Adapt tool names and patterns, and evaluate false positives and misses using representative application traffic before enforcing them.
@@ -22,9 +23,9 @@ and weight. Phrase the question so "yes" indicates risk. Start with weight `1`
 and tune the policy's review/block thresholds against both normal and risky inputs.
 
 In the dashboard, configure **Settings → Classifier provider** first. Then open
-**Protection Profiles**, create or edit a policy, and choose **Add detector**.
+**Policies**, create or edit a policy, and choose **Add detector**.
 Enter the fields, enable the detector, and choose **Create policy** or **Save policy**.
-Use **Playground** to test it. All enabled detector questions are evaluated together
+Use **Policy Playground** to test it. All enabled detector questions are evaluated together
 in one TypeSafe request; a matching local rule returns a decision before that call.
 
 ## Importing and evaluating profiles
@@ -36,3 +37,7 @@ Profile and application local rules are combined, not overridden by matching IDs
 A profile may contain local rules with zero semantic detectors. If no local or application rule matches and no semantic detector is enabled, the gateway allows the request locally. Disabling all semantic detectors has the same effect; select fail-closed policies with semantic detectors when provider failures should block. The configured fail mode applies only when provider evaluation fails.
 
 YAML imports are limited to 256 KB, reject duplicate mapping keys, unsupported tags and aliases, and validate thresholds, rule patterns and unique rule/detector IDs. Profile imports do not contain destinations, signing keys, or provider credentials.
+
+## Ordered pipelines
+
+The support-workflow template uses `profile.pipeline` with `version: 1`. Pipeline policies set `detectors: []` and `localRules: []`; their ordered checks replace those policy-level lists. Application rules still execute first. See [Policy Playground](../docs/policy-playground.md) for branch, uncertainty, evidence and cost semantics. Existing signal-based profiles are unchanged.

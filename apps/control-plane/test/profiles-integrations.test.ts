@@ -15,7 +15,7 @@ async function setup(t: { after: (fn: () => Promise<void>) => void }) {
   return { app, database: await openDatabase(databaseUrl), headers: { cookie: login.headers["set-cookie"]!.toString().split(";")[0]! } };
 }
 test("catalog profiles round-trip with local rules and reject malformed or hostile YAML", async () => {
-  const presets = await loadPresetProfiles(); assert.equal(presets.length, 4);
+  const presets = await loadPresetProfiles(); assert.equal(presets.length, 5);
   for (const preset of presets) assert.deepEqual(parseProfileYaml(exportProfileYaml(preset.profile)).localRules, preset.profile.localRules);
   assert.throws(() => parseProfileYaml("apiVersion: pyro/v2\nkind: Profile\nprofile: {}"));
   assert.throws(() => parseProfileYaml("apiVersion: pyro/v1\napiVersion: pyro/v1"));

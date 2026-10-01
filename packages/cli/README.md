@@ -1,8 +1,11 @@
 # Pyro CLI
 
-Check prompts with TypeSafe and define semantic detectors as plain-language
-questions. The CLI runs directly on your machine; Docker is optional for shared
+Run portable AI policies: local text checks or semantic conditions backed by TypeSafe. The CLI runs directly on your machine; Docker is optional for shared
 policies, a dashboard, and team workflows.
+
+## Ordered policy pipelines (source build)
+
+Export YAML from Policy Playground and run it with `pyro classify --profile-file ./policy.yaml "Input"`. Text-only pipelines run offline. A pipeline containing semantic checks requires `--semantic` and `TYPESAFE_API_KEY`, even if a particular input might stop at an earlier text check. Inspect `policyTrace` for matches, skipped checks, uncertainty and errors. Your application must enforce `action`. See the [pipeline guide](../../docs/policy-playground.md); use a CLI build that includes this feature.
 
 ## 1. Configure your TypeSafe API key
 

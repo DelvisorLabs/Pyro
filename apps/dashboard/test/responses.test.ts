@@ -22,7 +22,7 @@ test('activity supports historical traces with no detector array or label catalo
 });
 test('invalid responses become actionable load errors instead of render failures', () => {
   assert.throws(() => readProfiles(undefined), /control plane/);
-  assert.throws(() => readProfiles([{}]), /protection profiles/);
+  assert.throws(() => readProfiles([{}]), /policies/);
   assert.throws(() => readActivity({} as never), /activity/);
   assert.throws(() => readEvent(undefined as never), /request trace/);
 });

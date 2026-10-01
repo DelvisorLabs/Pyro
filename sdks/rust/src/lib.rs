@@ -69,6 +69,8 @@ pub struct Decision {
     pub risk: f64,
     pub confidence: f64,
     pub reason: String,
+    pub decision_mode: Option<String>,
+    pub policy_trace: Option<Vec<Value>>,
     pub detectors: Vec<DetectorResult>,
     pub model: String,
     pub provider: String,

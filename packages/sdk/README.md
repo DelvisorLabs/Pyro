@@ -19,6 +19,8 @@ if (decision.action !== "allow") throw new Error(decision.reason);
 
 The API key selects the application and its policy/rules; an application ID is never trusted from request data. The client also exposes `createJob`, `getJob`, `waitForJob`, and `listProfiles`.
 
+Pipeline policies return `decisionMode: "pipeline"` and an ordered `policyTrace`, including skipped checks and uncertainty. Enforce `action`; pipeline `risk` encodes the action and is not a probability of harm. See the [Policy Playground guide](../../docs/policy-playground.md) for creating and publishing a policy. Legacy signal policies remain supported.
+
 ## Install locally
 
 Node.js 22 or newer is supported. Keep API keys on the server. This change does not publish packages to npm.
@@ -47,7 +49,7 @@ const result = await pyro.waitForJob(job.id, {
 });
 ```
 
-The overall polling deadline includes HTTP calls and delays. Abort listeners are removed after each delay. Gateway jobs currently expire after about ten minutes and are process-local.
+The overall polling deadline includes HTTP calls and delays. Abort listeners are removed after each delay. Gateway jobs persist in the deployment database, have a 15-minute execution deadline, and retain completed results for ten minutes. Polling cancellation stops this client, not the server job.
 
 ## Verify a webhook
 

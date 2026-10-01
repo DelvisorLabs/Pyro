@@ -53,3 +53,26 @@ test("standalone semantic calls require explicit consent and use the official pr
   const decision = await classifyStandalone(JSON.stringify({ input: "synthetic semantic example" }), "application/json", { timeout: 1000, semantic: true });
   assert.equal(calls, 1); assert.equal(decision.action, "allow"); assert.equal(decision.execution, "standalone");
 });
+
+test("portable pipelines run offline and semantic branches require explicit provider consent", async t => {
+  const config = join(await temporary(t), "config.json"), file = join(await temporary(t), "pipeline.json");
+  const { createDefaultProfile } = await import("@pyro/contracts");
+  await writeFile(file, JSON.stringify({ ...createDefaultProfile(), detectors: [], localRules: [], pipeline: { version: 1, otherwise: "allow", onUncertain: "review", onError: "block", steps: [{ id: "words", name: "Words", type: "text", match: "word_list", words: ["idiot"], onMatch: "block", onNoMatch: "continue" }] } }));
+  const result = await invoke(["classify", "you idiot", "--profile-file", file], { config, env: { TYPESAFE_API_KEY: "" } });
+  assert.equal(result.code, 0, result.stderr); const decision = JSON.parse(result.stdout);
+  assert.equal(decision.action, "block"); assert.equal(decision.decisionMode, "pipeline"); assert.equal(decision.policyTrace[0].outcome, "match");
+  assert.equal(decision.provider, "local-rules");
+  const missing = await invoke(["classify", "hello", "--profile", "support-workflow"], { config, env: { TYPESAFE_API_KEY: "" } });
+  assert.equal(missing.code, 2); assert.match(missing.stderr, /--semantic/);
+  const prior = process.env.TYPESAFE_API_KEY; process.env.TYPESAFE_API_KEY = "test-only-key";
+  t.after(() => { if (prior === undefined) delete process.env.TYPESAFE_API_KEY; else process.env.TYPESAFE_API_KEY = prior; });
+  let calls = 0;
+  t.mock.method(globalThis, "fetch", async (_url: string, options: RequestInit) => {
+    calls++; const request = JSON.parse(options.body as string);
+    assert.equal(request.questions.company_scope.criteria.true, "The condition matches the payload.");
+    assert.match(request.questions.company_scope.instructions, /Northstar/);
+    return Response.json({ answers: { company_scope: { probability: .99 } } });
+  });
+  const semantic = await classifyStandalone(JSON.stringify({ input: "Billing help", profile: "support-workflow" }), "application/json", { timeout: 1000, semantic: true });
+  assert.equal(semantic.action, "allow"); assert.equal(semantic.policyTrace![1]!.outcome, "match"); assert.equal(calls, 1);
+});

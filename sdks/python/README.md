@@ -23,6 +23,8 @@ if decision["action"] != "allow":
 
 The API key selects the application and its policy/rules; an application ID is never trusted from request data. The client also exposes `create_job`, `get_job`, `wait_for_job`, and `list_profiles`.
 
+Pipeline responses include `decision["decisionMode"] == "pipeline"` and `decision["policyTrace"]`, the ordered execution path. Enforce `decision["action"]`; pipeline `risk` encodes the action and is not a probability of harm. See the [Policy Playground guide](../../docs/policy-playground.md) for creating and publishing a policy.
+
 ## Cloud (unreleased source)
 
 The cloud convenience endpoint is `https://api.pyro.delvisor.com`. TypeScript/Python cloud keys (`pyro_`) select it automatically; legacy/self-hosted keys retain localhost defaults. Rust uses `PyroClient::cloud`. Explicit base URLs always work for local tests, migrated legacy keys or custom hosting. Public DNS/service and package publication are separate launch steps; do not assume this source change is already available from a package registry.

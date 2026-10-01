@@ -5,14 +5,14 @@
 <h1 align="center">Pyro</h1>
 
 <p align="center">
-  Self-hosted prompt monitoring and protection with fast local rules,<br />
-  configurable semantic detectors, and
-  <a href="https://typesafe.ai/blog/introducing-system-one-models-and-jev">System One models</a>.
+  Design AI policies.<br />
+  Ordered checks, explicit branches, regression tests and a shared execution engine.
+  Open source and self-hostable.
 </p>
 
 <p align="center">
-  <strong>Inspect every rule</strong> ·
-  <strong>Set every threshold</strong> ·
+  <strong>Design checks</strong> ·
+  <strong>Test each branch</strong> ·
   <strong>Trace every decision</strong>
 </p>
 
@@ -21,6 +21,12 @@
   <a href="#what-pyro-does">How it works</a> ·
   <a href="./docs/openapi.yaml">API reference</a>
 </p>
+
+## Policy Playground
+
+Create an ordered pipeline of text checks and semantic conditions, with explicit Yes/No branches and review/block outcomes for uncertainty or failure. Test the working copy before publishing, inspect executed and skipped checks, and save regression datasets for revision comparisons. Export the same policy to the standalone CLI or run it through the gateway and SDKs.
+
+See the [workflow and runtime contract](docs/policy-playground.md) and [complete support example](profiles/support-workflow.yaml). Pipeline support is in this source build; no new CLI/SDK package or hosted service has been published by this change. Existing signal-based policies keep their behavior. The semantic provider remains TypeSafe; the independent-engine ambition remains research.
 
 ## Optional cloud beta
 
@@ -122,10 +128,10 @@ In **Settings → Classifier provider**, select **Hosted classifier**, enter you
 TypeSafe key in **Provider API key**, and click **Save provider settings**.
 The server needs its own key configuration; it does not inherit your terminal's key.
 
-To create a detector in the dashboard, open **Protection Profiles → New profile**,
+To create a detector in the dashboard, open **Policies → New signal policy**,
 name the policy, and click **Add detector**. Enter its name, ID, description, and
 question; leave it enabled with **Risk weight** `1`. Set review/block thresholds,
-click **Create policy**, and try it in **Playground**.
+click **Create policy**, and try it in **Policy Playground**.
 
 Alternatively, import the YAML from the CLI tutorial and create an application key:
 
@@ -149,7 +155,7 @@ Your application must enforce the returned action: continue on `allow`, hold
 `review` for a fallback or approval flow, and reject `block`. A completed CLI
 classification exits 0 for any action; scripts must inspect the result.
 
-## Protection profiles
+## Policies
 
 A profile describes what should be evaluated and how Pyro should act on the result. Each profile can configure:
 

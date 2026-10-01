@@ -214,6 +214,14 @@ components:
           queueMs
         ]
       properties:
+        decisionMode:
+          type: string
+          enum:
+            - pipeline
+          description: For pipelines, risk encodes the action (allow=0, review=0.5,
+            block=1) and confidence=0; neither is calibrated.
+        policyTrace:
+          $ref: "#/components/schemas/PolicyTrace"
         id: { type: string, description: Server-generated decision identifier }
         requestId:
           {
@@ -268,3 +276,221 @@ components:
               action: { enum: [ allow, review, block ] }
               risk: { type: number }
               changed: { type: boolean }
+
+    PolicyPipeline:
+      type: object
+      properties:
+        version:
+          type: number
+          enum:
+            - 1
+        steps:
+          minItems: 1
+          maxItems: 16
+          type: array
+          items:
+            oneOf:
+              - type: object
+                properties:
+                  id:
+                    type: string
+                    pattern: ^[a-z0-9][a-z0-9_-]{1,63}$
+                  name:
+                    type: string
+                    minLength: 1
+                    maxLength: 100
+                  onMatch:
+                    type: string
+                    enum:
+                      - continue
+                      - allow
+                      - review
+                      - block
+                  onNoMatch:
+                    type: string
+                    enum:
+                      - continue
+                      - allow
+                      - review
+                      - block
+                  type:
+                    type: string
+                    enum:
+                      - text
+                  match:
+                    type: string
+                    enum:
+                      - contains
+                      - equals
+                      - regex
+                      - word_list
+                  pattern:
+                    default: ""
+                    type: string
+                    maxLength: 500
+                  words:
+                    default: []
+                    maxItems: 100
+                    type: array
+                    items:
+                      type: string
+                      minLength: 1
+                      maxLength: 80
+                      pattern: ^[\p{L}\p{N}_]+$
+                  caseSensitive:
+                    default: false
+                    type: boolean
+                required:
+                  - id
+                  - name
+                  - onMatch
+                  - onNoMatch
+                  - type
+                  - match
+                  - pattern
+                  - words
+                  - caseSensitive
+                additionalProperties: false
+              - type: object
+                properties:
+                  id:
+                    type: string
+                    pattern: ^[a-z0-9][a-z0-9_-]{1,63}$
+                  name:
+                    type: string
+                    minLength: 1
+                    maxLength: 100
+                  onMatch:
+                    type: string
+                    enum:
+                      - continue
+                      - allow
+                      - review
+                      - block
+                  onNoMatch:
+                    type: string
+                    enum:
+                      - continue
+                      - allow
+                      - review
+                      - block
+                  type:
+                    type: string
+                    enum:
+                      - semantic
+                  question:
+                    type: string
+                    minLength: 8
+                    maxLength: 2000
+                  context:
+                    default: ""
+                    type: string
+                    maxLength: 4000
+                  positiveExamples:
+                    default: []
+                    maxItems: 10
+                    type: array
+                    items:
+                      type: string
+                      minLength: 1
+                      maxLength: 1000
+                  negativeExamples:
+                    default: []
+                    maxItems: 10
+                    type: array
+                    items:
+                      type: string
+                      minLength: 1
+                      maxLength: 1000
+                  noThreshold:
+                    default: 0.2
+                    type: number
+                    minimum: 0
+                    maximum: 1
+                  yesThreshold:
+                    default: 0.8
+                    type: number
+                    minimum: 0
+                    maximum: 1
+                required:
+                  - id
+                  - name
+                  - onMatch
+                  - onNoMatch
+                  - type
+                  - question
+                  - context
+                  - positiveExamples
+                  - negativeExamples
+                  - noThreshold
+                  - yesThreshold
+                additionalProperties: false
+        otherwise:
+          type: string
+          enum:
+            - allow
+            - review
+            - block
+        onUncertain:
+          type: string
+          enum:
+            - review
+            - block
+        onError:
+          type: string
+          enum:
+            - review
+            - block
+      required:
+        - version
+        - steps
+        - otherwise
+        - onUncertain
+        - onError
+      additionalProperties: false
+      description: Ordered checks, maximum 16. IDs must be unique, text patterns must
+        be valid RE2, No threshold must be below Yes threshold. Cannot coexist with
+        legacy detectors or policy localRules. Application rules execute first.
+    PolicyTrace:
+      type: array
+      items:
+        type: object
+        properties:
+          id:
+            type: string
+          name:
+            type: string
+          type:
+            type: string
+            enum:
+              - text
+              - semantic
+              - application_rule
+          outcome:
+            type: string
+            enum:
+              - match
+              - no_match
+              - uncertain
+              - error
+              - skipped
+          evidence:
+            type: string
+          probability:
+            type: number
+            minimum: 0
+            maximum: 1
+          next:
+            type: string
+            enum:
+              - continue
+              - allow
+              - review
+              - block
+        required:
+          - id
+          - name
+          - type
+          - outcome
+          - evidence
+        additionalProperties: false

@@ -99,7 +99,7 @@ export function PolicyHistoryPage() {
       <PageHeader title="Policy history" description="Inspect saved revisions, create a draft, and control which revision each application runs." actions={<Button variant="outline" disabled={busy || loading} onClick={() => void refresh()}><RefreshCw className="size-4" />Refresh</Button>} />
       <div className="space-y-5">
         {message && <div role="status" className="rounded-control border border-line-strong bg-surface-subtle px-4 py-3 text-[13px]">{message}</div>}
-        {loadingCatalog ? <Card><CardContent><p role="status" className="text-[13px] text-muted">Loading policies…</p></CardContent></Card> : !profiles.length ? <EmptyState title="No policies yet">Create a protection profile to start tracking its revisions.</EmptyState> : <>
+        {loadingCatalog ? <Card><CardContent><p role="status" className="text-[13px] text-muted">Loading policies…</p></CardContent></Card> : !profiles.length ? <EmptyState title="No policies yet">Create a policy to start tracking its revisions.</EmptyState> : <>
           <Card>
             <CardContent className="flex flex-wrap items-end justify-between gap-4">
               <div className="w-full sm:max-w-sm"><FieldLabel htmlFor="history-policy">Policy</FieldLabel><Select disabled={busy} value={id} onValueChange={setId}><SelectTrigger id="history-policy"><SelectValue placeholder="Choose policy" /></SelectTrigger><SelectContent>{profiles.map((profile) => <SelectItem key={profile.id} value={profile.id}>{profile.name}</SelectItem>)}</SelectContent></Select></div>

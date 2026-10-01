@@ -91,7 +91,7 @@ export function WebhookEditor({ initialDraft, busy, error, onSave, onCancel }: W
               <ResourceScopePicker id="webhook-applications" label="Applications" singular="application" choices={apps} value={draft.applications} onChange={(applications) => setDraft({ ...draft, applications })} disabled={loading || Boolean(loadError) || busy} />
             </div>
             <div className="min-w-0">
-              <FieldLabel htmlFor="webhook-profiles" help="Limit notifications to decisions made by specific protection profiles. All profiles includes profiles you create later. This filter does not attach a profile to an application.">Profiles</FieldLabel>
+              <FieldLabel htmlFor="webhook-profiles" help="Limit notifications to decisions made by specific policies. All profiles includes profiles you create later. This filter does not attach a profile to an application.">Profiles</FieldLabel>
               <ResourceScopePicker id="webhook-profiles" label="Profiles" singular="profile" choices={profiles} value={draft.profiles} onChange={(profiles) => setDraft({ ...draft, profiles })} disabled={loading || Boolean(loadError) || busy} />
             </div>
           </div>

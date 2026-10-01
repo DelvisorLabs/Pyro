@@ -30,6 +30,57 @@ export const LocalRulesSchema = z.array(LocalRuleSchema).max(100).default([]).re
   "Local rule IDs must be unique within their scope.",
 );
 
+export const PolicyBranchSchema = z.enum(["continue", "allow", "review", "block"]);
+const stepFields = {
+  id: z.string().regex(/^[a-z0-9][a-z0-9_-]{1,63}$/),
+  name: z.string().trim().min(1).max(100),
+  onMatch: PolicyBranchSchema,
+  onNoMatch: PolicyBranchSchema,
+};
+export const TextStepSchema = z.object({
+  ...stepFields, type: z.literal("text"),
+  match: z.enum(["contains", "equals", "regex", "word_list"]),
+  pattern: z.string().max(500).default(""),
+  words: z.array(z.string().min(1).max(80).regex(/^[\p{L}\p{N}_]+$/u)).max(100).default([]),
+  caseSensitive: z.boolean().default(false),
+}).superRefine((step, ctx) => {
+  if (step.match === "word_list") {
+    if (!step.words.length) ctx.addIssue({ code: "custom", path: ["words"], message: "Add at least one word." });
+  } else if (!step.pattern) ctx.addIssue({ code: "custom", path: ["pattern"], message: "A text pattern is required." });
+  if (step.match === "regex") {
+    try { RE2JS.compile(step.pattern, step.caseSensitive ? 0 : RE2JS.CASE_INSENSITIVE); }
+    catch { ctx.addIssue({ code: "custom", path: ["pattern"], message: "Use a valid RE2 expression without lookaround or backreferences." }); }
+  }
+});
+export const SemanticStepSchema = z.object({
+  ...stepFields, type: z.literal("semantic"),
+  question: z.string().trim().min(8).max(2_000),
+  context: z.string().max(4_000).default(""),
+  positiveExamples: z.array(z.string().min(1).max(1_000)).max(10).default([]),
+  negativeExamples: z.array(z.string().min(1).max(1_000)).max(10).default([]),
+  noThreshold: z.number().min(0).max(1).default(0.2),
+  yesThreshold: z.number().min(0).max(1).default(0.8),
+}).refine((step) => step.noThreshold < step.yesThreshold, { path: ["yesThreshold"], message: "Yes threshold must exceed the No threshold, leaving an uncertainty interval." });
+export const PolicyStepSchema = z.discriminatedUnion("type", [TextStepSchema, SemanticStepSchema]);
+export const PolicyPipelineSchema = z.object({
+  version: z.literal(1),
+  steps: z.array(PolicyStepSchema).min(1).max(16).refine((steps) => new Set(steps.map((s) => s.id)).size === steps.length, "Check IDs must be unique."),
+  otherwise: PolicyActionSchema,
+  onUncertain: z.enum(["review", "block"]),
+  onError: z.enum(["review", "block"]),
+});
+export const PolicyTraceEntrySchema = z.object({
+  id: z.string(), name: z.string(), type: z.enum(["text", "semantic", "application_rule"]),
+  outcome: z.enum(["match", "no_match", "uncertain", "error", "skipped"]),
+  evidence: z.string(), probability: z.number().min(0).max(1).optional(),
+  next: PolicyBranchSchema.optional(),
+});
+export type TextStep = z.infer<typeof TextStepSchema>;
+export type SemanticStep = z.infer<typeof SemanticStepSchema>;
+export type PolicyStep = z.infer<typeof PolicyStepSchema>;
+export type PolicyPipeline = z.infer<typeof PolicyPipelineSchema>;
+export type PolicyTraceEntry = z.infer<typeof PolicyTraceEntrySchema>;
+
 export const AppSchema = z.object({
   id: z.string().regex(/^[a-z0-9][a-z0-9_-]{1,63}$/),
   name: z.string().min(1).max(100),
@@ -84,10 +135,12 @@ export const ProfileSchema = z
     shadowProfileIds: z.array(z.string()).max(3).default([]),
     localRules: LocalRulesSchema,
     detectors: z.array(DetectorSchema).max(32),
+    pipeline: PolicyPipelineSchema.optional(),
     createdAt: z.string(),
     updatedAt: z.string(),
   })
-  .refine((profile) => profile.detectors.length + profile.localRules.length > 0, { message: "Add at least one detector or local rule", path: ["detectors"] })
+  .refine((profile) => Boolean(profile.pipeline) || profile.detectors.length + profile.localRules.length > 0, { message: "Add a pipeline, detector or local rule", path: ["detectors"] })
+  .refine((profile) => !profile.pipeline || profile.detectors.length + profile.localRules.length === 0, { message: "Pipeline policies use their ordered checks; remove legacy detectors and policy local rules.", path: ["pipeline"] })
   .refine((profile) => new Set(profile.detectors.map((d) => d.id)).size === profile.detectors.length, { message: "Detector IDs must be unique", path: ["detectors"] })
   .refine((profile) => profile.reviewThreshold <= profile.blockThreshold, {
     message: "reviewThreshold must be less than or equal to blockThreshold",
@@ -155,6 +208,8 @@ export const ClassificationDecisionSchema = z.object({
   risk: z.number().min(0).max(1),
   confidence: z.number().min(0).max(1),
   reason: z.string(),
+  decisionMode: z.literal("pipeline").optional(),
+  policyTrace: z.array(PolicyTraceEntrySchema).optional(),
   detectors: z.array(DetectorResultSchema),
   model: z.string(),
   provider: z.string(),
@@ -194,6 +249,12 @@ export type ProviderSettings = z.infer<typeof ProviderSettingsSchema>;
 export type ClassificationEnvelope = z.infer<typeof ClassificationEnvelopeSchema>;
 export type DetectorResult = z.infer<typeof DetectorResultSchema>;
 export type ClassificationDecision = z.infer<typeof ClassificationDecisionSchema>;
+
+/** Upper bound before retries; shared by consent, model checks and cost estimates. */
+export function semanticCheckCount(profile: Profile): number {
+  return profile.pipeline ? profile.pipeline.steps.filter((step) => step.type === "semantic").length
+    : Number(profile.detectors.some((detector) => detector.enabled));
+}
 
 export interface ClassificationEvent extends ClassificationDecision {
   appRulesSnapshot?: LocalRule[];

@@ -3,7 +3,7 @@ import type { FastifyInstance } from "fastify";
 import { buildGateway } from "@pyro/gateway/app";
 import { buildControlPlane } from "@pyro/control-plane/app";
 import { openDatabase, type Database } from "@pyro/storage";
-import { createDefaultProviderSettings, createDefaultProfile, type ApiKeyRecord, type StoredIntegration } from "@pyro/contracts";
+import { createDefaultProviderSettings, createDefaultProfile, semanticCheckCount, type ApiKeyRecord, type StoredIntegration } from "@pyro/contracts";
 import type { Billing } from "./billing.js";
 import { hash, CloudError, type CloudStore } from "./store.js";
 export interface Runtime { gateway: FastifyInstance; control: FastifyInstance; database: Database; close(): Promise<void> }
@@ -42,7 +42,7 @@ export class Runtimes {
         controlPlaneSecret: config.secret, adminPassword: "disabled-cloud-login", gatewayInternalUrl: "http://127.0.0.1:0", gatewayApiKey: internalKey,
         typesafeApiKey: config.providerKey, typesafeEndpoint: config.providerEndpoint, typesafeModel: config.providerModel, providerHooks,
         resolveUser: async (request) => (await this.store.resolve(request.cookies.pf_session, orgId)).user,
-        validateProfile: (profile) => { if (profile.detectors.some((d) => d.enabled) && profile.model !== config.providerModel) throw new CloudError(400, `Cloud semantic policies must use ${config.providerModel}.`); },
+        validateProfile: (profile) => { if (semanticCheckCount(profile) > 0 && profile.model !== config.providerModel) throw new CloudError(400, `Cloud semantic policies must use ${config.providerModel}.`); },
         documentLimits: { apps: { count: 20, bytes: 2_000_000 }, profiles: { count: 100, bytes: 10_000_000 }, api_keys: { count: 101, bytes: 200_000 }, integrations: { count: 10, bytes: 100_000 }, evaluation_datasets: { count: 20, bytes: 15_000_000 }, evaluation_runs: { count: 100, bytes: 30_000_000 } },
         listUsers: () => this.store.members(orgId),
         authorizeEvaluation: async (userId, appId) => {

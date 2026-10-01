@@ -3,6 +3,7 @@ import { Check, Download, HelpCircle, MessageSquare, RefreshCw, RotateCcw, X } f
 import type { ClassificationEvent } from "@pyro/contracts";
 import { api } from "@/lib/api";
 import { EmptyState, PageHeader, VerdictBadge } from "@/components/shared";
+import { PolicyTrace } from "@/components/PolicyTrace";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -109,10 +110,11 @@ export function ReviewsPage({ canReview }: { canReview: boolean }) {
           {current && <>
             <div className="min-h-0 space-y-5 overflow-y-auto px-6 py-5">
               <div>
-                <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="text-sm font-semibold">Original decision</h3><div className="mt-2 flex flex-wrap items-center gap-2"><Badge className="capitalize">Action: {current.event.action}</Badge><VerdictBadge event={current.event} /><span className="text-xs text-muted">Risk {percent(current.event.risk)}</span></div></div><Button variant="ghost" size="sm" disabled={busy} onClick={() => void refresh()}><RefreshCw className="size-3.5" />Reload review</Button></div>
+                <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="text-sm font-semibold">Original decision</h3><div className="mt-2 flex flex-wrap items-center gap-2"><Badge className="capitalize">Action: {current.event.action}</Badge><VerdictBadge event={current.event} />{current.event.decisionMode !== "pipeline" && <span className="text-xs text-muted">Risk {percent(current.event.risk)}</span>}</div></div><Button variant="ghost" size="sm" disabled={busy} onClick={() => void refresh()}><RefreshCw className="size-3.5" />Reload review</Button></div>
                 <p className="mt-3 text-[13px] leading-6 text-secondary">{current.event.reason}</p>
                 <dl className="mt-4 grid gap-3 rounded-control border border-line bg-surface-subtle p-3 text-xs sm:grid-cols-2"><div><dt className="text-muted">Application</dt><dd className="mt-1 font-medium">{current.event.appName ?? current.appId}</dd></div><div><dt className="text-muted">Policy</dt><dd className="mt-1 font-medium">{current.event.profileId} · {current.event.policyRevision ? `revision ${current.event.policyRevision}` : "legacy revision"}</dd></div><div><dt className="text-muted">Created</dt><dd className="mt-1">{new Date(current.event.createdAt).toLocaleString()}</dd></div><div><dt className="text-muted">Trace / request</dt><dd className="mt-1 break-all font-mono">{current.event.traceId ?? current.event.requestId ?? current.id}</dd></div></dl>
               </div>
+              <PolicyTrace decision={current.event} />
               <div><h3 className="text-[13px] font-medium text-secondary">Stored input preview</h3>{current.event.inputPreview ? <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap break-words rounded-control border border-line bg-surface-subtle p-3 text-xs leading-5">{current.event.inputPreview}</pre> : <p className="mt-2 text-xs leading-5 text-muted">No preview is available. The policy may not store inputs, or your account may not have preview access.</p>}</div>
               {current.status === "resolved" && <div className="rounded-control border border-line-strong bg-surface-subtle px-4 py-3"><p className="text-[13px] font-medium">Review outcome: {current.disposition ? outcomes[current.disposition] : "Resolved"}</p>{current.resolvedAt && <p className="mt-1 text-xs text-muted">{current.resolvedBy ? `${actorName(current.resolvedBy)} · ` : ""}{new Date(current.resolvedAt).toLocaleString()}</p>}<p className="mt-2 text-xs leading-5 text-muted">This records feedback only. The original action remains {current.event.action}; no request has been resumed.</p></div>}
               {canReview && <div className="grid gap-4 border-t border-line pt-4 sm:grid-cols-2">

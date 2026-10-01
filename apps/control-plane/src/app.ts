@@ -24,6 +24,7 @@ import type { ControlPlaneConfig } from "./config.js";
 
 import { accessGuard, appScope, canAccessApp, visibleEvent, visibleUser, allowedProfiles } from "./access.js";
 import { registerEvaluations } from "./evaluations.js";
+import { registerPlayground } from "./playground.js";
 import { registerReviews } from "./reviews.js";
 import { registerTeam, verifyPassword } from "./team.js";
 import { registerOidc } from "./oidc.js";
@@ -109,6 +110,7 @@ export async function buildControlPlane(config: ControlPlaneConfig): Promise<Fas
 
   app.decorateRequest("user", null);
   const stopEvaluations = registerEvaluations(app, database, config, requireSession);
+  registerPlayground(app, database, config, requireSession);
   const stopReviews = registerReviews(app, database, requireSession);
   registerTeam(app, database, requireSession, config.oidc?.issuer);
   registerOidc(app, database, config);

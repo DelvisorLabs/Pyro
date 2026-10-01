@@ -3,7 +3,7 @@ import { ProfileSchema, type ClassificationEvent, type Profile } from "@pyro/con
 // Apply schema defaults to records from servers that predate profile-local rules.
 export function readProfiles(profiles: unknown): Profile[] {
   const parsed = ProfileSchema.array().safeParse(profiles);
-  if (!parsed.success) throw new Error("Could not read protection profiles. Check that the control plane is up to date.");
+  if (!parsed.success) throw new Error("Could not read policies. Check that the control plane is up to date.");
   return parsed.data;
 }
 

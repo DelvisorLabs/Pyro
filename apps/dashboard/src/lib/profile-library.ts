@@ -1,4 +1,4 @@
-import { ProfileSchema, type Profile } from "@pyro/contracts";
+import { ProfileSchema, semanticCheckCount, type Profile } from "@pyro/contracts";
 
 export interface ProfilePreset { profile: Profile; yaml: string }
 export type PresetFilter = "all" | "model" | "local";
@@ -14,9 +14,9 @@ export function readPresets(value: unknown): ProfilePreset[] {
 export function filterPresets(presets: ProfilePreset[], search: string, filter: PresetFilter): ProfilePreset[] {
   const terms = search.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
   return presets.filter(({ profile }) => {
-    const usesModel = profile.detectors.some((detector) => detector.enabled);
+    const usesModel = semanticCheckCount(profile) > 0;
     if (filter === "model" && !usesModel || filter === "local" && usesModel) return false;
-    const text = [profile.name, profile.description, ...profile.detectors.flatMap((d) => [d.name, d.description]), ...profile.localRules.flatMap((r) => [r.name, r.description, r.match])].join(" ").toLocaleLowerCase();
+    const text = [profile.name, profile.description, ...(profile.pipeline?.steps.map((s) => s.name) ?? []), ...profile.detectors.flatMap((d) => [d.name, d.description]), ...profile.localRules.flatMap((r) => [r.name, r.description, r.match])].join(" ").toLocaleLowerCase();
     return terms.every((term) => text.includes(term));
   });
 }

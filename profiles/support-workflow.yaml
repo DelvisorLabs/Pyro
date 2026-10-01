@@ -1,0 +1,43 @@
+apiVersion: pyro/v1
+kind: Profile
+profile:
+  id: support-workflow
+  name: Support workflow
+  description: An example ordered policy for Northstar customer support. Adapt the company context before use.
+  model: jev-latest
+  reviewThreshold: 0.55
+  blockThreshold: 0.82
+  failMode: closed
+  maxInputChars: 100000
+  timeoutMs: 8000
+  persistInputs: false
+  notifyOn: [review, block]
+  localRules: []
+  detectors: []
+  pipeline:
+    version: 1
+    otherwise: review
+    onUncertain: review
+    onError: review
+    steps:
+      - id: language
+        name: Language check
+        type: text
+        match: word_list
+        words: [idiot, stupid]
+        onMatch: block
+        onNoMatch: continue
+      - id: company_scope
+        name: Company scope
+        type: semantic
+        question: Is this request related to Northstar customer support?
+        context: >-
+          Northstar is an example company selling project-management software.
+          Support covers Northstar accounts, billing and product features.
+          Exclude unrelated topics and requests for other customers' private data.
+        positiveExamples: [How do I change my Northstar billing plan?]
+        negativeExamples: [Write me a movie review.]
+        noThreshold: 0.2
+        yesThreshold: 0.8
+        onMatch: allow
+        onNoMatch: block

@@ -2,7 +2,7 @@ import { randomUUID, createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import YAML from "yaml";
 import { evaluatePolicy } from "@pyro/classifiers";
-import { ClassificationEnvelopeSchema, ProfileSchema, createDefaultApp, createDefaultProviderSettings, type Profile } from "@pyro/contracts";
+import { ClassificationEnvelopeSchema, ProfileSchema, semanticCheckCount, createDefaultApp, createDefaultProviderSettings, type Profile } from "@pyro/contracts";
 
 type LocalOptions = { profileFile?: string; semantic?: boolean; timeout: number; requestId?: string };
 export async function standaloneProfiles(): Promise<string[]> {
@@ -25,7 +25,7 @@ export async function classifyStandalone(body: string, contentType: string, opti
   const profile = ProfileSchema.parse({ ...input, createdAt: now, updatedAt: now });
   if (profile.shadowProfileIds.length) throw new Error("Standalone classification does not run shadow policies. Remove shadowProfileIds or use a server.");
   if ((typeof envelope.input === "string" ? envelope.input : JSON.stringify(envelope.input)).length > profile.maxInputChars) throw new Error(`Input exceeds this profile's ${profile.maxInputChars} character limit.`);
-  const semantic = profile.detectors.some((d) => d.enabled);
+  const semantic = semanticCheckCount(profile) > 0;
   if (semantic && !options.semantic) throw new Error("This profile sends inputs to TypeSafe. Pass --semantic to authorize the provider call and its charges, or use the local-secrets profile.");
   if (semantic && !process.env.TYPESAFE_API_KEY) throw new Error("Set TYPESAFE_API_KEY for standalone semantic checks. No Docker or Pyro server is needed.");
   const provider = createDefaultProviderSettings();

@@ -1,5 +1,5 @@
 import { RE2JS } from "re2js";
-import type { LocalRule } from "@pyro/contracts";
+import type { LocalRule, TextStep } from "@pyro/contracts";
 
 export interface LocalRuleMatch {
   rule: LocalRule;
@@ -8,7 +8,7 @@ export interface LocalRuleMatch {
 
 const MAX_TRAVERSED_VALUES = 50_000;
 
-function collectStrings(value: unknown, output: string[]): void {
+function collectStrings(value: unknown, output: string[]): boolean {
   const pending = [value];
   const seen = new WeakSet<object>();
   let traversed = 0;
@@ -23,6 +23,7 @@ function collectStrings(value: unknown, output: string[]): void {
     seen.add(current);
     pending.push(...(Array.isArray(current) ? current : Object.values(current as Record<string, unknown>)));
   }
+  return pending.length === 0;
 }
 
 function collectToolNames(value: unknown, output: string[]): void {
@@ -94,4 +95,19 @@ export function evaluateLocalRules(input: unknown, rules: LocalRule[]): LocalRul
       if (left.rule.action !== right.rule.action) return left.rule.action === "block" ? -1 : 1;
       return right.rule.risk - left.rule.risk;
     });
+}
+
+export function matchTextStep(input: unknown, step: TextStep): { matched: boolean; evidence: string } {
+  const candidates: string[] = [];
+  if (!collectStrings(input, candidates)) throw new Error("The input exceeds the text check's traversal limit.");
+  if (step.match === "word_list") {
+    const normalize = (word: string) => step.caseSensitive ? word : word.toLowerCase();
+    const tokens = new Set(candidates.flatMap((text) => text.match(/[\p{L}\p{N}_]+/gu) ?? []).map(normalize));
+    const word = step.words.find((term) => tokens.has(normalize(term)));
+    return { matched: word !== undefined, evidence: word === undefined ? "No configured whole word matched." : `Matched configured word: ${word}` };
+  }
+  const rule: LocalRule = { ...step, description: "", enabled: true, scope: "all_text", match: step.match, action: "block", risk: 1 };
+  const matched = candidates.some((text) => matches(rule, text));
+  // Trace evidence describes configured rules, never copies sensitive input.
+  return { matched, evidence: `${matched ? "Matched" : "Did not match"} ${step.match} pattern: ${step.pattern.slice(0, 160)}` };
 }

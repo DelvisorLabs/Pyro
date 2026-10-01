@@ -31,6 +31,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 `ClassifyOptions` includes profile, metadata, labels and request ID. The gateway derives the application from the API key. Configure timeouts with `PyroClient::with_timeout` (default 10 seconds).
 
+Pipeline responses expose `decision_mode` and `policy_trace`, including skipped checks and uncertainty. Enforce `action`; pipeline `risk` encodes the action and is not a probability of harm. See the [Policy Playground guide](../../docs/policy-playground.md) for creating and publishing a policy.
+
 - `classify(input, &options)` returns a typed decision.
 - `create_job(input, &options)` returns a job receipt.
 - `get_job(id)` returns status or a decision.
@@ -38,7 +40,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 - `list_profiles()` lists profiles authorized for the key.
 - `verify_webhook(raw_body, secret, signature, timestamp, tolerance)` checks HMAC-SHA256 and timestamp freshness. Keep a receiver-side deduplication store keyed by X-Pyro-Delivery-Id.
 
-`Error::Api` preserves HTTP status, request ID, and numeric Retry-After. Error messages omit URLs from transport failures. Redirects are not followed and POSTs are not automatically retried, avoiding duplicate billable classifications. Gateway jobs currently expire after about ten minutes and are process-local.
+`Error::Api` preserves HTTP status, request ID, and numeric Retry-After. Error messages omit URLs from transport failures. Redirects are not followed and POSTs are not automatically retried, avoiding duplicate billable classifications. Gateway jobs persist in the deployment database, have a 15-minute execution deadline, and retain completed results for ten minutes. Dropping a polling future stops this client, not the server job.
 
 Run `cargo test --manifest-path sdks/rust/Cargo.toml` from the Pyro root. The integration tests use a local TCP HTTP receiver; no external credentials are required.
 

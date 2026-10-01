@@ -1,3 +1,5 @@
+import { PipelineEditor } from "@/components/PipelineEditor";
+import { pipelinePayload } from "@/lib/pipeline-editor";
 import { useCloud, useCloudModel } from "@/lib/cloud";
 import { useEffect, useMemo, useState } from "react";
 import { ChevronDown, Download, Plus, Settings2, Trash2 } from "lucide-react";
@@ -91,7 +93,8 @@ function validateProfile(profile: Profile | undefined, profiles: Profile[], serv
   if (profile.reviewThreshold > profile.blockThreshold) errors.reviewThreshold = "Cannot exceed the block threshold.";
   integerRange("maxInputChars", profile.maxInputChars, 128, 1_000_000);
   integerRange("timeoutMs", profile.timeoutMs, 250, 120_000);
-  if (profile.detectors.length === 0 && profile.localRules.length === 0) errors.detectors = "Add at least one detector or local rule.";
+  if (!profile.pipeline && profile.detectors.length === 0 && profile.localRules.length === 0) errors.detectors = "Add at least one detector or local rule.";
+  if (profile.pipeline) { try { pipelinePayload(profile); } catch (e) { errors.pipeline = e instanceof Error && "issues" in e ? (e as { issues: Array<{ message: string }> }).issues[0]?.message ?? "Invalid pipeline." : "Invalid pipeline."; } }
   const rules = LocalRulesSchema.safeParse(profile.localRules);
   if (!rules.success) errors.localRules = rules.error.issues[0]?.message ?? "Invalid local rules.";
   if (profile.decisionStrategy === "signal_count" && profile.detectors.length > 0) {
@@ -162,8 +165,8 @@ export function ProfilesPage() {
     setSaving(true);
     setError(undefined);
     try {
-      if (isNew) await api.post("/api/profiles", profilePayload(editing));
-      else await api.put(`/api/profiles/${editing.id}`, profilePayload(editing));
+      if (isNew) await api.post("/api/profiles", pipelinePayload(profilePayload(editing)));
+      else await api.put(`/api/profiles/${editing.id}`, pipelinePayload(profilePayload(editing)));
       await load();
       setEditing(undefined);
       setView("profiles");
@@ -189,13 +192,13 @@ export function ProfilesPage() {
 
   return (
     <>
-      <PageHeader title="Protection profiles" description="Tune thresholds, failure behavior, limits, and the semantic detectors evaluated in parallel." actions={<div className="flex flex-wrap gap-2"><Button variant="outline" onClick={() => { setImporting(true); setImportError(undefined); }}>Import YAML</Button><Button onClick={createProfile}><Plus className="size-4" />New profile</Button></div>} />
+      <PageHeader title="Policies" description="Manage versioned pipelines and signal-based policies. Use Policy Playground to design and test an ordered workflow." actions={<div className="flex flex-wrap gap-2"><Button variant="outline" onClick={() => { setImporting(true); setImportError(undefined); }}>Import YAML</Button><Button onClick={createProfile}><Plus className="size-4" />New signal policy</Button></div>} />
       {error && !editing && <p role="alert" className="mb-4 text-sm text-danger">{error}</p>}
-      <ViewTabs label="Profile views" value={view} onChange={setView} options={[{ value: "profiles", label: "Your profiles", count: profiles.length }, { value: "library", label: "Profile library", count: presets.length }]} />
+      <ViewTabs label="Profile views" value={view} onChange={setView} options={[{ value: "profiles", label: "Your policies", count: profiles.length }, { value: "library", label: "Policy library", count: presets.length }]} />
       {view === "library" ? <ProfileLibrary presets={presets} loading={presetLoading} error={presetError} onRetry={loadPresets} onCustomize={(profile) => {
         let name = profile.name;
         for (let suffix = 1; profiles.some((item) => normalizeName(item.name) === normalizeName(name)); suffix += 1) name = `${profile.name} copy${suffix === 1 ? "" : ` ${suffix}`}`;
-        setEditing({ ...cloneProfile(profile), id: nextProfileId(name, profiles), name });
+        setEditing({ ...cloneProfile(profile), id: nextProfileId(name, profiles), name, ...(cloud ? { model: cloudModel } : {}) });
         setIsNew(true); setError(undefined); setExpandedDetector(null);
       }} /> : <div className="grid gap-3 lg:grid-cols-2">
         {profiles.map((profile) => <Card key={profile.id}>
@@ -204,8 +207,8 @@ export function ProfilesPage() {
             <div className="flex gap-1"><a className="inline-flex size-9 items-center justify-center" href={controlDownloadUrl(`/api/profiles/${profile.id}/export`)} aria-label={`Export ${profile.name}`}><Download className="size-4" /></a><Button variant="ghost" size="icon" aria-label={`Edit ${profile.name}`} onClick={() => beginEditing(profile)}><Settings2 className="size-4" /></Button>{profile.id !== "default" && <Button variant="ghost" size="icon" aria-label={`Delete ${profile.name}`} onClick={() => void remove(profile.id)}><Trash2 className="size-4" /></Button>}</div>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-3 gap-3 border-b border-line pb-4"><div><span className="field-caption text-muted">Review</span><strong className="mt-1 block text-lg">{percent(profile.reviewThreshold, 0)}</strong></div><div><span className="field-caption text-muted">Block</span><strong className="mt-1 block text-lg">{percent(profile.blockThreshold, 0)}</strong></div><div><span className="field-caption text-muted">Detectors</span><strong className="mt-1 block text-lg">{profile.detectors.filter((item) => item.enabled).length}</strong></div></div>
-            <div className="mt-4 flex flex-wrap gap-1.5">{profile.localRules.map((rule) => <Badge key={`rule:${rule.id}`}>{rule.name} · {rule.match}</Badge>)}{profile.detectors.filter((item) => item.enabled).map((item) => <Badge key={item.id} className="normal-case tracking-normal">{item.name}</Badge>)}</div>
+            {profile.pipeline ? <div className="border-b border-line pb-4 text-sm"><strong>{profile.pipeline.steps.length} ordered checks</strong><p className="mt-1 text-xs text-muted">Uncertain → {profile.pipeline.onUncertain} · Error → {profile.pipeline.onError} · Final → {profile.pipeline.otherwise}</p></div> : <div className="grid grid-cols-3 gap-3 border-b border-line pb-4"><div><span className="field-caption text-muted">Review</span><strong className="mt-1 block text-lg">{percent(profile.reviewThreshold, 0)}</strong></div><div><span className="field-caption text-muted">Block</span><strong className="mt-1 block text-lg">{percent(profile.blockThreshold, 0)}</strong></div><div><span className="field-caption text-muted">Detectors</span><strong className="mt-1 block text-lg">{profile.detectors.filter((item) => item.enabled).length}</strong></div></div>}
+            <div className="mt-4 flex flex-wrap gap-1.5">{profile.pipeline?.steps.map((step) => <Badge key={step.id}>{step.name} · {step.type}</Badge>)}{profile.localRules.map((rule) => <Badge key={`rule:${rule.id}`}>{rule.name} · {rule.match}</Badge>)}{profile.detectors.filter((item) => item.enabled).map((item) => <Badge key={item.id} className="normal-case tracking-normal">{item.name}</Badge>)}</div>
           </CardContent>
         </Card>)}
       </div>}
@@ -214,8 +217,8 @@ export function ProfilesPage() {
       <Dialog open={Boolean(editing)} onOpenChange={(open) => !open && setEditing(undefined)}>
         <DialogContent className="flex max-h-[90vh] w-[min(900px,calc(100vw-32px))] flex-col overflow-hidden">
           <DialogHeader className="shrink-0 pr-12">
-            <DialogTitle>{isNew ? "Create protection policy" : "Edit protection policy"}</DialogTitle>
-            <DialogDescription>{isNew ? "Review the settings, detectors and local rules before creating your profile." : "Saved changes apply immediately."}</DialogDescription>
+            <DialogTitle>{isNew ? "Create policy" : "Edit policy"}</DialogTitle>
+            <DialogDescription>{isNew ? "Review the settings, detectors and local rules before creating your profile." : "Saving publishes a new active revision. Use Policy Playground to test a working copy first."}</DialogDescription>
           </DialogHeader>
 
           {editing && <div className="scrollbar-thin min-h-0 flex-1 space-y-6 overflow-y-scroll px-6 py-5">
@@ -239,7 +242,7 @@ export function ProfilesPage() {
             <div className="space-y-2"><FieldLabel htmlFor="profile-description" invalid={Boolean(validation.description)}>Description</FieldLabel><Input id="profile-description" value={editing.description} aria-invalid={Boolean(validation.description)} className={validation.description ? invalidControl : undefined} onChange={(event) => setEditing({ ...editing, description: event.target.value })} /><FieldError message={validation.description} /></div>
             <div className="space-y-2"><FieldLabel htmlFor="profile-model" required invalid={Boolean(validation.model)}>Model</FieldLabel><Input id="profile-model" disabled={cloud} value={editing.model} aria-invalid={Boolean(validation.model)} className={validation.model ? invalidControl : undefined} onChange={(event) => setEditing({ ...editing, model: event.target.value })} /><FieldError message={validation.model} />{cloud && <p className="text-xs text-muted">The classifier model is managed by Pyro Cloud.</p>}</div>
 
-            <div className="grid gap-4 border-y border-line bg-surface-subtle/60 py-4 sm:grid-cols-[150px_150px_1fr]">
+            {!editing.pipeline && <><div className="grid gap-4 border-y border-line bg-surface-subtle/60 py-4 sm:grid-cols-[150px_150px_1fr]">
               <div className="flex flex-col items-center"><FieldLabel required invalid={Boolean(validation.reviewThreshold)} className="mb-1">Review threshold</FieldLabel><CometDial className={validation.reviewThreshold ? "ring-1 ring-danger" : ""} value={Math.round(editing.reviewThreshold * 100)} size={132} label="Review threshold" onChange={(value) => setEditing({ ...editing, reviewThreshold: value / 100 })} /><FieldError message={validation.reviewThreshold} /></div>
               <div className="flex flex-col items-center"><FieldLabel required invalid={Boolean(validation.blockThreshold)} className="mb-1">Block threshold</FieldLabel><CometDial className={validation.blockThreshold ? "ring-1 ring-danger" : ""} value={Math.round(editing.blockThreshold * 100)} size={132} label="Block threshold" onChange={(value) => setEditing({ ...editing, blockThreshold: value / 100 })} /><FieldError message={validation.blockThreshold} /></div>
               <div className="space-y-2 self-center px-4 sm:px-0"><FieldLabel required>Fail mode</FieldLabel><GlideSelect className="w-full" value={editing.failMode} onChange={(value) => setEditing({ ...editing, failMode: value as "open" | "closed" })} options={[{ value: "closed", label: "Closed — block", tag: "Safer" }, { value: "open", label: "Open — allow", tag: "Available" }]} ariaLabel="Fail mode" menuWidth={220} /></div>
@@ -247,11 +250,13 @@ export function ProfilesPage() {
 
             <div className="grid gap-4 sm:grid-cols-2"><div className="space-y-2"><FieldLabel required>Decision strategy</FieldLabel><GlideSelect className="w-full" value={editing.decisionStrategy} onChange={(value) => setEditing({ ...editing, decisionStrategy: value as Profile["decisionStrategy"] })} options={[{ value: "maximum", label: "Maximum signal" }, { value: "weighted_average", label: "Weighted average" }, { value: "signal_count", label: "Signal count" }]} ariaLabel="Decision strategy" menuWidth={230} /></div><div className="space-y-2"><Label>Shadow policy</Label><GlideSelect className="w-full" value={editing.shadowProfileIds[0] ?? "none"} onChange={(value) => setEditing({ ...editing, shadowProfileIds: value === "none" ? [] : [value] })} options={[{ value: "none", label: "None" }, ...profiles.filter((item) => item.id !== editing.id).map((item) => ({ value: item.id, label: item.name }))]} ariaLabel="Shadow policy" menuWidth={230} /></div></div>
             {editing.decisionStrategy === "signal_count" && <div className="grid gap-4 sm:grid-cols-2"><div className="space-y-2"><FieldLabel required invalid={Boolean(validation.minimumReviewSignals)}>Signals required for review</FieldLabel><Input type="number" min="1" max={editing.detectors.length} aria-invalid={Boolean(validation.minimumReviewSignals)} className={validation.minimumReviewSignals ? invalidControl : undefined} value={editing.minimumReviewSignals} onChange={(event) => setEditing({ ...editing, minimumReviewSignals: Number(event.target.value) })} /><FieldError message={validation.minimumReviewSignals} /></div><div className="space-y-2"><FieldLabel required invalid={Boolean(validation.minimumBlockSignals)}>Signals required to block</FieldLabel><Input type="number" min="1" max={editing.detectors.length} aria-invalid={Boolean(validation.minimumBlockSignals)} className={validation.minimumBlockSignals ? invalidControl : undefined} value={editing.minimumBlockSignals} onChange={(event) => setEditing({ ...editing, minimumBlockSignals: Number(event.target.value) })} /><FieldError message={validation.minimumBlockSignals} /></div></div>}
+            </>}
             <div className="grid gap-4 sm:grid-cols-2"><div className="space-y-2"><FieldLabel required invalid={Boolean(validation.maxInputChars)}>Maximum input characters</FieldLabel><Input type="number" min="128" max="1000000" aria-invalid={Boolean(validation.maxInputChars)} className={validation.maxInputChars ? invalidControl : undefined} value={editing.maxInputChars} onChange={(event) => setEditing({ ...editing, maxInputChars: Number(event.target.value) })} /><FieldError message={validation.maxInputChars} /></div><div className="space-y-2"><FieldLabel required invalid={Boolean(validation.timeoutMs)}>Timeout (milliseconds)</FieldLabel><Input type="number" min="250" max="120000" aria-invalid={Boolean(validation.timeoutMs)} className={validation.timeoutMs ? invalidControl : undefined} value={editing.timeoutMs} onChange={(event) => setEditing({ ...editing, timeoutMs: Number(event.target.value) })} /><FieldError message={validation.timeoutMs} /></div></div>
 
             <div className="flex items-center justify-between gap-4 border border-line bg-surface-subtle p-3"><div><div className="flex items-center gap-1.5"><Label>Persist input previews</Label><HelpTooltip>Stores up to 1,000 input characters. Leave off for sensitive traffic.</HelpTooltip></div><p className="mt-0.5 text-xs text-muted">Event metadata and hashes are retained either way.</p></div><Switch checked={editing.persistInputs} onCheckedChange={(checked) => setEditing({ ...editing, persistInputs: checked })} /></div>
             <div className="border border-line bg-surface-subtle p-3"><Label>Live notifications</Label><p className="mt-0.5 text-xs text-muted">Choose which actions should be surfaced to connected dashboard users.</p><div className="mt-3 flex gap-5">{(["review", "block"] as const).map((action) => <label className="flex items-center gap-2 text-sm capitalize" key={action}><Switch checked={editing.notifyOn.includes(action)} onCheckedChange={(checked) => setEditing({ ...editing, notifyOn: checked ? [...new Set([...editing.notifyOn, action])] : editing.notifyOn.filter((item) => item !== action) })} />{action}</label>)}</div></div>
 
+            {editing.pipeline ? <><PipelineEditor pipeline={editing.pipeline} onChange={(pipeline) => setEditing({ ...editing, pipeline })} /><FieldError message={validation.pipeline} /></> : <>
             <LocalRulesEditor rules={editing.localRules} onChange={(localRules) => setEditing({ ...editing, localRules })} />
             <FieldError message={validation.localRules} />
             {!editing.detectors.some((detector) => detector.enabled) && <p className="border bg-surface-subtle p-3 text-sm">No semantic detectors are enabled. Requests that match no local rule will be allowed without a model call.</p>}
@@ -280,6 +285,7 @@ export function ProfilesPage() {
                 <FieldError message={validation.detectors} />
               </div>
             </div>
+            </>}
             {error && !validation.name && <div className="border border-line-strong bg-surface-subtle px-3 py-2 text-sm text-foreground">{error}</div>}
           </div>}
 

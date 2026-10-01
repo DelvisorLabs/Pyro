@@ -1,5 +1,6 @@
 import { buildDecision, buildFailureDecision, ClassifierConfigurationError, evaluateLocalRules, JevClassifier, MockClassifier, UpstreamClassifierError, type LocalRuleMatch, type ClassifierInput } from "./index.js";
-import type { AppRecord, ClassificationDecision, ClassificationEnvelope, Profile, ProviderSettings } from "@pyro/contracts";
+import type { AppRecord, ClassificationDecision, ClassificationEnvelope, Profile, ProviderSettings, SemanticStep } from "@pyro/contracts";
+import { runPipeline } from "./pipeline.js";
 
 function localRuleDecision(
   id: string,
@@ -43,10 +44,11 @@ export interface ProviderHooks {
   after?(input: ClassifierInput, usage: ClassificationDecision["usage"]): Promise<void>;
 }
 
-export async function evaluatePolicy({ id, envelope, profile, queueMs = 0, traceId, firewallApp, provider, apiKey, circuit = { consecutiveFailures: 0, openUntil: 0 }, onRetry, onCircuitOpen, providerHooks }: {
+export async function evaluatePolicy({ id, envelope, profile, queueMs = 0, traceId, firewallApp, provider, apiKey, circuit = { consecutiveFailures: 0, openUntil: 0 }, onRetry, onCircuitOpen, providerHooks, condition }: {
   id: string; envelope: ClassificationEnvelope; profile: Profile; queueMs?: number; traceId: string;
   firewallApp: AppRecord; provider: ProviderSettings; apiKey: () => Promise<string | undefined>;
   providerHooks?: ProviderHooks;
+  condition?: SemanticStep;
   circuit?: { consecutiveFailures: number; openUntil: number };
   onRetry?: (mode: string) => void; onCircuitOpen?: (mode: string) => void;
 }): Promise<{ decision: ClassificationDecision; failure?: string; localRuleId?: string }> {
@@ -58,10 +60,20 @@ export async function evaluatePolicy({ id, envelope, profile, queueMs = 0, trace
     if (localMatch) {
       const latencyMs = performance.now() - started;
       return {
-        decision: localRuleDecision(id, traceId, profile, queueMs, localMatch, envelope.metadata, latencyMs),
+        decision: { ...localRuleDecision(id, traceId, profile, queueMs, localMatch, envelope.metadata, latencyMs), ...(profile.pipeline ? {
+          decisionMode: "pipeline" as const,
+          risk: localMatch.rule.action === "block" ? 1 : 0.5, confidence: 0, detectors: [],
+          policyTrace: [{ id: localMatch.rule.id, name: localMatch.rule.name, type: "application_rule" as const, outcome: "match" as const, evidence: "An application rule matched before the policy pipeline.", next: localMatch.rule.action },
+            ...profile.pipeline.steps.map((s) => ({ id: s.id, name: s.name, type: s.type, outcome: "skipped" as const, evidence: "An application rule ended evaluation." }))],
+        } : {}) },
         localRuleId: localMatch.rule.id,
       };
     }
+    if (profile.pipeline) return runPipeline({ id, traceId, profile, envelope, queueMs, evaluateSemantic: (step, remainingMs) => evaluatePolicy({
+      id: `${id}:${step.id}`, envelope, traceId, queueMs, provider, apiKey, circuit, providerHooks, onRetry, onCircuitOpen, condition: step,
+      firewallApp: { ...firewallApp, localRules: [] },
+      profile: { ...profile, pipeline: undefined, localRules: [], timeoutMs: remainingMs, failMode: "closed", detectors: [{ id: step.id, name: step.name, description: "Pipeline condition", question: step.question, enabled: true, weight: 1 }] },
+    }) });
     if (!profile.detectors.some((detector) => detector.enabled)) {
       return { decision: {
         id, traceId, createdAt: new Date().toISOString(), profileId: profile.id,
@@ -79,7 +91,7 @@ export async function evaluatePolicy({ id, envelope, profile, queueMs = 0, trace
       input: envelope.input,
       profile: { ...profile, model: profile.model || provider.model },
       provider,
-      apiKey: await apiKey(),
+      condition,
       metadata: envelope.metadata,
       queueMs,
       signal: controller.signal,
@@ -89,6 +101,7 @@ export async function evaluatePolicy({ id, envelope, profile, queueMs = 0, trace
     let providerMs = 0;
     let policyMs = 0;
     try {
+      classifierInput.apiKey = await apiKey();
       const classifier = provider.mode === "mock" ? new MockClassifier() : new JevClassifier();
       const providerStarted = performance.now();
       if (circuit.openUntil > Date.now()) throw new Error("Provider circuit breaker is open.");

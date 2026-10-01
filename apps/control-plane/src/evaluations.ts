@@ -2,7 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { z } from "zod";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { AppRecord, Profile, ProviderSettings, StoredSecret } from "@pyro/contracts";
-import { createDefaultProviderSettings } from "@pyro/contracts";
+import { createDefaultProviderSettings, semanticCheckCount } from "@pyro/contracts";
 import { DurableJobs, DurableWorker, decryptText, encryptText, policyHash, revisionOf, type Database, type PolicyRecord } from "@pyro/storage";
 import { evaluatePolicy, evaluationReport, type EvaluationRow } from "@pyro/classifiers";
 import type { ControlPlaneConfig } from "./config.js";
@@ -65,7 +65,7 @@ export function registerEvaluations(app: FastifyInstance, database: Database, co
     const profiles = body.policies.map((p) => { const record = records.find((r) => r.id === p.id); return record && revisionOf(record, p.revision); });
     if (profiles.some((p) => !p || application.allowedProfileIds.length && !application.allowedProfileIds.includes(p.id))) return reply.code(400).send({ error: "All revisions must be published and allowed by the application." });
     const provider = await database.document<ProviderSettings>("provider_settings", createDefaultProviderSettings).read();
-    const semanticCount = profiles.filter((p) => p!.detectors.some((d) => d.enabled)).length;
+    const semanticCount = profiles.reduce((sum, p) => sum + semanticCheckCount(p!), 0);
     const maximumProviderCalls = semanticCount * dataset.count * (1 + provider.maxRetries);
     const paid = semanticCount > 0 && provider.mode !== "mock";
     if (paid && !body.allowPaid) return reply.code(400).send({ error: `This run may send dataset inputs to TypeSafe in up to ${maximumProviderCalls} provider attempts. Cost is unknown. Explicit allowPaid: true is required.` });

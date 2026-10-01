@@ -3,6 +3,7 @@ import type {
   DetectorResult,
   Profile,
   ProviderSettings,
+  SemanticStep,
 } from "@pyro/contracts";
 
 export interface ClassifierInput {
@@ -15,6 +16,8 @@ export interface ClassifierInput {
   metadata?: Record<string, unknown>;
   queueMs: number;
   signal?: AbortSignal;
+  /** Trusted policy configuration, never taken from the classified payload. */
+  condition?: SemanticStep;
 }
 
 export interface RawClassification {

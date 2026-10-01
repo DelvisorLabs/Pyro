@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Download, Play, Upload } from "lucide-react";
-import type { AppRecord, Profile } from "@pyro/contracts";
+import { semanticCheckCount, type AppRecord, type Profile } from "@pyro/contracts";
 import { api } from "@/lib/api";
 import { EmptyState, PageHeader } from "@/components/shared";
 import { Badge } from "@/components/ui/badge";
@@ -28,7 +28,7 @@ export function EvaluationsPage({ canRun }: { canRun: boolean }) {
   const work = async (fn: () => Promise<unknown>) => { setBusy(true); setMessage(""); try { await fn(); await load(); } catch (e) { setMessage(e instanceof Error ? e.message : "Request failed."); } finally { setBusy(false); } };
   const changeProfile = (id: string, other = false) => { const rev = profiles.find((p) => p.id === id)?.revision ?? 1; if (other) { setSecond(id); setOtherRevision(rev); } else { setFirst(id); setRevision(rev); } };
   const dataset = datasets.find((d) => d.id === datasetId);
-  const semantic = [first, second].some((id) => profiles.find((p) => p.id === id)?.detectors.some((d) => d.enabled));
+  const semantic = [first, second].reduce((sum, id) => { const policy = profiles.find((p) => p.id === id); return sum + (policy ? semanticCheckCount(policy) : 0); }, 0);
   const download = () => { const url = URL.createObjectURL(new Blob([JSON.stringify(selected, null, 2)], { type: "application/json" })); const link = document.createElement("a"); link.href = url; link.download = `pyro-evaluation-${selected!.id}.json`; link.click(); URL.revokeObjectURL(url); };
   const percent = (v: number | null) => v === null ? "—" : `${(v * 100).toFixed(1)}%`;
   return (
@@ -132,7 +132,7 @@ export function EvaluationsPage({ canRun }: { canRun: boolean }) {
                 })}
               </div>
               <div className="rounded-control border border-line bg-surface-subtle px-3 py-3 text-xs leading-5 text-muted">
-                {semantic ? `Semantic policies send inputs to TypeSafe unless this deployment uses mock mode. Up to ${(dataset?.count ?? 0) * (second ? 2 : 1) * 6} attempts including retries; actual retries may be lower. Price is unknown. Check provider billing before starting.` : "Local-only policies make no provider calls. Earlier revisions may differ: the server will require confirmation for any semantic run."}
+                {semantic ? `Semantic policies send inputs to TypeSafe unless this deployment uses mock mode. Up to ${(dataset?.count ?? 0) * semantic * 6} attempts including retries; actual retries may be lower. Price is unknown. Check provider billing before starting.` : "Local-only policies make no provider calls. Earlier revisions may differ: the server will require confirmation for any semantic run."}
               </div>
               <div className="flex items-start gap-2.5">
                 <Checkbox id="evaluation-paid" className="mt-0.5" checked={paid} onCheckedChange={(checked) => setPaid(checked === true)} />

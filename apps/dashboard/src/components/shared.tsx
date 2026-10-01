@@ -16,7 +16,7 @@ export function PageHeader({ title, description, actions }: { title: string; des
   );
 }
 
-export function VerdictBadge({ event, className }: { event: Pick<ClassificationEvent, "verdict" | "action">; className?: string }) {
+export function VerdictBadge({ event, className }: { event: Pick<ClassificationEvent, "verdict" | "action" | "decisionMode">; className?: string }) {
   const style = event.verdict === "unsafe"
     ? "border-accent bg-accent text-inverse"
     : event.verdict === "suspicious"
@@ -24,7 +24,7 @@ export function VerdictBadge({ event, className }: { event: Pick<ClassificationE
       : event.verdict === "indeterminate"
         ? "border-line-strong bg-surface-subtle text-secondary"
         : "border-line-strong bg-surface text-secondary";
-  return <Badge className={cn(style, className)}>{event.verdict}</Badge>;
+  return <Badge className={cn(style, className)}>{event.decisionMode === "pipeline" ? `${event.action}${event.verdict === "indeterminate" ? " · indeterminate" : ""}` : event.verdict}</Badge>;
 }
 
 export function VerdictIcon({ verdict }: { verdict: ClassificationEvent["verdict"] }) {

@@ -1,4 +1,4 @@
-use pyro_client::{ClassifyOptions, Error, PyroClient};
+use pyro_client::{Action, ClassifyOptions, Error, PyroClient};
 use serde_json::json;
 use std::time::Duration;
 use tokio::{
@@ -78,6 +78,25 @@ async fn posts_envelopes_and_preserves_http_errors() {
         serde_json::from_str(request.split("\r\n\r\n").nth(1).unwrap()).unwrap();
     assert_eq!(body["profile"], "strict");
     assert_eq!(body["input"]["message"], "hello");
+}
+
+#[tokio::test]
+async fn pipeline_decisions_preserve_the_executed_path() {
+    let body = json!({
+        "id": "decision", "createdAt": "2026-10-02T00:00:00Z", "profileId": "support",
+        "action": "review", "verdict": "indeterminate", "risk": 0.5, "confidence": 0,
+        "reason": "Company scope is uncertain", "decisionMode": "pipeline",
+        "policyTrace": [{"id": "scope", "name": "Company scope", "type": "semantic",
+            "outcome": "uncertain", "probability": 0.5, "evidence": "Uncertain condition score", "next": "review"}],
+        "detectors": [], "model": "mock", "provider": "mock", "latencyMs": 1, "queueMs": 0
+    }).to_string();
+    let (url, task) = receiver("200 OK", &body, "").await;
+    let decision = PyroClient::new(&url, "test").unwrap()
+        .classify(json!("Something ambiguous"), &ClassifyOptions::default()).await.unwrap();
+    assert_eq!(decision.action, Action::Review);
+    assert_eq!(decision.decision_mode.as_deref(), Some("pipeline"));
+    assert_eq!(decision.policy_trace.unwrap()[0]["outcome"], "uncertain");
+    assert!(task.await.unwrap().starts_with("POST /v1/classify"));
 }
 
 #[tokio::test]

@@ -1,5 +1,18 @@
 # Beta validation record
 
+## Policy-suite migration — October 2, 2026
+
+- `pnpm check` passed: workspace type checks, production builds and **109 Node tests**, with none skipped. PostgreSQL 17 ran in an isolated disposable database. New coverage includes ordered branches, whole-word/RE2 checks, uncertainty, provider timeout/failure, input traversal limits, application-rule precedence, per-check charge identity, draft admission/permissions, encrypted regression cases, cloud organization isolation, model locks, SDK parity and queued pipeline jobs.
+- Python SDK: **2 tests passed**. Rust SDK: **5 tests passed**, including the pipeline response/trace contract through a local HTTP fixture.
+- The packed CLI installed and classified outside the repository with no Docker/server dependency. CLI tests cover offline pipeline execution and explicit semantic-provider consent; new preview/export APIs have reachable CLI commands.
+- A disposable mock cloud deployment completed the browser workflow: create/edit a pipeline, test allow/local-block/semantic-block/uncertain branches, save two regression cases, publish revision 1, and evaluate both cases successfully. These synthetic branch checks do not measure semantic accuracy.
+- Verified the shared editor in Policies, the execution trace in Review inbox, light/dark themes, and 390px mobile layouts. The website hero, illustrated branches and new workflow guide fit desktop/mobile layouts. The downloadable YAML exactly matches the tested repository preset. No browser console errors were observed.
+- The sibling website passed `pnpm lint` and `pnpm build`. Both repositories passed `git diff --check`.
+
+All semantic verification used mocks or local HTTP fixtures. No external model calls, payments, email delivery, publication or deployment occurred. Representative real-provider evaluation and the independent-engine research work remain separate from this product migration. See [the workflow and runtime semantics](policy-playground.md).
+
+## September 26 baseline
+
 Validated locally on 26 September 2026 for the proposed server 0.3.0-beta.1 and
 CLI 0.2.0 changes. These checks are engineering evidence for a supervised pilot,
 not an independent security audit or a semantic detection benchmark.

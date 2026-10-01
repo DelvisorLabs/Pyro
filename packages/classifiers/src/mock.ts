@@ -55,7 +55,11 @@ export class MockClassifier implements Classifier {
       .filter((detector) => detector.enabled)
       .map((detector) => {
         const matches = (PATTERNS[detector.id] ?? []).filter((pattern) => pattern.test(content)).length;
-        const probability = matches === 0 ? 0.04 : Math.min(0.98, 0.62 + matches * 0.17);
+        // Pipeline mock mode recognizes exact examples only. Unknown text is
+        // uncertain rather than pretending to understand an arbitrary condition.
+        const probability = input.condition
+          ? input.condition.positiveExamples.includes(content) ? 1 : input.condition.negativeExamples.includes(content) ? 0 : input.condition.noThreshold + (input.condition.yesThreshold - input.condition.noThreshold) / 2
+          : matches === 0 ? 0.04 : Math.min(0.98, 0.62 + matches * 0.17);
         return {
           id: detector.id,
           name: detector.name,
