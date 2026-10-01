@@ -27,7 +27,7 @@ export function WebhookDeliveries({ deliveries, webhooks, busy, onRefresh, onRet
   return (
     <Card className="overflow-hidden">
       <CardHeader className="flex items-center justify-between gap-3">
-        <CardTitle>Recent deliveries</CardTitle>
+        <CardTitle>Deliveries</CardTitle>
         <Button variant="ghost" size="sm" disabled={busy} onClick={onRefresh}>
           <RefreshCw className="size-3.5" aria-hidden="true" />
           Refresh

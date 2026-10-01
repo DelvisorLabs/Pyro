@@ -4,12 +4,12 @@ import type { ClassificationEvent } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
-export function PageHeader({ title, description, actions }: { title: string; description: string; actions?: ReactNode }) {
+export function PageHeader({ title, description, actions }: { title: string; description?: string; actions?: ReactNode }) {
   return (
     <div className="mb-7 flex flex-wrap items-start justify-between gap-4">
       <div>
         <h1 className="text-[22px] leading-8 font-semibold tracking-[-0.025em] text-foreground">{title}</h1>
-        <p className="mt-1 max-w-2xl text-[13px] leading-5 text-muted">{description}</p>
+        {description && <p className="mt-1 max-w-2xl text-[13px] leading-5 text-muted">{description}</p>}
       </div>
       {actions}
     </div>

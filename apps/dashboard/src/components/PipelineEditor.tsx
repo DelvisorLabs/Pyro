@@ -29,7 +29,7 @@ export function PipelineEditor({ pipeline, onChange }: { pipeline: PolicyPipelin
     onChange({ ...pipeline, steps: [...pipeline.steps, step] });
   };
   return <div className="space-y-4">
-    <p className="text-xs leading-5 text-muted">Checks run from top to bottom. Yes means the text pattern or semantic condition matches. A terminal outcome skips the remaining checks.</p>
+    <p className="text-xs leading-5 text-muted">Checks run in order. Allow, review or block ends the pipeline.</p>
     <ol className="space-y-3" aria-label="Ordered policy checks">{pipeline.steps.map((step, index) => {
       const id = `${prefix}-${step.id}`;
       return <li key={step.id} className="min-w-0 rounded-control border border-line">
@@ -45,8 +45,8 @@ export function PipelineEditor({ pipeline, onChange }: { pipeline: PolicyPipelin
               : <div><FieldLabel htmlFor={`${id}-pattern`}>{step.match === "regex" ? "RE2 pattern" : "Text to match"}</FieldLabel><Input id={`${id}-pattern`} maxLength={500} value={step.pattern} onChange={(e) => replace(index, { ...step, pattern: e.target.value })} /></div>}
             <div className="flex items-center justify-between gap-3"><FieldLabel htmlFor={`${id}-case`}>Case sensitive</FieldLabel><Switch id={`${id}-case`} checked={step.caseSensitive} onCheckedChange={(checked) => replace(index, { ...step, caseSensitive: checked })} /></div>
           </> : <>
-            <div><FieldLabel htmlFor={`${id}-question`}>Condition to answer Yes or No</FieldLabel><Textarea id={`${id}-question`} maxLength={2000} value={step.question} placeholder="Is this request about our products or account support?" onChange={(e) => replace(index, { ...step, question: e.target.value })} /></div>
-            <div><FieldLabel htmlFor={`${id}-context`}>Policy context</FieldLabel><Textarea id={`${id}-context`} maxLength={4000} value={step.context} placeholder="Define your company, supported topics and exclusions." onChange={(e) => replace(index, { ...step, context: e.target.value })} /></div>
+            <div><FieldLabel htmlFor={`${id}-question`}>Yes / No condition</FieldLabel><Textarea id={`${id}-question`} maxLength={2000} value={step.question} placeholder="Is this request about our products or account support?" onChange={(e) => replace(index, { ...step, question: e.target.value })} /></div>
+            <div><FieldLabel htmlFor={`${id}-context`}>Context</FieldLabel><Textarea id={`${id}-context`} maxLength={4000} value={step.context} placeholder="Define your company, supported topics and exclusions." onChange={(e) => replace(index, { ...step, context: e.target.value })} /></div>
             <div className="grid gap-3 sm:grid-cols-2">{(["positiveExamples", "negativeExamples"] as const).map((key) => <div key={key}><FieldLabel htmlFor={`${id}-${key}`}>{key === "positiveExamples" ? "Yes examples" : "No examples"}</FieldLabel><Textarea id={`${id}-${key}`} value={step[key].join("\n")} placeholder="One example per line" onChange={(e) => replace(index, { ...step, [key]: e.target.value.split("\n") })} /></div>)}</div>
             <div className="grid gap-3 sm:grid-cols-2"><div><FieldLabel htmlFor={`${id}-no`}>No at or below</FieldLabel><Input id={`${id}-no`} type="number" min={0} max={1} step={0.05} value={step.noThreshold} onChange={(e) => replace(index, { ...step, noThreshold: Number(e.target.value) })} /></div><div><FieldLabel htmlFor={`${id}-yes`}>Yes at or above</FieldLabel><Input id={`${id}-yes`} type="number" min={0} max={1} step={0.05} value={step.yesThreshold} onChange={(e) => replace(index, { ...step, yesThreshold: Number(e.target.value) })} /></div></div>
             <p className="text-xs leading-5 text-muted">Scores between these thresholds are uncertain. Examples guide the hosted classifier; they do not train a new model.</p>

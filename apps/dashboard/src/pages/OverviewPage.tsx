@@ -49,7 +49,7 @@ export function OverviewPage({ refreshKey }: { refreshKey: number }) {
 
   return (
     <>
-      <PageHeader title="Overview" description="Live request throughput, enforcement decisions, and gateway health." />
+      <PageHeader title="Overview" />
       {error && <div className="mb-4 border border-line-strong bg-surface-subtle px-4 py-3 text-sm text-foreground">{error}</div>}
       {loading && !loaded ? <OverviewSkeleton /> : loaded ? <OverviewContent overview={overview} /> : null}
     </>

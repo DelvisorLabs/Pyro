@@ -33,14 +33,14 @@ export function EvaluationsPage({ canRun }: { canRun: boolean }) {
   const percent = (v: number | null) => v === null ? "—" : `${(v * 100).toFixed(1)}%`;
   return (
     <>
-      <PageHeader title="Evaluation lab" description="Compare published policy revisions on a versioned dataset using the same classification engine as the gateway. Results describe this dataset, not general protection coverage." />
+      <PageHeader title="Evaluations" />
       <div className="space-y-5">
         {message && <div role="status" className="rounded-control border border-line-strong bg-surface-subtle px-4 py-3 text-[13px] text-foreground">{message}</div>}
 
         {canRun && <div className="grid items-stretch gap-5 xl:grid-cols-2">
           <Card className="flex min-w-0 flex-col">
             <CardHeader>
-              <CardTitle>Import a dataset version</CardTitle>
+              <CardTitle>Import dataset</CardTitle>
               <CardDescription>Upload or paste up to 500 cases. Reuse a name for a new version.</CardDescription>
             </CardHeader>
             <CardContent className="flex flex-1 flex-col gap-5">
@@ -95,7 +95,7 @@ export function EvaluationsPage({ canRun }: { canRun: boolean }) {
           <Card className="flex min-w-0 flex-col">
             <CardHeader>
               <CardTitle>Compare policies</CardTitle>
-              <CardDescription>Evaluate a baseline policy, or compare two published revisions.</CardDescription>
+
             </CardHeader>
             <CardContent className="flex flex-1 flex-col gap-5">
               <div className="min-w-0">
@@ -155,7 +155,7 @@ export function EvaluationsPage({ canRun }: { canRun: boolean }) {
         </div>}
 
         <Card className="min-w-0">
-          <CardHeader><CardTitle>Runs</CardTitle><CardDescription>Select a run to inspect its results or download a report.</CardDescription></CardHeader>
+          <CardHeader><CardTitle>Runs</CardTitle></CardHeader>
           <CardContent className={runs.length ? "p-0" : undefined}>
             {runs.length ? <Table>
               <TableHeader><TableRow><TableHead>Run</TableHead><TableHead>Created</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
@@ -164,14 +164,14 @@ export function EvaluationsPage({ canRun }: { canRun: boolean }) {
                 <TableCell className="whitespace-nowrap text-muted">{new Date(run.createdAt).toLocaleString()}</TableCell>
                 <TableCell><Badge className="capitalize">{selected?.id === run.id ? selected.status : run.status}</Badge></TableCell>
               </TableRow>)}</TableBody>
-            </Table> : <EmptyState title="No evaluations yet">{canRun ? "Import a dataset and choose a published policy to run your first evaluation." : "Evaluation runs will appear here when an administrator or operator starts one."}</EmptyState>}
+            </Table> : <EmptyState title="No evaluations yet">{canRun ? "Import a dataset and select a published revision." : "An administrator or operator can start a run."}</EmptyState>}
           </CardContent>
         </Card>
 
         {selected && <Card className="min-w-0">
           <CardHeader>
             <div className="flex flex-wrap items-start justify-between gap-3">
-              <div><CardTitle>Evaluation results</CardTitle><CardDescription>{selected.rows?.length ?? 0} / {selected.total} comparisons · Run {selected.id.slice(0, 8)}</CardDescription></div>
+              <div><CardTitle>Results</CardTitle><CardDescription>{selected.rows?.length ?? 0} / {selected.total} comparisons · Run {selected.id.slice(0, 8)}</CardDescription></div>
               <Badge className="capitalize">{selected.status}</Badge>
             </div>
           </CardHeader>
@@ -203,7 +203,7 @@ export function EvaluationsPage({ canRun }: { canRun: boolean }) {
                   </TableRow>)}</TableBody>
                 </Table>
               </div>
-              <p className="text-[13px] text-secondary">{selected.report.disagreements.length} disagreements with expected outcomes · {selected.report.changedCases.length} cases changed between policies.</p>
+              <p className="text-[13px] text-secondary">{selected.report.disagreements.length} disagreements · {selected.report.changedCases.length} changed cases. Results apply to this dataset only.</p>
               <details className="rounded-control border border-line px-4 py-3 text-[13px]">
                 <summary className="cursor-pointer font-medium text-secondary">Confusion matrices and disagreements</summary>
                 <pre className="mt-3 max-h-96 overflow-auto rounded-control bg-surface-subtle p-3 text-xs">{JSON.stringify(selected.report, null, 2)}</pre>

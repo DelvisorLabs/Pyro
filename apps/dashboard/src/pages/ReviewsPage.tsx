@@ -83,11 +83,11 @@ export function ReviewsPage({ canReview }: { canReview: boolean }) {
 
   return (
     <>
-      <PageHeader title="Review inbox" description="Inspect flagged requests and record whether the flag was correct. Feedback helps tune policies; it does not approve or resume a request." actions={<Button variant="outline" disabled={busy} onClick={() => void refresh()}><RefreshCw className="size-4" />Refresh</Button>} />
+      <PageHeader title="Review inbox" actions={<Button variant="outline" disabled={busy} onClick={() => void refresh()}><RefreshCw className="size-4" />Refresh</Button>} />
       <div className="space-y-5">
         {message && !current && <div role="status" className="rounded-control border border-line-strong bg-surface-subtle px-4 py-3 text-[13px]">{message}</div>}
         <Card className="min-w-0">
-          <CardHeader><div className="flex flex-wrap items-end justify-between gap-4"><div><CardTitle>Flagged requests</CardTitle><CardDescription>Only requests with a Pyro action of review appear here. Allow and block decisions are in Activity.</CardDescription></div><div className="w-full sm:w-40"><FieldLabel htmlFor="review-status">Status</FieldLabel><Select disabled={busy} value={status || "all"} onValueChange={(value) => { setStatus(value === "all" ? "" : value); setOffset(0); }}><SelectTrigger id="review-status"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="open">Open</SelectItem><SelectItem value="resolved">Resolved</SelectItem><SelectItem value="all">All reviews</SelectItem></SelectContent></Select></div></div></CardHeader>
+          <CardHeader><div className="flex flex-wrap items-end justify-between gap-4"><div><CardTitle>Flagged requests</CardTitle><CardDescription>Feedback does not approve or resume a request.</CardDescription></div><div className="w-full sm:w-40"><FieldLabel htmlFor="review-status">Status</FieldLabel><Select disabled={busy} value={status || "all"} onValueChange={(value) => { setStatus(value === "all" ? "" : value); setOffset(0); }}><SelectTrigger id="review-status"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="open">Open</SelectItem><SelectItem value="resolved">Resolved</SelectItem><SelectItem value="all">All reviews</SelectItem></SelectContent></Select></div></div></CardHeader>
           <CardContent className={reviews.length ? "p-0" : undefined}>
             {reviews.length ? <Table>
               <TableHeader><TableRow><TableHead>Original decision</TableHead><TableHead>Application</TableHead><TableHead>Severity</TableHead><TableHead>Created</TableHead><TableHead>Review outcome</TableHead></TableRow></TableHeader>
@@ -98,7 +98,7 @@ export function ReviewsPage({ canReview }: { canReview: boolean }) {
                 <TableCell className="whitespace-nowrap text-muted" title={new Date(review.event.createdAt).toLocaleString()}>{timeAgo(review.event.createdAt)}</TableCell>
                 <TableCell><Badge>{review.disposition ? outcomes[review.disposition] : "Awaiting feedback"}</Badge><p className="mt-1 text-xs capitalize text-muted">{review.status}</p></TableCell>
               </TableRow>)}</TableBody>
-            </Table> : <EmptyState title={status === "resolved" ? "No resolved reviews" : "No matching flagged requests"}>{status === "resolved" ? "Saved review outcomes will appear here. Switch to Open to inspect requests awaiting feedback." : "Requests flagged for review will appear here with their decision and reason. Use Activity to inspect all classifications."}</EmptyState>}
+            </Table> : <EmptyState title={status === "resolved" ? "No resolved reviews" : "No flagged requests"}>{status === "resolved" ? "Switch to Open for requests awaiting feedback." : "Requests flagged for review will appear here."}</EmptyState>}
           </CardContent>
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line px-5 py-3"><p className="text-xs text-muted">{reviews.length} {reviews.length === 1 ? "review" : "reviews"} on this page</p><div className="flex gap-2"><Button variant="outline" size="sm" disabled={busy || !offset} onClick={() => setOffset(Math.max(0, offset - 500))}>Previous</Button><Button variant="outline" size="sm" disabled={busy || nextOffset === null} onClick={() => setOffset(nextOffset!)}>Next</Button></div></div>
         </Card>
@@ -106,7 +106,7 @@ export function ReviewsPage({ canReview }: { canReview: boolean }) {
 
       <Dialog open={Boolean(current)} onOpenChange={(open) => { if (!open && !busy) { setCurrent(undefined); setMessage(""); } }}>
         <DialogContent className="flex max-w-3xl flex-col overflow-hidden">
-          <DialogHeader className="shrink-0"><DialogTitle>Review decision</DialogTitle><DialogDescription>Inspect the original classification and record your assessment of the flag.</DialogDescription></DialogHeader>
+          <DialogHeader className="shrink-0"><DialogTitle>Review decision</DialogTitle><DialogDescription>Record whether this flag was correct.</DialogDescription></DialogHeader>
           {current && <>
             <div className="min-h-0 space-y-5 overflow-y-auto px-6 py-5">
               <div>

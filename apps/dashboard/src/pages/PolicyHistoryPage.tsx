@@ -5,7 +5,7 @@ import { api } from "@/lib/api";
 import { EmptyState, PageHeader } from "@/components/shared";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -96,7 +96,7 @@ export function PolicyHistoryPage() {
 
   return (
     <>
-      <PageHeader title="Policy history" description="Inspect saved revisions, create a draft, and control which revision each application runs." actions={<Button variant="outline" disabled={busy || loading} onClick={() => void refresh()}><RefreshCw className="size-4" />Refresh</Button>} />
+      <PageHeader title="History" actions={<Button variant="outline" disabled={busy || loading} onClick={() => void refresh()}><RefreshCw className="size-4" />Refresh</Button>} />
       <div className="space-y-5">
         {message && <div role="status" className="rounded-control border border-line-strong bg-surface-subtle px-4 py-3 text-[13px]">{message}</div>}
         {loadingCatalog ? <Card><CardContent><p role="status" className="text-[13px] text-muted">Loading policies…</p></CardContent></Card> : !profiles.length ? <EmptyState title="No policies yet">Create a policy to start tracking its revisions.</EmptyState> : <>
@@ -107,7 +107,7 @@ export function PolicyHistoryPage() {
             </CardContent>
           </Card>
           <Card>
-            <CardHeader><CardTitle>Revisions</CardTitle><CardDescription>Select a revision to inspect its configuration or manage an application rollout.</CardDescription></CardHeader>
+            <CardHeader><CardTitle>Revisions</CardTitle></CardHeader>
             <CardContent className={revisions.length && !loadingHistory ? "max-h-80 overflow-auto p-0" : undefined}>
               {loadingHistory ? <p role="status" className="text-[13px] text-muted">Loading revision history…</p> : revisions.length ? <Table aria-label="Policy revisions">
                 <TableHeader><TableRow><TableHead>Revision</TableHead><TableHead>State</TableHead><TableHead>Saved by</TableHead><TableHead>Created</TableHead><TableHead>Content hash</TableHead></TableRow></TableHeader>
@@ -118,21 +118,21 @@ export function PolicyHistoryPage() {
                   <TableCell className="whitespace-nowrap text-muted">{new Date(revision.createdAt).toLocaleString()}</TableCell>
                   <TableCell title={revision.contentHash}><code className="text-xs text-muted">{revision.contentHash.slice(0, 12)}</code></TableCell>
                 </TableRow>)}</TableBody>
-              </Table> : <EmptyState title="No revisions to display">Saved drafts and published versions will appear here.</EmptyState>}
+              </Table> : <EmptyState title="No revisions yet">Saved drafts and published versions will appear here.</EmptyState>}
             </CardContent>
           </Card>
           {selection && <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1.5fr)_minmax(280px,1fr)]">
             <Card>
-              <CardHeader><div className="flex flex-wrap items-start justify-between gap-3"><div><CardTitle>Revision {selected}</CardTitle><CardDescription>Create a new draft from this saved configuration.</CardDescription></div><Badge className="capitalize">{selection.state}</Badge></div></CardHeader>
+              <CardHeader><div className="flex flex-wrap items-start justify-between gap-3"><div><CardTitle>Revision {selected}</CardTitle></div><Badge className="capitalize">{selection.state}</Badge></div></CardHeader>
               <CardContent className="space-y-5">
                 <div><p className="text-xs font-medium text-secondary">Changes from active revision {active}</p>{differences.length ? <div className="mt-2 flex flex-wrap gap-2">{differences.map((key) => <Badge key={key}>{fieldName(key)}</Badge>)}</div> : <p className="mt-1 text-xs leading-5 text-muted">No configuration changes.</p>}</div>
-                <div><FieldLabel htmlFor="history-draft">Draft configuration (JSON)</FieldLabel><Textarea id="history-draft" disabled={busy} aria-describedby="history-draft-help" className="min-h-72 font-mono text-xs" spellCheck={false} value={draft} onChange={(event) => setDraft(event.target.value)} /><p id="history-draft-help" className="mt-2 text-xs leading-5 text-muted">Edits are saved as a new draft. Existing revisions remain unchanged.</p></div>
+                <div><FieldLabel htmlFor="history-draft">Configuration (JSON)</FieldLabel><Textarea id="history-draft" disabled={busy} aria-describedby="history-draft-help" className="min-h-72 font-mono text-xs" spellCheck={false} value={draft} onChange={(event) => setDraft(event.target.value)} /><p id="history-draft-help" className="mt-2 text-xs leading-5 text-muted">Edits are saved as a new draft. Existing revisions remain unchanged.</p></div>
                 <Button disabled={busy || !draft.trim()} onClick={() => void run(async () => {
                   const result = await api.post<{ revision: Revision }>(`/api/profiles/${id}/revisions`, { profile: JSON.parse(draft), expectedRevision: active });
                   applyHistory(await api.get<History>(`/api/profiles/${id}/revisions`), result.revision.revision);
                   return `Draft revision ${result.revision.revision} saved.`;
-                })}><Save className="size-4" />Save as new draft</Button>
-                <div className="space-y-3 border-t border-line pt-4"><h3 className="text-[13px] font-medium">Publish saved revision</h3><p className="text-xs leading-5 text-muted">{selection.contentHash === current?.contentHash ? "This configuration is already active. Save changes as a new draft before publishing." : `Publishes the stored revision ${selected}. Save editor changes as a draft first. Changed configuration becomes a new active revision; history is preserved.`}</p><Button variant="outline" disabled={busy || selection.contentHash === current?.contentHash} onClick={() => void run(async () => {
+                })}><Save className="size-4" />Save draft</Button>
+                <div className="space-y-3 border-t border-line pt-4"><h3 className="text-[13px] font-medium">Publish</h3><p className="text-xs leading-5 text-muted">{selection.contentHash === current?.contentHash ? "Already active. Save your changes as a draft before publishing." : `Publishes saved revision ${selected} as a new active revision. Applications following the latest revision will update. Save editor changes first.`}</p><Button variant="outline" disabled={busy || selection.contentHash === current?.contentHash} onClick={() => void run(async () => {
                   const result = await api.post<{ profile: Profile }>(`/api/profiles/${id}/publish`, { revision: selected, expectedRevision: active });
                   setProfiles((records) => records.map((profile) => profile.id === result.profile.id ? result.profile : profile));
                   applyHistory(await api.get<History>(`/api/profiles/${id}/revisions`), result.profile.revision);
@@ -142,7 +142,7 @@ export function PolicyHistoryPage() {
               </CardContent>
             </Card>
             <Card>
-              <CardHeader><CardTitle>Application rollout</CardTitle><CardDescription>Pin a revision or start a canary rollout.</CardDescription></CardHeader>
+              <CardHeader><CardTitle>Rollout</CardTitle></CardHeader>
               <CardContent className="space-y-5">
                 {selection.state !== "published" ? <p className="rounded-control border border-line bg-surface-subtle px-3 py-3 text-[13px] leading-5 text-muted">Publish this draft before using it in an application.</p> : !apps.length ? <EmptyState title="No applications">Create an application before configuring a rollout.</EmptyState> : <>
                   <div><FieldLabel htmlFor="history-app">Application</FieldLabel><Select disabled={busy} value={appId} onValueChange={setAppId}><SelectTrigger id="history-app"><SelectValue placeholder="Choose application" /></SelectTrigger><SelectContent>{apps.map((app) => <SelectItem key={app.id} value={app.id}>{app.name}</SelectItem>)}</SelectContent></Select></div>

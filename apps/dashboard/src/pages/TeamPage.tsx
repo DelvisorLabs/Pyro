@@ -68,17 +68,17 @@ export function TeamPage({ currentUserId }: { currentUserId: string }) {
 
   return (
     <>
-      <PageHeader title="Team & audit" description="Manage access to your applications and inspect account and configuration changes." actions={
+      <PageHeader title="Team & audit" actions={
         <div className="flex gap-2"><Button variant="outline" disabled={busy} onClick={() => void run()}><RefreshCw className="size-4" />Refresh</Button><Button disabled={busy} onClick={() => edit()}><UserPlus className="size-4" />{cloud ? "Invite member" : "New account"}</Button></div>
       } />
       <div className="space-y-5">
         {message && !accountOpen && <div role="status" className="rounded-control border border-line-strong bg-surface-subtle px-4 py-3 text-[13px]">{message}</div>}
         {password && <Card>
-          <CardHeader><CardTitle>Account password</CardTitle><CardDescription>Copy this password and share it securely. It will not be shown again after dismissal.</CardDescription></CardHeader>
+          <CardHeader><CardTitle>Account password</CardTitle><CardDescription>Shown once. Copy and share it securely.</CardDescription></CardHeader>
           <CardContent className="flex flex-wrap items-center justify-between gap-4"><code className="min-w-0 break-all rounded-control bg-surface-subtle px-3 py-2 text-sm">{password}</code><Button variant="outline" onClick={() => setPassword("")}>Dismiss password</Button></CardContent>
         </Card>}
         <Card className="min-w-0">
-          <CardHeader><div className="flex flex-wrap items-start justify-between gap-3"><div><CardTitle>Team members</CardTitle><CardDescription>Application access and sign-in methods for each account.</CardDescription></div><div className="flex flex-wrap gap-2"><Badge>{users.length} {users.length === 1 ? "account" : "accounts"}</Badge><Badge>{oidc ? "SSO configured" : "Password sign-in"}</Badge></div></div></CardHeader>
+          <CardHeader><div className="flex flex-wrap items-start justify-between gap-3"><div><CardTitle>Members</CardTitle></div><div className="flex flex-wrap gap-2"><Badge>{users.length} {users.length === 1 ? "account" : "accounts"}</Badge><Badge>{oidc ? "SSO configured" : "Password sign-in"}</Badge></div></div></CardHeader>
           <CardContent className={users.length ? "p-0" : undefined}>
             {users.length ? <Table>
               <TableHeader><TableRow><TableHead>User</TableHead><TableHead>Role</TableHead><TableHead>Applications</TableHead><TableHead>Access</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
@@ -89,12 +89,12 @@ export function TeamPage({ currentUserId }: { currentUserId: string }) {
                 <TableCell><Badge className={user.disabled ? "text-muted" : undefined}>{user.disabled ? "Disabled" : "Active"}</Badge><p className="mt-1 text-xs text-muted">{user.oidcSubject ? "Single sign-on" : "Password"}</p></TableCell>
                 <TableCell><div className="flex justify-end gap-2"><Button variant="ghost" size="sm" aria-label={`Edit ${user.username}`} disabled={busy || user.organizationRole === "owner" || user.username === "admin" || user.id === currentUserId} onClick={() => edit(user)}><Pencil className="size-3.5" />Edit</Button><Button variant="outline" size="sm" aria-label={`${cloud ? "Disable access for" : "Revoke sessions for"} ${user.username}`} disabled={busy || cloud && (user.organizationRole === "owner" || user.id === currentUserId)} onClick={() => void run(async () => { await api.delete(`/api/team/${user.id}/sessions`); setMessage(cloud ? `Organization access disabled for ${user.username}.` : `Sessions revoked for ${user.username}.`); })}><KeyRound className="size-3.5" />{cloud ? "Disable access" : "Revoke sessions"}</Button></div></TableCell>
               </TableRow>)}</TableBody>
-            </Table> : <EmptyState title="No accounts to display">Create an account to give a teammate access to Pyro.</EmptyState>}
+            </Table> : <EmptyState title="No members yet">Create an account to give a teammate access to Pyro.</EmptyState>}
           </CardContent>
         </Card>
         {cloud && invitations.length > 0 && <Card><CardHeader><CardTitle>Pending invitations</CardTitle><CardDescription>Invitations expire after seven days.</CardDescription></CardHeader><CardContent className="p-0"><Table><TableHeader><TableRow><TableHead>Email</TableHead><TableHead>Role</TableHead><TableHead>Expires</TableHead><TableHead>Action</TableHead></TableRow></TableHeader><TableBody>{invitations.map((invitation) => <TableRow key={invitation.email}><TableCell>{invitation.email}</TableCell><TableCell>{invitation.role}</TableCell><TableCell>{new Date(invitation.expiresAt).toLocaleDateString()}</TableCell><TableCell><Button variant="outline" size="sm" disabled={busy} onClick={() => void run(() => api.delete("/api/invitations", { email: invitation.email }))}>Revoke invitation</Button></TableCell></TableRow>)}</TableBody></Table></CardContent></Card>}
         <Card className="min-w-0">
-          <CardHeader><div className="flex flex-wrap items-start justify-between gap-3"><div><CardTitle>Audit log</CardTitle><CardDescription>Latest 1,000 entries. Each change records a request intent and a separate outcome.</CardDescription></div><Badge>{audit.length} {audit.length === 1 ? "entry" : "entries"}</Badge></div></CardHeader>
+          <CardHeader><div className="flex flex-wrap items-start justify-between gap-3"><div><CardTitle>Audit log</CardTitle><CardDescription>Latest 1,000 entries.</CardDescription></div><Badge>{audit.length} {audit.length === 1 ? "entry" : "entries"}</Badge></div></CardHeader>
           <CardContent className={audit.length ? "max-h-[480px] overflow-auto p-0" : undefined}>
             {audit.length ? <Table>
               <TableHeader><TableRow><TableHead>Time</TableHead><TableHead>Actor</TableHead><TableHead>Action</TableHead><TableHead>Resource</TableHead><TableHead>Result</TableHead></TableRow></TableHeader>
@@ -105,7 +105,7 @@ export function TeamPage({ currentUserId }: { currentUserId: string }) {
                 <TableCell><code className="break-all text-xs">{entry.resource}</code>{entry.revision !== undefined && <p className="mt-1 text-xs text-muted">Revision {entry.revision}</p>}</TableCell>
                 <TableCell><Badge className={entry.status >= 400 ? "border-danger/30 bg-danger-surface text-danger" : "whitespace-nowrap"}>{entry.status === 0 ? "Request recorded" : `${entry.status < 400 ? "Success" : "Failed"} · ${entry.status}`}</Badge></TableCell>
               </TableRow>)}</TableBody>
-            </Table> : <EmptyState title="No audit entries yet">Account and configuration changes will appear here with their actor and result.</EmptyState>}
+            </Table> : <EmptyState title="No audit entries yet">Account and configuration changes appear here.</EmptyState>}
           </CardContent>
         </Card>
       </div>
