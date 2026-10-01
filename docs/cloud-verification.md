@@ -24,6 +24,14 @@ The load smoke used local PostgreSQL and a mock classifier. It is not a producti
 
 The build retains the existing Vite warning about a large dashboard JavaScript chunk. Builds succeed; bundle optimization is a separate performance task.
 
+## Local preview follow-up — October 2, 2026
+
+The default self-hosted Compose stack was confirmed to contain the new pipeline UI and engine: authenticated draft previews returned both allow/block branches with traces, and YAML export succeeded. Existing saved signal-based policies were preserved, so the pipeline editor is reached through **Policy Playground → New pipeline**. Organization and billing controls require the cloud backend and do not appear in self-hosted mode.
+
+`pnpm cloud:local` now provides a separate local cloud stack at http://127.0.0.1:3001 with generated ignored secrets, a dedicated persistent PostgreSQL volume, the restricted runtime role, mock inference and an encrypted local email outbox. The fresh Docker build/start, packaged account/organization/key/classification/deletion smoke, dashboard/API edge routing and encoded platform-route denials passed. Browser verification covered sign-in, organization creation, the organization switcher, opening the pipeline builder and its mock semantic execution trace. `pnpm cloud:local:mail` successfully reads local verification emails. The preview needs no external email, inference or payment account.
+
+Repeating `pnpm cloud:local` preserved the generated secrets and the existing browser session, organization and credit balance after container recreation. The original self-hosted containers remained running throughout verification.
+
 ## Reproduce
 
 Use dedicated databases with migration privileges. The migration test creates and removes a randomly named test database. Never point these test variables at production:

@@ -44,6 +44,8 @@ Existing benchmarks describe particular datasets and configurations; they are no
 
 The founder authorized implementing an optional managed cloud version with organizations and API-key SDK access, while preserving self-hosting and the offline CLI. The investment envelope is ₹1 lakh for at least six months including later marketing. The local implementation now includes accounts/recovery/invitations, organization memberships/roles, PostgreSQL RLS, scoped runtime instances, prepaid credits and provider budget admission, optional signed payment capture, organization export/deletion and a single-VM deployment/backup runbook. See [cloud architecture and operations](cloud.md).
 
+Plain `docker compose up -d --build` still starts the self-hosted mode. `pnpm cloud:local` starts an isolated cloud preview at http://127.0.0.1:3001 with mock inference and local email, so organizations and account flows can be tried without production provider accounts. In either mode, **Policy Playground → New pipeline** opens the guided editor; rebuilding preserves existing signal-based policies rather than converting them automatically.
+
 This is a capped beta architecture using the existing document stores; it is not a deployed service, proven business, independently security-audited product or enterprise scale/availability guarantee. Public DNS, provider/email/payment accounts, operational alerting/backups, public terms/pricing and real integration smoke tests remain operator launch prerequisites. No publish or deployment was authorized by this implementation task.
 
 ## Commercial plan and constraints

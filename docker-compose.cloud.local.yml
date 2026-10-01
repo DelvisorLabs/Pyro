@@ -1,0 +1,67 @@
+# Local cloud preview. Separate project/data from the default self-hosted stack.
+# Run `pnpm cloud:local` to generate development secrets and start these services.
+name: pyro-cloud-local
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: pyro
+      POSTGRES_USER: pyro_migrator
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Run pnpm cloud:local}
+      PYRO_RUNTIME_PASSWORD: ${PYRO_RUNTIME_PASSWORD:?Run pnpm cloud:local}
+    volumes:
+      - cloud-local-postgres:/var/lib/postgresql/data
+      - ./deploy/cloud/init-db.sh:/docker-entrypoint-initdb.d/10-runtime.sh:ro
+    healthcheck:
+      test: [CMD, pg_isready, -h, 127.0.0.1, -U, pyro_migrator, -d, pyro]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  migrate:
+    build: {context: ., target: cloud}
+    command: [node, apps/cloud/dist/migrate.js]
+    environment:
+      DATABASE_URL: postgresql://pyro_migrator:${POSTGRES_PASSWORD}@postgres:5432/pyro
+    depends_on:
+      postgres: {condition: service_healthy}
+
+  cloud:
+    build: {context: ., target: cloud}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      HOST: 0.0.0.0
+      PORT: 8082
+      DATABASE_URL: postgresql://pyro_runtime:${PYRO_RUNTIME_PASSWORD}@postgres:5432/pyro
+      PYRO_SKIP_MIGRATIONS: "true"
+      CONTROL_PLANE_SECRET: ${CONTROL_PLANE_SECRET:?Run pnpm cloud:local}
+      CLOUD_PLATFORM_TOKEN: ${CLOUD_PLATFORM_TOKEN:?Run pnpm cloud:local}
+      CLOUD_PUBLIC_URL: http://127.0.0.1:3001
+      CLOUD_EMAIL_MODE: outbox
+      CLOUD_PROVIDER_MODE: mock
+      CLOUD_MAX_ORGANIZATIONS: 25
+      CLOUD_TRIAL_CREDITS: 100
+      LOG_LEVEL: warn
+    ports: ["127.0.0.1:9082:8082"]
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+    healthcheck:
+      test: [CMD, wget, -qO-, http://127.0.0.1:8082/health]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  web:
+    build: {context: ., target: cloud-web}
+    restart: unless-stopped
+    ports: ["127.0.0.1:3001:8080"]
+    volumes:
+      - ./deploy/cloud/Caddyfile.local:/etc/caddy/Caddyfile:ro
+    depends_on:
+      cloud: {condition: service_healthy}
+
+volumes:
+  cloud-local-postgres:

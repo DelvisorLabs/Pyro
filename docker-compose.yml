@@ -1,4 +1,5 @@
 name: pyro
+# Self-hosted mode. For accounts, organizations and cloud billing, run `pnpm cloud:local`.
 
 services:
   postgres:

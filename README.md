@@ -32,6 +32,16 @@ See the [workflow and runtime contract](docs/policy-playground.md) and [complete
 
 Cloud source now supports verified accounts, organizations, scoped API keys, prepaid usage and an organization-aware dashboard. [Cloud architecture, local setup, deployment and six-month budget](docs/cloud.md) describe the implementation and launch prerequisites. This change does not mean a public service or updated SDK package has been published. Self-hosted setup and the standalone CLI remain available below.
 
+To try those screens locally with Docker:
+
+```sh
+pnpm cloud:local
+```
+
+Open **http://127.0.0.1:3001**, create an account, then run `pnpm cloud:local:mail your@email.test` to get its verification link. Create an organization to see the organization switcher, **Organization & billing**, scoped API keys and team invitations. The preview uses mock inference, a local email outbox and its own persistent database; it needs no paid services. `pnpm cloud:local:stop` stops it while preserving data.
+
+Plain `docker compose up -d --build` starts **self-hosted mode** at http://localhost:3000. It does not enable cloud accounts or billing. In either mode, sign in as an administrator and open **Policy Playground → New pipeline** for the ordered policy editor. Existing signal-based policies remain unchanged and do not become pipelines automatically.
+
 ## What Pyro does
 
 Pyro is a standalone CLI, self-hosted policy API and dashboard for teams adding LLM features or
