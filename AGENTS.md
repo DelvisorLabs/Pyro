@@ -1,5 +1,6 @@
 # Working agreements
 
+- Read [the shared project context](docs/project-context.md) before Pyro product, architecture, roadmap, or positioning work. Preserve its distinction between founder direction, exploratory proposals, and implemented features; the current task determines scope.
 - Make local commits for completed changes. Do not push, create PRs, merge, publish, or deploy unless explicitly requested.
 - Use pnpm. Keep the CLI usable without Docker or a server; Docker is optional for shared server/dashboard features.
 
