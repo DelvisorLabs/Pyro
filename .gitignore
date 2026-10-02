@@ -5,6 +5,7 @@ dist/
 AGENTS.md
 docs/
 *.md
+!/README.md
 !THIRD_PARTY_NOTICES.md
 deploy/cloud/
 docker-compose.cloud*.yml
