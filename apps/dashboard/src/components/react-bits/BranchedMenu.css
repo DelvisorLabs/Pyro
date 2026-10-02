@@ -66,6 +66,7 @@
   text-align: left;
   transition: color 120ms ease, background 120ms ease, border-color 120ms ease;
 }
+.branched-menu__item::before { display: none; }
 .branched-menu__item:not([data-active]):hover { color: var(--foreground); background: var(--surface-hover); }
 .branched-menu .branched-menu__item:not([data-active]) { background: transparent; }
 .branched-menu__item[data-highlighted]:not([data-active]) { color: var(--foreground); }
