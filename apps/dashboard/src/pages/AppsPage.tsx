@@ -1,3 +1,4 @@
+import { ApplicationQuickstart } from "@/components/ApplicationQuickstart";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useEffect, useState } from "react";
 import { Boxes, Pencil, Plus, Save, Trash2 } from "lucide-react";
@@ -125,6 +126,7 @@ export function AppsPage() {
           }))}
         />
         {editing && <div className="space-y-4">
+          <ApplicationQuickstart key={selectedId} app={apps.find(a => a.id === selectedId) ?? editing} />
           <Card><CardHeader><div className="flex flex-wrap items-start justify-between gap-3"><div><CardTitle>Settings</CardTitle><CardDescription>Defaults apply to every API key assigned to this application.</CardDescription></div><div className="flex items-center gap-2"><Badge>{editing.id}</Badge><Switch checked={editing.enabled} onCheckedChange={(enabled) => setEditing({ ...editing, enabled })} /></div></div></CardHeader><CardContent className="space-y-5">
             <div className="grid gap-4 md:grid-cols-2"><div className="space-y-2"><Label>Name</Label><Input value={editing.name} onChange={(event) => setEditing({ ...editing, name: event.target.value })} /></div><div className="space-y-2"><Label>Requests per minute</Label><Input type="number" min="1" value={editing.rateLimitPerMinute ?? ""} onChange={(event) => setEditing({ ...editing, rateLimitPerMinute: event.target.value ? Number(event.target.value) : undefined })} placeholder="Unlimited" /></div></div>
             <div className="space-y-2"><Label>Description</Label><Textarea className="min-h-20" value={editing.description} onChange={(event) => setEditing({ ...editing, description: event.target.value })} /></div>

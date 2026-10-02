@@ -24,7 +24,7 @@ export function VerdictBadge({ event, className }: { event: Pick<ClassificationE
       : event.verdict === "indeterminate"
         ? "border-line-strong bg-surface-subtle text-secondary"
         : "border-line-strong bg-surface text-secondary";
-  return <Badge className={cn(style, className)}>{event.decisionMode === "pipeline" ? `${event.action}${event.verdict === "indeterminate" ? " · indeterminate" : ""}` : event.verdict}</Badge>;
+  return <Badge className={cn(style, className)}>{`${event.action}${event.verdict === "indeterminate" ? " · indeterminate" : ""}`}</Badge>;
 }
 
 export function VerdictIcon({ verdict }: { verdict: ClassificationEvent["verdict"] }) {

@@ -1,6 +1,6 @@
 import { useId } from "react";
 import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
-import type { PolicyPipeline, PolicyStep } from "@pyro/contracts";
+import { PolicyPipelineSchema, type PolicyPipeline, type PolicyStep } from "@pyro/contracts";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { FieldLabel } from "./ui/field";
@@ -20,6 +20,11 @@ export function OutcomeSelect({ id, label, value, onChange, continuing = false, 
 
 export function PipelineEditor({ pipeline, onChange }: { pipeline: PolicyPipeline; onChange: (pipeline: PolicyPipeline) => void }) {
   const prefix = useId();
+  const validation = PolicyPipelineSchema.safeParse(pipeline);
+  const warnings: string[] = validation.success ? [] : validation.error.issues.map(issue => issue.message);
+  let ended = false;
+  for (const step of pipeline.steps) { if (ended) warnings.push(`${step.name || "This check"} cannot run: an earlier check ends the policy on both branches.`); if (step.onMatch !== "continue" && step.onNoMatch !== "continue") ended = true; }
+
   const replace = (index: number, step: PolicyStep) => onChange({ ...pipeline, steps: pipeline.steps.map((s, i) => i === index ? step : s) });
   const move = (index: number, offset: number) => { const steps = [...pipeline.steps]; [steps[index], steps[index + offset]] = [steps[index + offset]!, steps[index]!]; onChange({ ...pipeline, steps }); };
   const add = (type: "text" | "semantic") => {
@@ -29,6 +34,7 @@ export function PipelineEditor({ pipeline, onChange }: { pipeline: PolicyPipelin
     onChange({ ...pipeline, steps: [...pipeline.steps, step] });
   };
   return <div className="space-y-4">
+    {warnings.length > 0 && <div role="status" className="rounded-control border border-line-strong bg-surface-subtle p-3 text-xs leading-5"><strong>Check this policy</strong><ul className="mt-2 list-disc space-y-1 pl-4">{[...new Set(warnings)].map(warning => <li key={warning}>{warning}</li>)}</ul></div>}
     <p className="text-xs leading-5 text-muted">Checks run in order. Allow, review or block ends the pipeline.</p>
     <ol className="space-y-3" aria-label="Ordered policy checks">{pipeline.steps.map((step, index) => {
       const id = `${prefix}-${step.id}`;

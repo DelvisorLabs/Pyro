@@ -1,3 +1,9 @@
+import { CloudUsage } from "@/components/CloudUsage";
+import { PolicyTrace } from "@/components/PolicyTrace";
+import { VerdictBadge } from "@/components/shared";
+import { useCloud } from "@/lib/cloud";
+import type { ClassificationDecision, PolicyAction } from "@pyro/contracts";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { useEffect, useState } from "react";
 import { Download, Play, Upload } from "lucide-react";
 import { semanticCheckCount, type AppRecord, type Profile } from "@pyro/contracts";
@@ -15,14 +21,22 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 interface Dataset { id: string; name: string; version: number; count: number; appId: string; contentHash: string; expiresAt: string }
 interface Stats { count: number; accuracy: number | null; falsePositiveRate: number | null; indeterminate: number; p50LatencyMs: number | null; p95LatencyMs: number | null; reportedCosts: Record<string, number>; costUnreported: number; confusion: Record<string, Record<string, number>> }
-interface Run { id: string; status: string; total: number; datasetHash: string; configurationHash: string; createdAt: string; error?: string; rows?: unknown[]; report?: { policies: Record<string, Stats>; disagreements: unknown[]; changedCases: string[] }; estimate: { maximumProviderCalls: number; cost: string } }
-export function EvaluationsPage({ canRun }: { canRun: boolean }) {
+interface CaseResult { caseId: string; expected: PolicyAction; profileId: string; revision: number; decision: ClassificationDecision }
+interface Run { datasetId: string; appId: string; profiles: Profile[]; creditsConsumed?: number; id: string; status: string; total: number; datasetHash: string; configurationHash: string; createdAt: string; error?: string; rows?: CaseResult[]; report?: { policies: Record<string, Stats>; disagreements: unknown[]; changedCases: string[] }; estimate: { maximumProviderCalls: number; cost: string } }
+export function EvaluationsPage({ canRun, onOpenCase }: { canRun: boolean; onOpenCase?: (profile: Profile, appId: string, input: unknown, expected: PolicyAction) => void }) {
+  const cloud = useCloud();
+  const [samples, setSamples] = useState<Array<{ id: string; input: unknown }>>([]), [inputNotice, setInputNotice] = useState("");
+  const [pendingCase, setPendingCase] = useState<CaseResult>();
+  const [maximumCredits, setMaximumCredits] = useState<number>(), [creditCap, setCreditCap] = useState(100), [creditRefresh, setCreditRefresh] = useState(0);
   const [datasets, setDatasets] = useState<Dataset[]>([]), [runs, setRuns] = useState<Run[]>([]), [apps, setApps] = useState<AppRecord[]>([]), [profiles, setProfiles] = useState<Profile[]>([]);
   const [appId, setAppId] = useState(""), [name, setName] = useState(""), [jsonl, setJsonl] = useState(""), [retention, setRetention] = useState(7), [retain, setRetain] = useState(false);
   const [datasetId, setDatasetId] = useState(""), [first, setFirst] = useState(""), [second, setSecond] = useState(""), [revision, setRevision] = useState(1), [otherRevision, setOtherRevision] = useState(1), [paid, setPaid] = useState(false);
   const [selected, setSelected] = useState<Run>(), [message, setMessage] = useState(""), [busy, setBusy] = useState(false);
   const load = async () => { const [d, r, a, p] = await Promise.all([api.get<{ datasets: Dataset[] }>("/api/datasets"), api.get<{ runs: Run[] }>("/api/evaluations"), api.get<{ apps: AppRecord[] }>("/api/apps"), api.get<{ profiles: Profile[] }>("/api/profiles")]); setDatasets(d.datasets); setRuns(r.runs); setApps(a.apps); setProfiles(p.profiles); setAppId((id) => id || a.apps[0]?.id || ""); setDatasetId((id) => id || d.datasets[0]?.id || ""); };
-  const inspect = async (id: string) => { const { run } = await api.get<{ run: Run }>(`/api/evaluations/${id}`); setSelected(run); };
+  const inspect = async (id: string) => { const { run } = await api.get<{ run: Run }>(`/api/evaluations/${id}`); setSelected(run); setCreditRefresh(v => v + 1);
+    try { const result = await api.get<{ cases: typeof samples }>(`/api/datasets/${run.datasetId}/cases`); setSamples(result.cases); setInputNotice(""); }
+    catch (e) { setSamples([]); setInputNotice(e instanceof Error ? e.message : "Inputs unavailable."); }
+  };
   useEffect(() => { void load().catch((e) => setMessage(e.message)); }, []);
   useEffect(() => { if (!selected || !["queued", "running"].includes(selected.status)) return; const timer = setInterval(() => void inspect(selected.id).catch((e) => setMessage(e.message)), 1500); return () => clearInterval(timer); }, [selected?.id, selected?.status]);
   const work = async (fn: () => Promise<unknown>) => { setBusy(true); setMessage(""); try { await fn(); await load(); } catch (e) { setMessage(e instanceof Error ? e.message : "Request failed."); } finally { setBusy(false); } };
@@ -33,7 +47,7 @@ export function EvaluationsPage({ canRun }: { canRun: boolean }) {
   const percent = (v: number | null) => v === null ? "—" : `${(v * 100).toFixed(1)}%`;
   return (
     <>
-      <PageHeader title="Evaluations" />
+      <PageHeader title="Evaluations" /><CloudUsage compact refreshKey={creditRefresh} />
       <div className="space-y-5">
         {message && <div role="status" className="rounded-control border border-line-strong bg-surface-subtle px-4 py-3 text-[13px] text-foreground">{message}</div>}
 
@@ -132,16 +146,17 @@ export function EvaluationsPage({ canRun }: { canRun: boolean }) {
                 })}
               </div>
               <div className="rounded-control border border-line bg-surface-subtle px-3 py-3 text-xs leading-5 text-muted">
-                {semantic ? `Semantic policies send inputs to TypeSafe unless this deployment uses mock mode. Up to ${(dataset?.count ?? 0) * semantic * 6} attempts including retries; actual retries may be lower. Price is unknown. Check provider billing before starting.` : "Local-only policies make no provider calls. Earlier revisions may differ: the server will require confirmation for any semantic run."}
+                {semantic ? `Semantic policies send inputs to TypeSafe unless this deployment uses mock mode. Up to ${(dataset?.count ?? 0) * semantic * 6} attempts including retries; actual retries may be lower. ${cloud ? "Use Estimate credits before starting." : "Price is unknown. Check provider billing before starting."}` : "Local-only policies make no provider calls. Earlier revisions may differ: the server will require confirmation for any semantic run."}
               </div>
               <div className="flex items-start gap-2.5">
                 <Checkbox id="evaluation-paid" className="mt-0.5" checked={paid} onCheckedChange={(checked) => setPaid(checked === true)} />
                 <Label htmlFor="evaluation-paid" className="cursor-pointer font-normal leading-5">I authorize this dataset to be sent to the configured semantic provider and accept its charges, if these revisions use it.</Label>
               </div>
+              {cloud && <div className="space-y-2"><FieldLabel htmlFor="evaluation-cap">Maximum credits for this run</FieldLabel><Input id="evaluation-cap" type="number" min={0} value={creditCap} onChange={e => setCreditCap(Number(e.target.value))} /><Button variant="outline" disabled={busy || !datasetId || !first} onClick={() => void work(async () => { const result = await api.post<{ maximumCredits: number }>("/api/evaluations", { datasetId, policies: [{ id: first, revision }, ...(second ? [{ id: second, revision: otherRevision }] : [])], estimateOnly: true }); setMaximumCredits(result.maximumCredits); })}>Estimate credits</Button>{maximumCredits !== undefined && <p className="text-xs text-muted">Up to {maximumCredits} credits for the selection at estimate time. The server checks your cap again when starting.</p>}</div>}
               <div className="mt-auto flex flex-wrap gap-2 border-t border-line pt-4">
-                <Button disabled={busy || !datasetId || !first} onClick={() => void work(async () => {
+                <Button disabled={busy || !datasetId || !first || !Number.isSafeInteger(creditCap) || creditCap < 0} onClick={() => void work(async () => {
                   const policies = [{ id: first, revision }, ...(second ? [{ id: second, revision: otherRevision }] : [])];
-                  const result = await api.post<{ run: Run }>("/api/evaluations", { datasetId, policies, allowPaid: paid });
+                  const result = await api.post<{ run: Run }>("/api/evaluations", { datasetId, policies, allowPaid: paid, ...(cloud ? { maxCredits: creditCap } : {}) });
                   setSelected(result.run);
                 })}><Play className="size-4" />Run evaluation</Button>
                 <Button variant="danger" disabled={busy || !datasetId} onClick={() => void work(async () => {
@@ -177,7 +192,7 @@ export function EvaluationsPage({ canRun }: { canRun: boolean }) {
           </CardHeader>
           <CardContent className="space-y-5">
             <div className="flex flex-wrap items-start justify-between gap-4">
-              <p className="max-w-2xl text-[13px] leading-5 text-muted">{selected.estimate.cost} Maximum provider attempts: {selected.estimate.maximumProviderCalls}. A cancellation stops between calls; an in-flight call can still be billed.</p>
+              <p className="max-w-2xl text-[13px] leading-5 text-muted">{selected.creditsConsumed !== undefined ? `${selected.creditsConsumed} credits consumed. ` : selected.estimate.cost} Maximum provider attempts: {selected.estimate.maximumProviderCalls}. A cancellation stops between calls; an in-flight call can still be billed.</p>
               <div className="flex flex-wrap gap-2">
                 <Button variant="outline" onClick={download}><Download className="size-4" />Download report</Button>
                 {canRun && selected.status !== "complete" && <Button variant="outline" disabled={busy} onClick={() => void work(async () => {
@@ -204,8 +219,13 @@ export function EvaluationsPage({ canRun }: { canRun: boolean }) {
                 </Table>
               </div>
               <p className="text-[13px] text-secondary">{selected.report.disagreements.length} disagreements · {selected.report.changedCases.length} changed cases. Results apply to this dataset only.</p>
+              {inputNotice && <p className="text-xs text-muted">{inputNotice}</p>}
+              <Table><TableHeader><TableRow><TableHead>Case and input</TableHead><TableHead>Policy</TableHead><TableHead>Expected</TableHead><TableHead>Actual and reason</TableHead><TableHead>Inspect</TableHead></TableRow></TableHeader><TableBody>{[...(selected.rows ?? [])].sort((a, b) => Number(b.expected !== b.decision.action) - Number(a.expected !== a.decision.action)).map(row => {
+                const sample = samples.find(s => s.id === row.caseId);
+                return <TableRow key={`${row.caseId}:${row.profileId}:${row.revision}`}><TableCell className="max-w-80"><p className="font-mono text-xs">{row.caseId}</p><p className="mt-2 whitespace-pre-wrap break-words text-sm">{sample ? typeof sample.input === "string" ? sample.input : JSON.stringify(sample.input) : "Input unavailable"}</p></TableCell><TableCell>{row.profileId}@{row.revision}</TableCell><TableCell>{row.expected}</TableCell><TableCell className="max-w-80"><VerdictBadge event={row.decision} /><p className="mt-2 text-xs leading-5">{row.decision.reason}</p></TableCell><TableCell><details><summary className="cursor-pointer text-sm">Trace</summary><PolicyTrace decision={row.decision} /></details>{onOpenCase && sample && <Button className="mt-2" size="sm" variant="outline" onClick={() => setPendingCase(row)}>Open in Playground</Button>}</TableCell></TableRow>;
+              })}</TableBody></Table>
               <details className="rounded-control border border-line px-4 py-3 text-[13px]">
-                <summary className="cursor-pointer font-medium text-secondary">Confusion matrices and disagreements</summary>
+                <summary className="cursor-pointer font-medium text-secondary">Technical report (JSON)</summary>
                 <pre className="mt-3 max-h-96 overflow-auto rounded-control bg-surface-subtle p-3 text-xs">{JSON.stringify(selected.report, null, 2)}</pre>
               </details>
             </>}
@@ -216,6 +236,7 @@ export function EvaluationsPage({ canRun }: { canRun: boolean }) {
           </CardContent>
         </Card>}
       </div>
+      <Dialog open={Boolean(pendingCase)} onOpenChange={open => { if (!open) setPendingCase(undefined); }}><DialogContent><DialogHeader><DialogTitle>Open this regression case?</DialogTitle><DialogDescription>This loads the exact evaluated policy revision and retained input. Your current Playground working copy will be replaced. Save it as a draft first if you need to keep it.</DialogDescription></DialogHeader><DialogFooter><Button variant="outline" onClick={() => setPendingCase(undefined)}>Cancel</Button><Button onClick={() => { const row = pendingCase!, sample = samples.find(s => s.id === row.caseId), profile = selected?.profiles.find(p => p.id === row.profileId && p.revision === row.revision); if (sample && profile) onOpenCase?.(profile, selected!.appId, sample.input, row.expected); setPendingCase(undefined); }}>Open case</Button></DialogFooter></DialogContent></Dialog>
     </>
   );
 }

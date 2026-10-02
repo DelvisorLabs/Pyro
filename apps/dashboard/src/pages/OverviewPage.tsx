@@ -1,3 +1,4 @@
+import { Button } from "@/components/ui/button";
 import { chartTooltipStyle } from "@/components/ui/chart";
 import { MetricCard } from "@/components/ui/metric-card";
 import { useEffect, useState } from "react";
@@ -19,7 +20,7 @@ const EMPTY: Overview = {
   gateway: { status: "loading" },
 };
 
-export function OverviewPage({ refreshKey }: { refreshKey: number }) {
+export function OverviewPage({ refreshKey, onNavigate }: { refreshKey: number; onNavigate?: (page: "playground" | "apps" | "evaluations") => void }) {
   const { preferences } = useDashboardPreferences();
   const [overview, setOverview] = useState<Overview>(EMPTY);
   const [error, setError] = useState<string>();
@@ -50,6 +51,8 @@ export function OverviewPage({ refreshKey }: { refreshKey: number }) {
   return (
     <>
       <PageHeader title="Overview" />
+      {loaded && overview.totals.requests === 0 && onNavigate && <Card className="mb-5"><CardHeader><CardTitle>Get your first policy working</CardTitle></CardHeader><CardContent className="grid gap-4 sm:grid-cols-3">{[{ page: "playground" as const, title: "1. Test a policy", description: "Try normal requests and boundary cases before publishing." }, { page: "apps" as const, title: "2. Connect your application", description: "Use your application key and a ready-to-run request." }, { page: "evaluations" as const, title: "3. Keep a regression set", description: "Save mistakes and compare policy revisions." }].map(step => <div key={step.page}><Button variant="outline" onClick={() => onNavigate(step.page)}>{step.title}</Button><p className="mt-2 text-xs leading-5 text-muted">{step.description}</p></div>)}</CardContent></Card>}
+      {loaded && overview.totals.requests > 0 && <p role="status" className="mb-4 text-sm text-secondary">Application connected · {overview.totals.requests} requests recorded in this overview.</p>}
       {error && <div className="mb-4 border border-line-strong bg-surface-subtle px-4 py-3 text-sm text-foreground">{error}</div>}
       {loading && !loaded ? <OverviewSkeleton /> : loaded ? <OverviewContent overview={overview} /> : null}
     </>

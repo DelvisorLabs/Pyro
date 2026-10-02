@@ -1,3 +1,6 @@
+import { clearBatchSessions } from "@/components/BatchPolicyTest";
+import { newPipeline } from "@/lib/pipeline-editor";
+import { clearPlaygroundSessions, readPlaygroundSession, writePlaygroundSession } from "@/lib/playground-session";
 import { ProductTour } from "@/components/ProductTour";
 import { CloudContext, CloudModelContext, type Organization } from "@/lib/cloud";
 import { OrganizationPage } from "@/pages/OrganizationPage";
@@ -128,7 +131,7 @@ export default function App() {
     localStorage.setItem("pf-page", next);
     if (mobileNavOpen) { setMobileNavOpen(false); mobileMenuRef.current?.focus(); }
   };
-  const logout = async () => { await api.post("/api/auth/logout"); selectOrganization(undefined); setUser(undefined); setOrganizations([]); };
+  const logout = async () => { clearPlaygroundSessions(); clearBatchSessions(); await api.post("/api/auth/logout"); selectOrganization(undefined); setUser(undefined); setOrganizations([]); };
 
   if (checking) return <div className="flex min-h-screen items-center justify-center text-sm text-muted">Starting Pyro…</div>;
   if (!user) return <LoginPage onLogin={(next) => { setUser(next); void refreshSession().catch((e) => setScopeError(e.message)); }} />;
@@ -148,13 +151,13 @@ export default function App() {
   const organization = organizations.find((o) => o.id === user.organizationId);
   const content = {
     organization: <OrganizationPage user={user} organization={organization} onChanged={refreshSession} />,
-    overview: <OverviewPage refreshKey={refreshKey} />,
+    overview: <OverviewPage refreshKey={refreshKey} onNavigate={user.role === "admin" ? navigate : undefined} />,
     apps: <AppsPage />,
     usage: <UsagePage refreshKey={refreshKey} />,
-    playground: <PlaygroundPage onDecision={() => setRefreshKey((value) => value + 1)} />,
-    profiles: <ProfilesPage />,
+    playground: <PlaygroundPage scope={`${user.id}:${user.organizationId ?? "local"}`} onDecision={() => setRefreshKey((value) => value + 1)} />,
+    profiles: <ProfilesPage onNewPipeline={() => { const scope = `${user.id}:${user.organizationId ?? "local"}`; const prior = readPlaygroundSession(scope); if (prior?.draft && prior.dirty) { navigate("playground"); return; } writePlaygroundSession(scope, { draft: newPipeline(user.cloudModel ?? "jev-latest"), isNew: true, appId: prior?.appId ?? "default", input: "How do I change my Northstar billing plan?", format: "text", cases: [], dirty: true, draftId: crypto.randomUUID() }); navigate("playground"); }} />,
     history: <PolicyHistoryPage />,
-    evaluations: <EvaluationsPage canRun={user.role === "admin" || user.role === "operator"} />,
+    evaluations: <EvaluationsPage canRun={user.role === "admin" || user.role === "operator"} onOpenCase={user.role === "admin" ? (profile, appId, input, expected) => { writePlaygroundSession(`${user.id}:${user.organizationId ?? "local"}`, { draft: profile, isNew: false, appId, input: typeof input === "string" ? input : JSON.stringify(input, null, 2), format: typeof input === "string" ? "text" : "json", cases: [{ id: crypto.randomUUID(), input, expected, category: "regression" }], dirty: true, draftId: crypto.randomUUID() }); navigate("playground"); } : undefined} />,
     reviews: <ReviewsPage canReview={user.role !== "viewer"} />,
     activity: <ActivityPage refreshKey={refreshKey} />,
     keys: <ApiKeysPage />,

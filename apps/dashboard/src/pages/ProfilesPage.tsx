@@ -120,7 +120,8 @@ function validateProfile(profile: Profile | undefined, profiles: Profile[], serv
   return errors;
 }
 
-export function ProfilesPage() {
+export function ProfilesPage({ onNewPipeline }: { onNewPipeline?: () => void }) {
+  const [creating, setCreating] = useState(false);
   const cloud = useCloud(), cloudModel = useCloudModel();
   const [view, setView] = useState<"profiles" | "library">("profiles");
   const [presets, setPresets] = useState<ProfilePreset[]>([]);
@@ -192,7 +193,8 @@ export function ProfilesPage() {
 
   return (
     <>
-      <PageHeader title="Library" actions={<div className="flex flex-wrap gap-2"><Button variant="outline" onClick={() => { setImporting(true); setImportError(undefined); }}>Import YAML</Button><Button onClick={createProfile}><Plus className="size-4" />New signal policy</Button></div>} />
+      <Dialog open={creating} onOpenChange={setCreating}><DialogContent><DialogHeader><DialogTitle>Create a policy</DialogTitle><DialogDescription>Start with ordered checks, customize a template, or configure advanced detector scoring.</DialogDescription></DialogHeader><div className="space-y-3 px-6 py-4"><Button className="w-full" onClick={() => { setCreating(false); onNewPipeline?.(); }}>Design an ordered policy</Button><Button variant="outline" className="w-full" onClick={() => { setCreating(false); setView("library"); }}>Browse templates</Button><Button variant="ghost" className="w-full" onClick={() => { setCreating(false); createProfile(); }}>Advanced: signal policy</Button></div></DialogContent></Dialog>
+      <PageHeader title="Library" actions={<div className="flex flex-wrap gap-2"><Button variant="outline" onClick={() => { setImporting(true); setImportError(undefined); }}>Import YAML</Button><Button onClick={() => setCreating(true)}><Plus className="size-4" />Create policy</Button></div>} />
       {error && !editing && <p role="alert" className="mb-4 text-sm text-danger">{error}</p>}
       <ViewTabs label="Policy views" value={view} onChange={setView} options={[{ value: "profiles", label: "Your policies", count: profiles.length }, { value: "library", label: "Templates", count: presets.length }]} />
       {view === "library" ? <ProfileLibrary presets={presets} loading={presetLoading} error={presetError} onRetry={loadPresets} onCustomize={(profile) => {

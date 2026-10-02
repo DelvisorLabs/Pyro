@@ -101,7 +101,7 @@ export function TeamPage({ currentUserId }: { currentUserId: string }) {
               <TableBody>{audit.map((entry) => <TableRow key={entry.id}>
                 <TableCell className="whitespace-nowrap text-muted">{new Date(entry.at).toLocaleString()}</TableCell>
                 <TableCell className="font-medium">{users.find((user) => user.id === entry.actorId)?.username ?? entry.actorId}</TableCell>
-                <TableCell><Badge className="font-mono">{entry.action}</Badge></TableCell>
+                <TableCell><span>{entry.action.includes(".") ? entry.action.replaceAll(".", " ") : `${({ POST: "Create or run", PUT: "Update", PATCH: "Update", DELETE: "Delete" } as Record<string, string>)[entry.action] ?? entry.action} ${entry.resource.split("/")[2]?.replaceAll("-", " ") ?? "resource"}`}</span></TableCell>
                 <TableCell><code className="break-all text-xs">{entry.resource}</code>{entry.revision !== undefined && <p className="mt-1 text-xs text-muted">Revision {entry.revision}</p>}</TableCell>
                 <TableCell><Badge className={entry.status >= 400 ? "border-danger/30 bg-danger-surface text-danger" : "whitespace-nowrap"}>{entry.status === 0 ? "Request recorded" : `${entry.status < 400 ? "Success" : "Failed"} · ${entry.status}`}</Badge></TableCell>
               </TableRow>)}</TableBody>
