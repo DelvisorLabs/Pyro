@@ -6,6 +6,10 @@ export interface ControlPlaneConfig {
   validateProfile?: (profile: import("@pyro/contracts").Profile) => void;
   documentLimits?: Record<string, { count: number; bytes: number }>;
   listUsers?: () => Promise<import("@pyro/contracts").UserRecord[]>;
+  estimateCredits?: (profile: import("@pyro/contracts").Profile, input: unknown) => number;
+  chargedCredits?: (traceId: string) => Promise<number>;
+  workLimits?: () => { playgroundConcurrency: number; playgroundRequestsPerMinute: number; evaluationConcurrency: number; evaluationQueueDepth: number };
+  playgroundProviderHooks?: import("@pyro/classifiers").ProviderHooks;
   providerHooks?: import("@pyro/classifiers").ProviderHooks;
   gatewayHealth?: () => Promise<unknown>;
   classify?: (body: unknown) => Promise<{ status: number; body: unknown }>;

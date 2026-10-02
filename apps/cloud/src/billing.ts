@@ -1,10 +1,12 @@
+import { createDefaultProviderSettings, type Profile } from "@pyro/contracts";
 import { randomUUID } from "node:crypto";
 import { jevRequest, PolicyExecutionDenied, type ProviderHooks } from "@pyro/classifiers";
 import type { DocumentStore } from "@pyro/storage";
+import { Plans } from "./plans.js";
 import { CloudError, type CloudStore } from "./store.js";
-interface CreditAccount { balance: number; consumed: number }
-interface LedgerEntry { id: string; orgId: string; credits: number; kind: "grant" | "usage"; at: number; reference: string }
-interface MeterState { accounts: Record<string, CreditAccount>; charged: Record<string, number>; entries: LedgerEntry[]; grants: Record<string, true>; month: string; reservedMicros: number; attempts: number; reportedMicros: number; reportedInputTokens: number; reportedOutputTokens: number; reportedCalls: number }
+interface CreditAccount { balance: number; consumed: number; month?: string; monthlyConsumed?: number; sources?: Record<string, { credits: number; calls: number }> }
+interface LedgerEntry { id: string; orgId: string; credits: number; kind: "grant" | "usage"; at: number; reference: string; source?: string; traceId?: string }
+interface MeterState { leases?: Record<string, { orgId: string; expiresAt: number }>; accounts: Record<string, CreditAccount>; charged: Record<string, number>; entries: LedgerEntry[]; grants: Record<string, true>; month: string; reservedMicros: number; attempts: number; reportedMicros: number; reportedInputTokens: number; reportedOutputTokens: number; reportedCalls: number }
 export interface Order { id: string; orgId: string; amount: number; currency: "INR"; credits: number; paid?: boolean }
 export class Billing {
   readonly meter: DocumentStore<MeterState>;
@@ -27,14 +29,25 @@ export class Billing {
   }
   async summary(orgId: string) {
     const state = await this.meter.read();
+    const plan = await new Plans(this.store).effective(orgId);
+    const month = new Date().toISOString().slice(0, 7);
+    const account = state.accounts[orgId] ?? { balance: 0, consumed: 0 };
+    const monthlyConsumed = account.month === month ? account.monthlyConsumed ?? 0 : 0;
+    const requests = await this.store.platform.document("cloud_request_usage", () => ({ month: "", organizations: {} as Record<string, number> })).read();
     const storage = await this.store.platform.document("cloud_event_budget", () => ({ month: "", total: 0, organizations: {} as Record<string, number> })).read();
-    return { ...(state.accounts[orgId] ?? { balance: 0, consumed: 0 }), entries: state.entries.filter((e) => e.orgId === orgId).slice(-100).reverse(),
-      eventStorage: { usedBytes: storage.month === new Date().toISOString().slice(0, 7) ? storage.organizations[orgId] ?? 0 : 0, limitBytes: 500_000_000 },
+    return { ...account, plan, month, monthlyConsumed, monthlyRemaining: Math.max(0, plan.monthlyCreditLimit - monthlyConsumed), includedRemaining: Math.max(0, plan.monthlyCredits - monthlyConsumed), availableCredits: Math.min(Math.max(0, plan.monthlyCreditLimit - monthlyConsumed), account.balance + Math.max(0, plan.monthlyCredits - monthlyConsumed)), requestsUsed: requests.month === month ? requests.organizations[orgId] ?? 0 : 0, sources: account.month === month ? account.sources ?? {} : {}, entries: state.entries.filter((e) => e.orgId === orgId).slice(-100).reverse(),
+      eventStorage: { usedBytes: storage.month === new Date().toISOString().slice(0, 7) ? storage.organizations[orgId] ?? 0 : 0, limitBytes: plan.eventStorageBytes },
       unit: "One credit per started 2,000 UTF-8 bytes of the complete semantic provider request. Local-only decisions are free. Provider retries do not debit customer credits again.",
       checkoutAvailable: Boolean(this.store.config.razorpayKey && this.store.config.razorpaySecret && this.store.config.razorpayWebhookSecret),
       pack: { credits: this.store.config.packCredits, amount: this.store.config.packPricePaise, currency: "INR" } };
   }
-  hooks(orgId: string): ProviderHooks {
+  estimate(profile: Profile, input: unknown) {
+    const provider = createDefaultProviderSettings();
+    const calls = profile.pipeline ? profile.pipeline.steps.filter(s => s.type === "semantic").map(condition => ({ profile: { ...profile, pipeline: undefined, detectors: [{ id: condition.id, name: condition.name, enabled: true, weight: 1, question: condition.question, description: "Pipeline condition" }] }, condition })) : profile.detectors.some(d => d.enabled) ? [{ profile, condition: undefined }] : [];
+    return calls.reduce((sum, call) => sum + Math.max(1, Math.ceil(Buffer.byteLength(JSON.stringify(jevRequest({ ...call, input, provider, id: "estimate", queueMs: 0 })), "utf8") / 2000)), 0);
+  }
+  async charged(orgId: string, traceId: string) { return (await this.meter.read()).entries.filter(e => e.orgId === orgId && e.kind === "usage" && e.traceId === traceId).reduce((sum, e) => sum - e.credits, 0); }
+  hooks(orgId: string, source = "application"): ProviderHooks {
     return { before: async (input) => {
       await this.store.assertActive(orgId);
       if (input.profile.model !== this.store.config.providerModel) throw new PolicyExecutionDenied(`This policy uses an unsupported cloud model. Publish a revision using ${this.store.config.providerModel}.`);
@@ -45,23 +58,35 @@ export class Billing {
       // attempt, including retries/recovered leases; never release uncertain charges.
       const cost = input.provider.mode === "mock" ? 0 : Math.ceil(bytes * this.store.config.providerPricePerMillion);
       const reference = `${orgId}:${input.id}`;
+      const plan = await new Plans(this.store).effective(orgId);
       await this.meter.update((state) => {
         const month = new Date().toISOString().slice(0, 7);
         if (state.month !== month) { state.month = month; state.reservedMicros = 0; state.attempts = 0; state.reportedMicros = 0; state.reportedInputTokens = 0; state.reportedOutputTokens = 0; state.reportedCalls = 0; }
         const account = state.accounts[orgId] ??= { balance: 0, consumed: 0 };
+        if (account.month !== month) { account.month = month; account.monthlyConsumed = 0; account.sources = {}; }
         const firstAttempt = state.charged[reference] === undefined;
-        if (firstAttempt && account.balance < credits) throw new PolicyExecutionDenied("Organization credits exhausted. Add credits before retrying.");
+        const included = Math.max(0, plan.monthlyCredits - (account.monthlyConsumed ?? 0));
+        const prepaid = Math.max(0, credits - included);
+        if (firstAttempt && (account.monthlyConsumed ?? 0) + credits > plan.monthlyCreditLimit) throw new PolicyExecutionDenied("Monthly credit limit reached. Contact your organization owner.");
+        state.leases ??= {};
+        for (const [key, lease] of Object.entries(state.leases)) if (lease.expiresAt <= Date.now()) delete state.leases[key];
+        if (Object.values(state.leases).filter(l => l.orgId === orgId).length >= plan.concurrency || Object.keys(state.leases).length >= (this.store.config.providerConcurrency ?? 16)) throw new PolicyExecutionDenied("Inference concurrency limit reached. Retry shortly.", 429);
+        if (firstAttempt && account.balance < prepaid) throw new PolicyExecutionDenied("Organization credits exhausted. Add credits before retrying.");
         if (state.reservedMicros + cost > this.store.config.monthlyProviderBudgetMicros) throw new PolicyExecutionDenied("Platform inference budget reached. Contact support.");
         if (firstAttempt) {
-          account.balance -= credits; account.consumed += credits; state.charged[reference] = Date.now();
-          state.entries.push({ id: randomUUID(), orgId, credits: -credits, kind: "usage", at: Date.now(), reference: input.id });
+          account.balance -= prepaid; account.consumed += credits; account.monthlyConsumed = (account.monthlyConsumed ?? 0) + credits;
+          account.sources ??= {}; const usage = account.sources[source] ??= { credits: 0, calls: 0 }; usage.credits += credits; usage.calls++; state.charged[reference] = Date.now();
+          state.entries.push({ id: randomUUID(), orgId, credits: -credits, kind: "usage", at: Date.now(), reference: input.id, source, traceId: input.traceId });
         }
+        state.leases[reference] = { orgId, expiresAt: Date.now() + input.profile.timeoutMs + 30000 };
         state.reservedMicros += cost; state.attempts++;
         // Cover both short classification jobs and evaluations retained for up to 30 days.
         for (const [key, at] of Object.entries(state.charged)) if (at < Date.now() - 31 * 86400_000) delete state.charged[key];
         state.entries = state.entries.filter((e) => e.kind === "grant" || e.at > Date.now() - 30 * 86400_000);
         return state;
       });
+    }, settled: async (input) => {
+      await this.meter.update(state => { if (state.leases) delete state.leases[`${orgId}:${input.id}`]; return state; });
     }, after: async (_input, usage) => {
       // Keep provider-reported amounts distinct from conservative admission reservations.
       // Unknown amounts remain unknown; a successful response never refunds a reservation.

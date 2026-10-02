@@ -41,6 +41,7 @@ function localRuleDecision(
 export class PolicyExecutionDenied extends Error { constructor(message: string, readonly statusCode = 402) { super(message); } }
 export interface ProviderHooks {
   before(input: ClassifierInput): Promise<void>;
+  settled?(input: ClassifierInput): Promise<void>;
   after?(input: ClassifierInput, usage: ClassificationDecision["usage"]): Promise<void>;
 }
 
@@ -111,7 +112,8 @@ export async function evaluatePolicy({ id, envelope, profile, queueMs = 0, trace
         try {
           try { await providerHooks?.before(classifierInput); }
           catch (error) { throw error instanceof PolicyExecutionDenied ? error : new PolicyExecutionDenied("Cloud usage authorization is unavailable. Please retry later."); }
-          raw = await classifier.classify(classifierInput);
+          try { raw = await classifier.classify(classifierInput); }
+          finally { await providerHooks?.settled?.(classifierInput); }
           circuit.consecutiveFailures = 0;
           circuit.openUntil = 0;
           break;

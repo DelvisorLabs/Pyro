@@ -4,9 +4,10 @@ import { buildGateway } from "@pyro/gateway/app";
 import { buildControlPlane } from "@pyro/control-plane/app";
 import { openDatabase, type Database } from "@pyro/storage";
 import { createDefaultProviderSettings, createDefaultProfile, semanticCheckCount, type ApiKeyRecord, type StoredIntegration } from "@pyro/contracts";
+import { Plans, type Plan } from "./plans.js";
 import type { Billing } from "./billing.js";
 import { hash, CloudError, type CloudStore } from "./store.js";
-export interface Runtime { gateway: FastifyInstance; control: FastifyInstance; database: Database; close(): Promise<void> }
+export interface Runtime { gateway: FastifyInstance; control: FastifyInstance; database: Database; setPlan(plan: Plan): void; close(): Promise<void> }
 /** Fixed organization instances deliberately isolate every legacy cache, queue and
  * event emitter. PostgreSQL pools are shared; no per-customer servers are created. */
 export class Runtimes {
@@ -19,10 +20,11 @@ export class Runtimes {
       runtime = this.create(orgId).catch((error) => { this.instances.delete(orgId); throw error; });
       this.instances.set(orgId, runtime);
     }
-    return runtime;
+    const resolved = await runtime; resolved.setPlan(await new Plans(this.store).effective(orgId)); return resolved;
   }
   private async create(orgId: string): Promise<Runtime> {
     const config = this.store.config;
+    let plan = await new Plans(this.store).effective(orgId);
     const database = await openDatabase(config.databaseUrl, orgId);
     let gateway: FastifyInstance | undefined, control: FastifyInstance | undefined;
     try {
@@ -37,13 +39,13 @@ export class Runtimes {
     const providerHooks = this.billing.hooks(orgId);
     gateway = await buildGateway({ organizationId: orgId, databaseUrl: config.databaseUrl, host: "127.0.0.1", port: 0,
       controlPlaneSecret: config.secret, typesafeApiKey: config.providerKey, bootstrapApiKey: internalKey,
-      queueConcurrency: 2, queueMaxDepth: 20, defaultTimeoutMs: 8000, providerHooks, authorizeWork: async () => { await this.store.assertActive(orgId); await this.store.eventBudget(orgId); }, beforePersist: (event) => this.store.eventBudget(orgId, Buffer.byteLength(JSON.stringify(event))) });
+      workLimits: () => plan, queueConcurrency: plan.concurrency, queueMaxDepth: plan.queueDepth, defaultTimeoutMs: 8000, providerHooks, authorizeWork: async () => { await this.store.assertActive(orgId); await this.store.eventBudget(orgId); }, beforePersist: (event) => this.store.eventBudget(orgId, Buffer.byteLength(JSON.stringify(event))) });
       control = await buildControlPlane({ organizationId: orgId, databaseUrl: config.databaseUrl, host: "127.0.0.1", port: 0,
         controlPlaneSecret: config.secret, adminPassword: "disabled-cloud-login", gatewayInternalUrl: "http://127.0.0.1:0", gatewayApiKey: internalKey,
-        typesafeApiKey: config.providerKey, typesafeEndpoint: config.providerEndpoint, typesafeModel: config.providerModel, providerHooks,
+        typesafeApiKey: config.providerKey, typesafeEndpoint: config.providerEndpoint, typesafeModel: config.providerModel, providerHooks: this.billing.hooks(orgId, "evaluation"), playgroundProviderHooks: this.billing.hooks(orgId, "playground"), workLimits: () => plan, estimateCredits: (profile, input) => this.billing.estimate(profile, input), chargedCredits: traceId => this.billing.charged(orgId, traceId),
         resolveUser: async (request) => (await this.store.resolve(request.cookies.pf_session, orgId)).user,
         validateProfile: (profile) => { if (semanticCheckCount(profile) > 0 && profile.model !== config.providerModel) throw new CloudError(400, `Cloud semantic policies must use ${config.providerModel}.`); },
-        documentLimits: { apps: { count: 20, bytes: 2_000_000 }, profiles: { count: 100, bytes: 10_000_000 }, api_keys: { count: 101, bytes: 200_000 }, integrations: { count: 10, bytes: 100_000 }, evaluation_datasets: { count: 20, bytes: 15_000_000 }, evaluation_runs: { count: 100, bytes: 30_000_000 } },
+        documentLimits: { policy_drafts: { count: 100, bytes: 10000000 }, apps: { count: 20, bytes: 2_000_000 }, profiles: { count: 100, bytes: 10_000_000 }, api_keys: { count: 101, bytes: 200_000 }, integrations: { count: 10, bytes: 100_000 }, evaluation_datasets: { count: 20, bytes: 15_000_000 }, evaluation_runs: { count: 100, bytes: 30_000_000 } },
         listUsers: () => this.store.members(orgId),
         authorizeEvaluation: async (userId, appId) => {
           await this.store.assertActive(orgId);
@@ -54,9 +56,10 @@ export class Runtimes {
         classify: async (body) => { const response = await gateway!.inject({ method: "POST", url: "/v1/classify", headers: { authorization: `Bearer ${internalKey}` }, payload: body as object }); return { status: response.statusCode, body: response.json() }; },
       });
       await gateway.ready(); await control.ready();
-      return { gateway, control, database, close: async () => { await control!.close(); await gateway!.close(); await database.close(); } };
+      return { gateway, control, database, setPlan: (next) => { plan = next; }, close: async () => { await control!.close(); await gateway!.close(); await database.close(); } };
     } catch (error) { await control?.close(); await gateway?.close(); await database.close(); throw error; }
   }
+  async refreshPlans() { for (const [id, runtime] of this.instances) (await runtime).setPlan(await new Plans(this.store).effective(id)); }
   async retire(orgId: string) { const value = this.instances.get(orgId); if (value) { this.instances.delete(orgId); await (await value).close(); } }
   async close() { for (const id of [...this.instances.keys()]) await this.retire(id); }
   async authenticateKey(raw?: string) {

@@ -14,7 +14,9 @@
     "test:webhook": "node scripts/test-webhook.mjs",
     "pyro": "node packages/cli/dist/bin.js",
     "evaluate": "node scripts/evaluate.mjs",
-    "release:prepare": "node scripts/release-artifacts.mjs"
+    "release:prepare": "node scripts/release-artifacts.mjs",
+    "cloud:plans": "node scripts/cloud-plans.mjs",
+    "test:support-example": "node --test examples/support-assistant/server.test.mjs"
   },
   "devDependencies": {
     "concurrently": "^9.2.1",

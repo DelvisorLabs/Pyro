@@ -41,15 +41,15 @@ export class ConcurrentQueue {
   private rejected = 0;
 
   constructor(
-    private readonly concurrency: number,
-    private readonly maxDepth: number,
+    private readonly concurrency: number | (() => number),
+    private readonly maxDepth: number | (() => number),
   ) {
-    if (!Number.isInteger(concurrency) || concurrency < 1) throw new Error("concurrency must be positive");
-    if (!Number.isInteger(maxDepth) || maxDepth < 1) throw new Error("maxDepth must be positive");
+    if (typeof concurrency === "number" && (!Number.isInteger(concurrency) || concurrency < 1)) throw new Error("concurrency must be positive");
+    if (typeof maxDepth === "number" && (!Number.isInteger(maxDepth) || maxDepth < 1)) throw new Error("maxDepth must be positive");
   }
 
   submit<T>(execute: (queueMs: number) => Promise<T>, id: string = randomUUID()): Promise<QueueResult<T>> {
-    if (this.waiting.length >= this.maxDepth) {
+    if (this.waiting.length >= this.depth()) {
       this.rejected += 1;
       throw new QueueFullError();
     }
@@ -71,8 +71,8 @@ export class ConcurrentQueue {
     return {
       active: this.active,
       waiting: this.waiting.length,
-      concurrency: this.concurrency,
-      maxDepth: this.maxDepth,
+      concurrency: this.capacity(),
+      maxDepth: this.depth(),
       accepted: this.accepted,
       completed: this.completed,
       failed: this.failed,
@@ -80,8 +80,10 @@ export class ConcurrentQueue {
     };
   }
 
+  private capacity() { return typeof this.concurrency === "function" ? this.concurrency() : this.concurrency; }
+  private depth() { return typeof this.maxDepth === "function" ? this.maxDepth() : this.maxDepth; }
   private drain(): void {
-    while (this.active < this.concurrency && this.waiting.length > 0) {
+    while (this.active < this.capacity() && this.waiting.length > 0) {
       const job = this.waiting.shift();
       if (!job) return;
       this.active += 1;

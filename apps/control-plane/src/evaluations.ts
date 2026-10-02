@@ -17,12 +17,18 @@ const publicRun = ({ credential, ...run }: Run) => run;
 export function registerEvaluations(app: FastifyInstance, database: Database, config: ControlPlaneConfig, guard: (r: FastifyRequest, p: FastifyReply) => Promise<unknown>) {
   const datasets = database.document<Dataset[]>("evaluation_datasets", () => []);
   const runs = database.document<Run[]>("evaluation_runs", () => []);
-  const jobs = new DurableJobs(database, config.controlPlaneSecret, "evaluation_jobs", 20);
+  const jobs = new DurableJobs(database, config.controlPlaneSecret, "evaluation_jobs", () => config.workLimits?.().evaluationQueueDepth ?? 20);
   const enqueue = async (run: Run) => {
     const job = await jobs.enqueue({ id: randomUUID(), appId: run.appId, fingerprint: `${run.id}:${run.generation}`, idempotencyKey: `${run.id}:${run.generation}`, input: { runId: run.id, generation: run.generation } });
     await runs.update((rows) => rows.map((r) => r.id === run.id && r.generation === run.generation ? { ...r, jobId: job.id } : r));
   };
   app.get("/api/datasets", { preHandler: guard }, async (request) => ({ datasets: (await datasets.read()).filter((d) => canAccessApp(request.user!, d.appId) && Date.parse(d.expiresAt) > Date.now()).map(publicDataset) }));
+  app.get<{ Params: { id: string } }>("/api/datasets/:id/cases", { preHandler: guard }, async (request, reply) => {
+    if (request.user!.role !== "admin" && !request.user!.rawPreviews) return reply.code(403).send({ error: "Raw input access required." });
+    const dataset = (await datasets.read()).find(d => d.id === request.params.id && canAccessApp(request.user!, d.appId) && Date.parse(d.expiresAt) > Date.now());
+    if (!dataset) return reply.code(404).send({ error: "Dataset inputs expired or were deleted." });
+    return { cases: JSON.parse(decryptText(dataset.cases, config.controlPlaneSecret)) as Case[] };
+  });
   app.post("/api/datasets", { preHandler: guard }, async (request, reply) => {
     const parsed = z.object({ appId: z.string(), name: z.string().trim().min(1).max(100), jsonl: z.string().min(1).max(500_000), retentionDays: z.union([z.literal(1), z.literal(7), z.literal(30)]), retainInputs: z.literal(true) }).safeParse(request.body);
     if (!parsed.success) return reply.code(400).send({ error: "Provide appId, name, JSONL, retentionDays (1, 7 or 30), and explicit retainInputs: true." });
@@ -50,10 +56,10 @@ export function registerEvaluations(app: FastifyInstance, database: Database, co
   app.get<{ Params: { id: string } }>("/api/evaluations/:id", { preHandler: guard }, async (request, reply) => {
     const run = (await runs.read()).find((r) => r.id === request.params.id && canAccessApp(request.user!, r.appId));
     if (!run) return reply.code(404).send({ error: "Evaluation not found." });
-    return { run: publicRun(run) };
+    return { run: { ...publicRun(run), creditsConsumed: await config.chargedCredits?.(run.id) } };
   });
   app.post("/api/evaluations", { preHandler: guard }, async (request, reply) => {
-    const parsed = z.object({ datasetId: z.string(), policies: z.array(z.object({ id: z.string(), revision: z.number().int().positive() })).min(1).max(2), allowPaid: z.boolean().default(false) }).safeParse(request.body);
+    const parsed = z.object({ datasetId: z.string(), policies: z.array(z.object({ id: z.string(), revision: z.number().int().positive() })).min(1).max(2), allowPaid: z.boolean().default(false), maxCredits: z.number().int().nonnegative().optional(), estimateOnly: z.boolean().default(false) }).safeParse(request.body);
     if (!parsed.success) return reply.code(400).send({ error: "Choose a dataset and one or two published policy revisions." });
     const body = parsed.data;
     if (new Set(body.policies.map((p) => `${p.id}@${p.revision}`)).size !== body.policies.length) return reply.code(400).send({ error: "Choose distinct policy revisions." });
@@ -67,12 +73,16 @@ export function registerEvaluations(app: FastifyInstance, database: Database, co
     const provider = await database.document<ProviderSettings>("provider_settings", createDefaultProviderSettings).read();
     const semanticCount = profiles.reduce((sum, p) => sum + semanticCheckCount(p!), 0);
     const maximumProviderCalls = semanticCount * dataset.count * (1 + provider.maxRetries);
+    const samples = JSON.parse(decryptText(dataset.cases, config.controlPlaneSecret)) as Case[];
+    const maximumCredits = config.estimateCredits ? samples.reduce((sum, sample) => sum + profiles.reduce((n, profile) => n + config.estimateCredits!(profile!, sample.input), 0), 0) : undefined;
+    if (body.estimateOnly) return { maximumCredits, maximumProviderCalls };
+    if (body.maxCredits !== undefined && maximumCredits !== undefined && maximumCredits > body.maxCredits) return reply.code(400).send({ error: `This run may use ${maximumCredits} credits, exceeding your cap of ${body.maxCredits}.` });
     const paid = semanticCount > 0 && provider.mode !== "mock";
     if (paid && !body.allowPaid) return reply.code(400).send({ error: `This run may send dataset inputs to TypeSafe in up to ${maximumProviderCalls} provider attempts. Cost is unknown. Explicit allowPaid: true is required.` });
     const credential = paid ? config.typesafeApiKey ? encryptText(config.typesafeApiKey, config.controlPlaneSecret) : (await database.document<{ typesafeApiKey?: StoredSecret }>("provider_secrets", () => ({})).read()).typesafeApiKey : undefined;
     if (paid && !credential) return reply.code(400).send({ error: "Configure the TypeSafe API key before running semantic evaluations." });
     const run: Run = { id: randomUUID(), appId: dataset.appId, datasetId: dataset.id, datasetHash: dataset.contentHash, createdAt: new Date().toISOString(), actorId: request.user!.id, expiresAt: dataset.expiresAt, profiles: profiles as Profile[], app: application, provider, configurationHash: digest({ profiles, application, provider }), credential, status: "queued", rows: [], total: dataset.count * profiles.length, estimate: { maximumProviderCalls: provider.mode === "mock" ? 0 : maximumProviderCalls, cost: paid ? "Unknown; provider billing applies." : "No external provider charges." }, generation: 1 };
-    await runs.update((rows) => [...rows, run]);
+    await runs.update((rows) => { if (rows.filter(r => ["queued", "running"].includes(r.status)).length >= (config.workLimits?.().evaluationQueueDepth ?? 20)) throw Object.assign(new Error("Evaluation queue is full. Retry after a run completes."), { statusCode: 429 }); return [...rows, run]; });
     // A maintenance pass repairs an interrupted enqueue from the persisted run.
     try { await enqueue(run); } catch (e) { app.log.error(e, "Evaluation enqueue will retry"); }
     return reply.code(202).send({ run: publicRun(run) });
@@ -90,7 +100,7 @@ export function registerEvaluations(app: FastifyInstance, database: Database, co
     if (!updated) return reply.code(409).send({ error: "Evaluation is unavailable or already in the requested state." });
     return { run: publicRun(updated) };
   });
-  const worker = new DurableWorker(jobs, 1, async (job) => {
+  const worker = new DurableWorker(jobs, () => config.workLimits?.().evaluationConcurrency ?? 1, async (job) => {
     const { runId, generation } = jobs.input<{ runId: string; generation: number }>(job);
     let run = (await runs.read()).find((r) => r.id === runId);
     if (!run || run.generation !== generation || run.status === "cancelled") return;

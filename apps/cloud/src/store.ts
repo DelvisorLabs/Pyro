@@ -3,6 +3,7 @@ import { promisify } from "node:util";
 import { PolicyExecutionDenied } from "@pyro/classifiers";
 import type { UserRecord } from "@pyro/contracts";
 import { openDatabase, encryptText, type Database, type DocumentStore } from "@pyro/storage";
+import { Plans } from "./plans.js";
 import type { CloudConfig } from "./config.js";
 
 export type Role = "owner" | "admin" | "operator" | "reviewer" | "viewer";
@@ -69,11 +70,12 @@ export class CloudStore {
   async eventBudget(orgId: string, bytes = 0) {
     // Conservative admission, not filesystem accounting: failed writes are not refunded.
     // This bounds retained event growth even when local rules require no inference credits.
+    const limit = (await new Plans(this).effective(orgId)).eventStorageBytes;
     const month = new Date().toISOString().slice(0, 7);
     const document = this.platform.document("cloud_event_budget", () => ({ month, total: 0, organizations: {} as Record<string, number> }));
     const check = (state: { month: string; total: number; organizations: Record<string, number> }) => {
       if (state.month !== month) { state.month = month; state.total = 0; state.organizations = {}; }
-      if (state.total + bytes >= 5_000_000_000 || (state.organizations[orgId] ?? 0) + bytes >= 500_000_000) throw new PolicyExecutionDenied("Cloud event storage allowance reached. Contact support.", 429);
+      if (state.total + bytes >= 5_000_000_000 || (state.organizations[orgId] ?? 0) + bytes >= limit) throw new PolicyExecutionDenied("Cloud event storage allowance reached. Contact support.", 429);
       return state;
     };
     if (!bytes) { check(await document.read()); return; }

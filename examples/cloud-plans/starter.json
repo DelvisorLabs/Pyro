@@ -1,0 +1,16 @@
+{
+  "id": "starter",
+  "name": "Starter",
+  "concurrency": 2,
+  "queueDepth": 20,
+  "durableQueueDepth": 50,
+  "playgroundConcurrency": 2,
+  "playgroundRequestsPerMinute": 30,
+  "evaluationConcurrency": 1,
+  "evaluationQueueDepth": 10,
+  "requestsPerMinute": 120,
+  "monthlyRequests": 100000,
+  "monthlyCredits": 10000,
+  "monthlyCreditLimit": 25000,
+  "eventStorageBytes": 500000000
+}

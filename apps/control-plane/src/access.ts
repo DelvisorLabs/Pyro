@@ -29,7 +29,7 @@ export function accessGuard(database: Database, resolveUser?: (request: FastifyR
     const path = request.routeOptions.url ?? "";
     const method = request.method;
     if (path.startsWith("/api/auth/")) return grant();
-    if (method === "GET" && ["/api/overview", "/api/usage", "/api/activity", "/api/activity/:id", "/api/apps", "/api/profiles", "/api/profile-presets", "/api/reviews", "/api/reviews/:id", "/api/evaluations", "/api/evaluations/:id", "/api/datasets"].includes(path)) return grant();
+    if (method === "GET" && ["/api/overview", "/api/usage", "/api/activity", "/api/activity/:id", "/api/apps", "/api/profiles", "/api/profile-presets", "/api/reviews", "/api/reviews/:id", "/api/evaluations", "/api/evaluations/:id", "/api/datasets", "/api/datasets/:id/cases"].includes(path)) return grant();
     if (path.startsWith("/api/reviews/") && user.role === "reviewer") return grant();
     if (user.role === "operator") {
       if (["/api/evaluations", "/api/evaluations/:id", "/api/datasets", "/api/datasets/:id", "/api/reviews/:id"].includes(path)) return grant();

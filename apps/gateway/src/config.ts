@@ -12,6 +12,7 @@ export interface GatewayConfig {
   port: number;
   databaseUrl: string;
   queueConcurrency: number;
+  workLimits?: () => { concurrency: number; queueDepth: number; durableQueueDepth: number };
   queueMaxDepth: number;
   defaultTimeoutMs: number;
   controlPlaneSecret: string;

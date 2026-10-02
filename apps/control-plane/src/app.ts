@@ -338,7 +338,7 @@ export async function buildControlPlane(config: ControlPlaneConfig): Promise<Fas
     return {
       apps: (await appsStore.read()).filter((record) => canAccessApp(request.user!, record.id)).map((record) => ({
         ...record,
-        activeKeyCount: keys.filter((key) => (key.appId ?? "default") === record.id && !key.revokedAt).length,
+        activeKeyCount: keys.filter((key) => key.id !== "cloud-playground" && (key.appId ?? "default") === record.id && !key.revokedAt).length,
       })),
     };
   });

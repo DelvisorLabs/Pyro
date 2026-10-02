@@ -116,11 +116,11 @@ export async function buildGateway(config: GatewayConfig): Promise<FastifyInstan
     return [{ id: randomUUID(), name: "Local development", prefix: config.bootstrapApiKey.slice(0, 8), hash: hash(config.bootstrapApiKey), appId: "default", createdAt: new Date().toISOString() }];
   });
 
-  const queue = new ConcurrentQueue(config.queueConcurrency, config.queueMaxDepth);
+  const queue = new ConcurrentQueue(() => config.workLimits?.().concurrency ?? config.queueConcurrency, () => config.workLimits?.().queueDepth ?? config.queueMaxDepth);
   const metrics = new GatewayMetrics();
   const eventBus = new EventEmitter();
   eventBus.setMaxListeners(1_000);
-  const jobs = new DurableJobs(database, config.controlPlaneSecret, "classification_jobs", Math.min(config.queueMaxDepth, 200));
+  const jobs = new DurableJobs(database, config.controlPlaneSecret, "classification_jobs", () => config.workLimits?.().durableQueueDepth ?? Math.min(config.queueMaxDepth, 200));
   const circuit = { consecutiveFailures: 0, openUntil: 0 };
 
   const authenticate = async (candidate: string | undefined): Promise<ApiKeyRecord | undefined> => {
@@ -365,7 +365,7 @@ export async function buildGateway(config: GatewayConfig): Promise<FastifyInstan
     return { id: job.id, appId: job.appId, status: job.status, createdAt: job.createdAt, completedAt: job.completedAt, expiresAt: job.expiresAt, decision: job.result, error: job.error };
   });
 
-  const jobWorker = new DurableWorker(jobs, config.queueConcurrency, async (job) => {
+  const jobWorker = new DurableWorker(jobs, () => config.workLimits?.().concurrency ?? config.queueConcurrency, async (job) => {
     const { envelope, profile, firewallApp, apiKey, identity } = jobs.input<{ envelope: ClassificationEnvelope; profile: Profile; firewallApp: AppRecord; apiKey: ApiKeyRecord; identity: ReturnType<typeof requestIdentity> }>(job);
     if (config.organizationId) {
       const currentKey = (await keysStore.read()).find((key) => key.id === apiKey.id && !key.revokedAt);

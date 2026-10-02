@@ -1,0 +1,16 @@
+{
+  "id": "growth",
+  "name": "Growth",
+  "concurrency": 8,
+  "queueDepth": 100,
+  "durableQueueDepth": 200,
+  "playgroundConcurrency": 4,
+  "playgroundRequestsPerMinute": 60,
+  "evaluationConcurrency": 2,
+  "evaluationQueueDepth": 20,
+  "requestsPerMinute": 600,
+  "monthlyRequests": 1000000,
+  "monthlyCredits": 100000,
+  "monthlyCreditLimit": 200000,
+  "eventStorageBytes": 1000000000
+}

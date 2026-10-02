@@ -1,5 +1,6 @@
 export interface CloudConfig {
   trustProxy?: string[];
+  providerConcurrency?: number; platformRequestsPerMinute?: number;
   databaseUrl: string; secret: string; publicUrl: string; port: number; host: string;
   platformToken: string; legacyAdminPassword?: string;
   providerKey?: string; providerEndpoint: string; providerModel: string; providerMode: "jev" | "mock";
@@ -23,7 +24,7 @@ export function loadConfig(): CloudConfig {
   const providerPricePerMillion = Number(production ? required("CLOUD_PROVIDER_PRICE_PER_MILLION") : process.env.CLOUD_PROVIDER_PRICE_PER_MILLION ?? 1);
   if (!Number.isFinite(providerPricePerMillion) || providerPricePerMillion <= 0) throw new Error("CLOUD_PROVIDER_PRICE_PER_MILLION must be a positive finite USD price ceiling.");
   if (production && !/^postgres(ql)?:/.test(required("DATABASE_URL"))) throw new Error("Production requires PostgreSQL.");
-  return { trustProxy: process.env.CLOUD_TRUST_PROXY?.split(",").map((s) => s.trim()).filter(Boolean), databaseUrl: required("DATABASE_URL"), secret: required("CONTROL_PLANE_SECRET", 32), platformToken: required("CLOUD_PLATFORM_TOKEN", 32),
+  return { providerConcurrency: Math.max(1, number("CLOUD_PROVIDER_CONCURRENCY", 16)), platformRequestsPerMinute: Math.max(1, number("CLOUD_REQUESTS_PER_MINUTE", 1000)), trustProxy: process.env.CLOUD_TRUST_PROXY?.split(",").map((s) => s.trim()).filter(Boolean), databaseUrl: required("DATABASE_URL"), secret: required("CONTROL_PLANE_SECRET", 32), platformToken: required("CLOUD_PLATFORM_TOKEN", 32),
     publicUrl, host: process.env.HOST ?? "127.0.0.1", port: number("PORT", 8082), legacyAdminPassword: process.env.ADMIN_PASSWORD,
     providerKey: production ? required("TYPESAFE_API_KEY") : process.env.TYPESAFE_API_KEY,
     providerEndpoint, providerModel: process.env.TYPESAFE_MODEL ?? "jev-latest", providerMode,

@@ -5,6 +5,7 @@ import websocket from "@fastify/websocket";
 import { z } from "zod";
 import { openDatabase, consumeQuota, decryptText } from "@pyro/storage";
 import type { AppRecord, ClassificationEvent } from "@pyro/contracts";
+import { Plans, PlanSchema } from "./plans.js";
 import { Billing } from "./billing.js";
 import { Runtimes } from "./runtime.js";
 import { CloudStore, CloudError, hash, token, passwordHash, verifyPassword, projectUser, type Role, type IdentityState } from "./store.js";
@@ -26,6 +27,7 @@ export async function buildCloud(config: CloudConfig) {
   });
   const platform = await openDatabase(config.databaseUrl, "platform");
   const store = new CloudStore(platform, config); await store.migrateLegacy();
+  const plans = new Plans(store);
   const billing = new Billing(store), runtimes = new Runtimes(store, billing);
   const context = (request: FastifyRequest) => store.resolve(request.cookies.pf_session, typeof request.headers["x-pyro-organization"] === "string" ? request.headers["x-pyro-organization"] : typeof (request.query as { organization?: unknown }).organization === "string" ? (request.query as { organization: string }).organization : undefined);
   const authorized = async (request: FastifyRequest, roles?: Role[]) => {
@@ -231,6 +233,16 @@ export async function buildCloud(config: CloudConfig) {
     await billing.grant(order.orgId, order.credits, `payment-order:${order.id}`);
     await billing.orders.update((orders) => orders.map((o) => o.id === order.id ? { ...o, paid: true } : o)); return { ok: true };
   });
+  app.get("/platform/plans", async (request) => { platformOnly(request); return plans.document.read(); });
+  app.put("/platform/plans", async (request) => { platformOnly(request); const plan = await plans.save(PlanSchema.parse(request.body)); await runtimes.refreshPlans(); return { plan }; });
+  app.put<{ Params: { id: string } }>("/platform/organizations/:id/plan", async (request) => {
+    platformOnly(request); const { planId } = z.object({ planId: z.string() }).strict().parse(request.body);
+    await plans.assign(request.params.id, planId); await runtimes.refreshPlans(); await audit(request.params.id, "platform", "plan.assigned"); return { plan: await plans.effective(request.params.id) };
+  });
+  app.get("/api/billing/usage", async (request) => {
+    const ctx = await authorized(request); const summary = await billing.summary(ctx.organization.id);
+    return { plan: summary.plan, month: summary.month, sources: summary.sources, availableCredits: summary.availableCredits, monthlyConsumed: summary.monthlyConsumed, requestsUsed: summary.requestsUsed };
+  });
   app.post("/platform/credits", async (request) => { platformOnly(request); const body = z.object({ orgId: z.string(), credits: z.number().int().positive(), reference: z.string().min(8).max(200) }).parse(request.body); await billing.grant(body.orgId, body.credits, `manual:${body.reference}`); await audit(body.orgId, "platform", "credits.granted"); return { ok: true }; });
   app.put<{ Params: { id: string } }>("/platform/organizations/:id", async (request) => { platformOnly(request); const body = z.object({ status: z.enum(["active", "suspended"]) }).parse(request.body); await store.identity.update((state) => { const org = state.organizations.find((o) => o.id === request.params.id && o.status !== "deleted"); if (!org) throw new CloudError(404, "Organization not found."); org.status = body.status; return state; }); await runtimes.retire(request.params.id); await audit(request.params.id, "platform", `organization.${body.status}`); if (body.status === "active") await runtimes.get(request.params.id); return { ok: true }; });
   app.get("/platform/status", async (request) => { platformOnly(request); const state = await store.identity.read(), meter = await billing.meter.read(), eventStorage = await platform.document("cloud_event_budget", () => ({ month: "", total: 0, organizations: {} })).read(); return { organizations: state.organizations, eventStorage, provider: { month: meter.month, reservedMicros: meter.reservedMicros, attempts: meter.attempts, limitMicros: config.monthlyProviderBudgetMicros, reportedMicros: meter.reportedMicros, reportedInputTokens: meter.reportedInputTokens, reportedOutputTokens: meter.reportedOutputTokens, reportedCalls: meter.reportedCalls } }; });
@@ -238,8 +250,9 @@ export async function buildCloud(config: CloudConfig) {
   app.all("/v1/*", async (request, reply) => {
     const raw = request.headers.authorization?.replace(/^Bearer /, ""); const { orgId, runtime } = await runtimes.authenticateKey(raw);
     if (!/^\/v1\/(classify|jobs(?:\/[^/]+)?|profiles)$/.test(request.url.split("?")[0]!)) throw new CloudError(404, "Endpoint not found.");
-    const quota = await consumeQuota(platform, [{ id: `org:${orgId}`, limit: 120 }, { id: "cloud:requests", limit: 1000 }]);
+    const quota = await consumeQuota(platform, [{ id: `org:${orgId}`, limit: (await plans.effective(orgId)).requestsPerMinute }, { id: "cloud:requests", limit: config.platformRequestsPerMinute ?? 1000 }]);
     if (!quota.allowed) return reply.code(429).header("Retry-After", "60").send({ error: "Request limit exceeded." });
+    if (request.method === "POST") await plans.admitRequest(orgId);
     const result = await runtime.gateway.inject({ method: request.method as "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD" | "OPTIONS", url: request.url, headers: request.headers, payload: request.body as object });
     for (const [key, value] of Object.entries(result.headers)) if (value !== undefined && !["content-length", "connection", "transfer-encoding"].includes(key)) reply.header(key, value);
     return reply.code(result.statusCode).send(result.body);
@@ -255,6 +268,7 @@ export async function buildCloud(config: CloudConfig) {
     const quota = await consumeQuota(platform, [{ id: `dashboard:${ctx.organization.id}`, limit: 300 }]);
     if (!quota.allowed) return reply.code(429).header("Retry-After", "60").send({ error: "Dashboard request limit exceeded." });
     const runtime = await runtimes.get(ctx.organization.id);
+    if (request.method === "POST" && ["/api/classify", "/api/playground", "/api/evaluations"].includes(path) && !(path === "/api/evaluations" && (request.body as { estimateOnly?: boolean })?.estimateOnly === true)) await plans.admitRequest(ctx.organization.id);
     const result = await runtime.control.inject({ method: request.method as "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD" | "OPTIONS", url: request.url, headers: request.headers, payload: request.body as object });
     if (path === "/api/keys" && request.method === "GET" && result.statusCode === 200) { const data = result.json(); data.keys = data.keys.filter((k: { id: string }) => k.id !== "cloud-playground"); return data; }
     for (const [key, value] of Object.entries(result.headers)) if (value !== undefined && !["content-length", "connection", "transfer-encoding"].includes(key)) reply.header(key, value);

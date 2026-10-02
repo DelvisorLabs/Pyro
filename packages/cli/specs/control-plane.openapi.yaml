@@ -34,6 +34,11 @@ paths:
                 allowPaid:
                   type: boolean
                   default: false
+                maxCredits:
+                  type: integer
+                  minimum: 0
+                  description: Optional cloud credit cap checked against the maximum before
+                    executing.
       responses:
         "200":
           description: Draft result with preview=true and policyHash; never a published
@@ -51,7 +56,8 @@ paths:
         "413":
           description: Input exceeds policy limit
         "429":
-          description: Two concurrent previews or 30 tests/minute reached
+          description: "Configured plan concurrency or request limit reached (self-hosted
+            default: two concurrent previews, 30 per minute)."
   /api/playground/export:
     post:
       summary: Export an unpublished policy as portable YAML (admin only)
@@ -1645,6 +1651,15 @@ paths:
                         type: integer
                 allowPaid:
                   type: boolean
+                maxCredits:
+                  type: integer
+                  minimum: 0
+                  description: Optional cloud credit cap checked against the maximum before
+                    executing.
+                estimateOnly:
+                  type: boolean
+                  default: false
+                  description: Return cost bounds without queuing or billing.
   /api/evaluations/{id}:
     get:
       operationId: evaluations_get
@@ -1690,6 +1705,115 @@ paths:
                   enum:
                     - cancel
                     - resume
+  /api/datasets/{id}/cases:
+    get:
+      operationId: datasetCases
+      x-cli-command: datasets cases
+      summary: Read retained cases with application and raw-input permission
+      parameters: &a1
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+        "403":
+          description: Permission required
+        "404":
+          description: Resource unavailable
+        "409":
+          description: Conflicting draft version or capacity
+  /api/policy-drafts:
+    get:
+      operationId: listPolicyDrafts
+      x-cli-command: drafts list
+      summary: List your saved working policies (admin only)
+      responses:
+        "200":
+          description: Success
+        "403":
+          description: Permission required
+        "404":
+          description: Resource unavailable
+        "409":
+          description: Conflicting draft version or capacity
+  /api/policy-drafts/{id}:
+    put:
+      operationId: savePolicyDraft
+      x-cli-command: drafts save
+      summary: Save a working policy without publishing (admin only)
+      parameters: *a1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                profile:
+                  $ref: "#/components/schemas/Profile"
+                isNew:
+                  type: boolean
+                appId:
+                  type: string
+                expectedUpdatedAt:
+                  type: string
+              required:
+                - profile
+                - isNew
+                - appId
+      responses:
+        "200":
+          description: Success
+        "403":
+          description: Permission required
+        "404":
+          description: Resource unavailable
+        "409":
+          description: Conflicting draft version or capacity
+    delete:
+      operationId: deletePolicyDraft
+      x-cli-command: drafts delete
+      summary: Remove your saved working policy (admin only)
+      parameters: *a1
+      responses:
+        "200":
+          description: Success
+        "403":
+          description: Permission required
+        "404":
+          description: Resource unavailable
+        "409":
+          description: Conflicting draft version or capacity
+  /api/playground/estimate:
+    post:
+      operationId: estimateDraftCredits
+      x-cli-command: profiles estimate
+      summary: Estimate the maximum cloud credits without inference
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                profile:
+                  $ref: "#/components/schemas/Profile"
+                input: {}
+              required:
+                - profile
+                - input
+      responses:
+        "200":
+          description: Success
+        "403":
+          description: Permission required
+        "404":
+          description: Resource unavailable
+        "409":
+          description: Conflicting draft version or capacity
 components:
   securitySchemes:
     session:
@@ -2808,7 +2932,6 @@ components:
           type: number
           minimum: 0
           maximum: 1
-
     PolicyPipeline:
       type: object
       properties:
@@ -2981,8 +3104,9 @@ components:
         - onError
       additionalProperties: false
       description: Ordered checks, maximum 16. IDs must be unique, text patterns must
-        be valid RE2, No threshold must be below Yes threshold. Cannot coexist with
-        legacy detectors or policy localRules. Application rules execute first.
+        be valid RE2, No threshold must be below Yes threshold. Cannot coexist
+        with legacy detectors or policy localRules. Application rules execute
+        first.
     PolicyTrace:
       type: array
       items:

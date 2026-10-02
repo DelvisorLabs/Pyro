@@ -36,3 +36,17 @@ test("rejects work when the waiting queue is full", async () => {
   release();
   await Promise.all([first, second]);
 });
+
+test("live limits preserve running work and reject excess waiting requests", async () => {
+  let concurrency = 1, depth = 1;
+  const queue = new ConcurrentQueue(() => concurrency, () => depth);
+  let release!: () => void;
+  const first = queue.submit(async () => { await new Promise<void>(resolve => { release = resolve; }); return 1; });
+  const second = queue.submit(async () => 2);
+  assert.throws(() => queue.submit(async () => 3), QueueFullError);
+  concurrency = 2; depth = 2;
+  const third = queue.submit(async () => 3);
+  assert.equal((await second).value, 2); assert.equal((await third).value, 3);
+  concurrency = 1; release(); assert.equal((await first).value, 1);
+  assert.equal(queue.snapshot().concurrency, 1);
+});

@@ -17,9 +17,10 @@ export class JobCapacityError extends Error { readonly statusCode = 429; }
 // This beta implementation deliberately favors correctness over high throughput.
 export class DurableJobs {
   private readonly store: DocumentStore<QueueState>;
-  constructor(database: Database, readonly secret: string, name = "classification_jobs", readonly maxDepth = 200, readonly leaseMs = 30_000) {
+  constructor(database: Database, readonly secret: string, name = "classification_jobs", readonly maxDepth: number | (() => number) = 200, readonly leaseMs = 30_000) {
     this.store = database.document<QueueState>(name, () => ({ jobs: [], served: {} }));
   }
+  private capacity() { return typeof this.maxDepth === "function" ? this.maxDepth() : this.maxDepth; }
   async enqueue(job: { id: string; appId: string; input: unknown; fingerprint: string; idempotencyKey?: string }): Promise<DurableJob> {
     if (job.idempotencyKey && (job.idempotencyKey.length > 128 || !/^[\x21-\x7e]+$/.test(job.idempotencyKey))) throw new JobConflict("Idempotency-Key must contain 1–128 printable characters.");
     let selected!: DurableJob;
@@ -30,7 +31,7 @@ export class DurableJobs {
         if (prior.fingerprint !== job.fingerprint) throw new JobConflict("Idempotency-Key was already used with a different request.");
         selected = prior; return state;
       }
-      if (state.jobs.filter((j) => j.status === "queued" || j.status === "running").length >= this.maxDepth) throw new JobCapacityError("Durable queue is full. Retry later with the same idempotency key.");
+      if (state.jobs.filter((j) => j.status === "queued" || j.status === "running").length >= this.capacity()) throw new JobCapacityError("Durable queue is full. Retry later with the same idempotency key.");
       selected = { id: job.id, appId: job.appId, fingerprint: job.fingerprint, idempotencyKey: job.idempotencyKey, input: encryptText(JSON.stringify(job.input), this.secret), status: "queued", createdAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 15 * 60_000).toISOString(), attempts: 0 };
       state.jobs.push(selected); return state;
     });
@@ -77,7 +78,7 @@ export class DurableJobs {
   async stats() {
     const state = await this.store.update((s) => { this.expire(s); return s; });
     const pending = state.jobs.filter((j) => !j.completedAt);
-    return { queued: pending.filter((j) => j.status === "queued").length, running: pending.filter((j) => j.status === "running").length, failed: state.jobs.filter((j) => j.status === "failed").length, oldestAgeMs: pending.length ? Date.now() - Math.min(...pending.map((j) => Date.parse(j.createdAt))) : 0, capacity: this.maxDepth };
+    return { queued: pending.filter((j) => j.status === "queued").length, running: pending.filter((j) => j.status === "running").length, failed: state.jobs.filter((j) => j.status === "failed").length, oldestAgeMs: pending.length ? Date.now() - Math.min(...pending.map((j) => Date.parse(j.createdAt))) : 0, capacity: this.capacity() };
   }
 }
 
@@ -86,13 +87,13 @@ export class DurableWorker {
   private stopped = false;
   private ticking = false;
   private readonly active = new Set<Promise<void>>();
-  constructor(private readonly jobs: DurableJobs, private readonly concurrency: number, private readonly handler: (job: DurableJob) => Promise<unknown>, private readonly onError: (error: unknown) => void) {}
+  constructor(private readonly jobs: DurableJobs, private readonly concurrency: number | (() => number), private readonly handler: (job: DurableJob) => Promise<unknown>, private readonly onError: (error: unknown) => void) {}
   start() { this.timer = setInterval(() => void this.tick(), 100); this.timer.unref(); }
   private async tick() {
     if (this.ticking || this.stopped) return;
     this.ticking = true;
     try {
-      while (!this.stopped && this.active.size < this.concurrency) {
+      while (!this.stopped && this.active.size < (typeof this.concurrency === "function" ? this.concurrency() : this.concurrency)) {
         const job = await this.jobs.claim(); if (!job) break;
         const pending = this.run(job); this.active.add(pending); void pending.finally(() => this.active.delete(pending));
       }
