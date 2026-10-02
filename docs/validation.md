@@ -1,5 +1,13 @@
 # Beta validation record
 
+## Private cloud staging — October 2, 2026
+
+- A 2 GB AWS Lightsail VM in Mumbai runs PostgreSQL 17, the cloud process and the dashboard/Caddy edge. Linux/amd64 images were built off-VM from committed revision `5f8df26` and transferred over Tailscale SSH. All three services reached healthy state without restarts; web and admin ports bind only to loopback.
+- Tailscale Serve provides tailnet-only HTTPS. From an approved Mac, `/health` returned `{"status":"ok","mode":"cloud"}`, the dashboard returned HTTP 200, and the public edge returned 404 for `/platform/status`. A scan from that Mac found public web and database ports closed/filtered; public SSH/22 remained reachable from the Mac and still needs a Lightsail firewall review.
+- The first signup exposed a sender-domain mismatch: staging used `delvisor.com` while Resend's verified sending domain was `notifications.delvisor.com`. The ignored staging env was corrected and the cloud container restarted healthy. Delivery after the correction, a live provider decision, backup/restore and access denial from an unapproved device remain to be verified before inviting testers.
+
+The private deployment is not a public launch or a production security audit. Live credentials and database state remain outside Git.
+
 ## Policy-suite migration — October 2, 2026
 
 - `pnpm check` passed: workspace type checks, production builds and **109 Node tests**, with none skipped. PostgreSQL 17 ran in an isolated disposable database. New coverage includes ordered branches, whole-word/RE2 checks, uncertainty, provider timeout/failure, input traversal limits, application-rule precedence, per-check charge identity, draft admission/permissions, encrypted regression cases, cloud organization isolation, model locks, SDK parity and queued pipeline jobs.

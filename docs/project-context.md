@@ -46,7 +46,7 @@ The founder authorized implementing an optional managed cloud version with organ
 
 Plain `docker compose up -d --build` still starts the self-hosted mode. `pnpm cloud:local` starts an isolated cloud preview at http://127.0.0.1:3001 with mock inference and local email, so organizations and account flows can be tried without production provider accounts. In either mode, **Policies → Playground → New pipeline** opens the guided editor; rebuilding preserves existing signal-based policies rather than converting them automatically.
 
-This is a capped beta architecture using the existing document stores; it is not a deployed service, proven business, independently security-audited product or enterprise scale/availability guarantee. Public DNS, provider/email/payment accounts, operational alerting/backups, public terms/pricing and real integration smoke tests remain operator launch prerequisites. No publish or deployment was authorized by this implementation task.
+This is a capped beta architecture using the existing document stores, not a proven business, independently security-audited product or enterprise scale/availability guarantee. A private Lightsail staging instance was subsequently deployed behind Tailscale Serve; public production remains undeployed. Operational alerting/backups, public terms/pricing and real email/provider integration smoke tests remain launch prerequisites. The original implementation task did not authorize deployment; the founder later authorized private staging separately.
 
 ## Commercial plan and constraints
 

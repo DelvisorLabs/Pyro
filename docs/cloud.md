@@ -1,6 +1,6 @@
 # Pyro Cloud beta
 
-Implemented locally October 2, 2026. This is an optional managed deployment of the existing engine, dashboard and SDKs. It has not been published or deployed by this change. [Local verification results and reproduction commands](cloud-verification.md) document the tested boundaries. The CLI and self-hosted deployment still work independently.
+Implemented locally October 2, 2026. This is an optional managed deployment of the existing engine, dashboard and SDKs. A private Lightsail staging instance now runs behind Tailscale Serve; the public offering remains unpublished. [Local verification results and reproduction commands](cloud-verification.md) document the tested boundaries. The CLI and self-hosted deployment still work independently.
 
 ## Architecture
 
