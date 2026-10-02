@@ -3,6 +3,7 @@ dist/
 .env*
 !.env.example
 !.env.cloud.example
+!.env.cloud.staging.example
 npm-debug.log*
 .DS_Store
 coverage/

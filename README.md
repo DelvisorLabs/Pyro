@@ -30,7 +30,7 @@ See the [workflow and runtime contract](docs/policy-playground.md) and [complete
 
 ## Optional cloud beta
 
-Cloud source now supports verified accounts, organizations, scoped API keys, prepaid usage and an organization-aware dashboard. [Cloud architecture, local setup, deployment and six-month budget](docs/cloud.md) describe the implementation and launch prerequisites. This change does not mean a public service or updated SDK package has been published. Self-hosted setup and the standalone CLI remain available below.
+Cloud source now supports verified accounts, organizations, scoped API keys, prepaid usage and an organization-aware dashboard. [Cloud architecture, local setup, deployment and six-month budget](docs/cloud.md) describe the implementation and launch prerequisites; the [staging guide](docs/cloud-staging.md) gives a low-cost VM and environment setup. This change does not mean a public service or updated SDK package has been published. Self-hosted setup and the standalone CLI remain available below.
 
 To try those screens locally with Docker:
 

@@ -84,6 +84,8 @@ Outbox mode stores the latest 100 encrypted messages in the platform `email_outb
 
 ## Production setup (operator-run; not performed by this change)
 
+For an internet-facing test deployment with separate hostnames, generated secrets, free-tier choices and a preflight command, follow [cloud staging setup](cloud-staging.md) first.
+
 1. Provision a 4 GB Linux VM, enable provider account budgets, firewall SSH to trusted addresses and expose only 80/443 publicly. Install Docker Compose. Keep PostgreSQL unexposed; cloud admin port 8082 binds localhost. The Compose subnet `172.29.48.0/24` must not overlap your network.
 2. Point dashboard/API DNS records at the VM. Copy `.env.cloud.example` to `.env.cloud`; generate each secret separately with `openssl rand -hex 32`. Use hex database passwords so they are safe in the connection URLs. Keep this file mode 600. Back up the encryption secret separately: database backups alone cannot decrypt retained inputs.
 3. Configure/verify the sender domain with Resend, supply the upstream key/model, verify supplier pricing, and set `CLOUD_PROVIDER_PRICE_PER_MILLION`. Configure the supplier billing cap. Set the actual dashboard and API domains. Do not reuse local test secrets.
