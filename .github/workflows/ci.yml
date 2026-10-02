@@ -31,7 +31,7 @@ jobs:
       CLOUD_TEST_DATABASE_URL: postgresql://pyro:pyro-ci-password@127.0.0.1:5432/postgres
     steps:
       - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v7
         with:
           node-version: 22
