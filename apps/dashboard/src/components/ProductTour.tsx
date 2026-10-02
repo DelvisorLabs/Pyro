@@ -3,20 +3,15 @@ import { flushSync } from "react-dom";
 import { driver, type Driver } from "driver.js";
 import "driver.js/dist/driver.css";
 import "./product-tour.css";
-import { BookOpen, Compass } from "lucide-react";
 import type { UserRecord } from "@pyro/contracts";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { TOUR_VERSION, tourSteps, type TourPage } from "@/lib/product-tour";
+import { tourSteps, type TourPage } from "@/lib/product-tour";
 
 export function ProductTour({ user, navigate, reduceMotion, open, onOpenChange }: { user: UserRecord; navigate: (page: TourPage) => void; reduceMotion: boolean; open: boolean; onOpenChange: (open: boolean) => void }) {
-  const key = `${TOUR_VERSION}:${user.id}`;
-  const [welcome, setWelcome] = useState(() => { try { return !localStorage.getItem(key); } catch { return true; } });
   const [running, setRunning] = useState(false);
-  const trigger = useRef<HTMLButtonElement>(null);
   const navigateRef = useRef(navigate);
   navigateRef.current = navigate;
-  const remember = () => { try { localStorage.setItem(key, "seen"); } catch { /* Tour remains usable without storage. */ } setWelcome(false); };
 
   useEffect(() => {
     if (!running) return;
@@ -48,7 +43,7 @@ export function ProductTour({ user, navigate, reduceMotion, open, onOpenChange }
     };
     const finish = () => {
       if (cancelled) return;
-      cancelled = true; clear(); tour.destroy(); setRunning(false); trigger.current?.focus();
+      cancelled = true; clear(); tour.destroy(); setRunning(false);
     };
     tour = driver({
       animate: !reduceMotion && !matchMedia("(prefers-reduced-motion: reduce)").matches,
@@ -84,21 +79,15 @@ export function ProductTour({ user, navigate, reduceMotion, open, onOpenChange }
     return () => { cancelled = true; clear(); cancelAnimationFrame(frame); tour.destroy(); };
   }, [running, user.role, reduceMotion]);
 
-  return <>
-    <div className="flex flex-wrap items-center gap-2 border-b border-line bg-surface px-4 py-2 sm:px-7">
-      {welcome && <span className="mr-auto text-xs text-muted">New to Pyro? Get to know your workspace.</span>}
-      <Button ref={trigger} size="sm" variant="ghost" onClick={() => onOpenChange(true)}><Compass className="size-3.5" />{welcome ? "Take a tour" : "Replay tour"}</Button>
-      <a className="inline-flex items-center gap-2 rounded-control px-2 py-1 text-xs text-muted hover:text-foreground" href="https://docs.delvisor.com/pyro" target="_blank" rel="noreferrer"><BookOpen className="size-3.5" />Documentation</a>
-      {welcome && <Button size="sm" variant="ghost" onClick={remember}>Dismiss</Button>}
-    </div>
+  return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md" aria-describedby={undefined}>
         <DialogHeader className="border-b-0"><DialogTitle>Welcome to Pyro! Ready for a quick tour?</DialogTitle></DialogHeader>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Not now</Button>
-          <Button onClick={() => { remember(); onOpenChange(false); setRunning(true); }}>Start tour</Button>
+          <Button onClick={() => { onOpenChange(false); setRunning(true); }}>Start tour</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  </>;
+  );
 }
