@@ -84,7 +84,7 @@ Outbox mode stores the latest 100 encrypted messages in the platform `email_outb
 
 ## Production setup (operator-run; not performed by this change)
 
-For an internet-facing test deployment with separate hostnames, generated secrets, free-tier choices and a preflight command, follow [cloud staging setup](cloud-staging.md) first.
+For a private test deployment with tailnet-only HTTPS, generated secrets, free-tier choices and a preflight command, follow [cloud staging setup](cloud-staging.md) first.
 
 1. Provision a 4 GB Linux VM, enable provider account budgets, firewall SSH to trusted addresses and expose only 80/443 publicly. Install Docker Compose. Keep PostgreSQL unexposed; cloud admin port 8082 binds localhost. The Compose subnet `172.29.48.0/24` must not overlap your network.
 2. Point dashboard/API DNS records at the VM. Copy `.env.cloud.example` to `.env.cloud`; generate each secret separately with `openssl rand -hex 32`. Use hex database passwords so they are safe in the connection URLs. Keep this file mode 600. Back up the encryption secret separately: database backups alone cannot decrypt retained inputs.
@@ -116,7 +116,7 @@ Rollback means stopping cloud, restoring the pre-migration database into a fresh
 
 ## Backups and recovery
 
-Install `age` on the backup host. Keep its private identity off the service VM where possible. From the repository root, run `AGE_RECIPIENT=... BACKUP_DIRECTORY=... deploy/cloud/backup.sh`. It writes an encrypted custom-format PostgreSQL archive atomically. Copy it to independent storage. Configure a nightly schedule and seven-day expiry there; the script intentionally does not assume a storage account or silently configure a scheduler.
+Install `age` on the backup host. Keep its private identity off the service VM where possible. From the repository root, run `AGE_RECIPIENT=... BACKUP_DIRECTORY=... deploy/cloud/backup.sh`. It writes an encrypted custom-format PostgreSQL archive atomically. Copy it to independent storage. Configure a nightly schedule and seven-day expiry there; the script intentionally does not assume a storage account or silently configure a scheduler. For private staging, set `CLOUD_ENV_FILE=.env.cloud.staging`, `CLOUD_COMPOSE_FILE=docker-compose.cloud.staging.yml` and `COMPOSE_PROJECT_NAME=pyro-cloud-staging`.
 
 Run a monthly recovery exercise with `AGE_IDENTITY=/secure/key.txt BACKUP_FILE=... deploy/cloud/restore-drill.sh`. It restores into a new database, verifies schema/organization counts, and never overwrites production. Start a test cloud instance against that database using the matching encryption secret and mock/outbox development settings, then verify logins, keys, organization isolation and retained inputs before declaring the drill successful. Reapply deletion/suspension records newer than the backup before reopening traffic. A daily backup has up to 24 hours of potential data loss; restore duration is not an availability guarantee.
 

@@ -13,7 +13,6 @@
     "cloud:local:stop": "node scripts/cloud-local.mjs stop",
     "cloud:staging:init": "node scripts/cloud-staging.mjs init",
     "cloud:staging:check": "node scripts/cloud-staging.mjs check",
-    "cloud:staging:dns": "node scripts/cloud-staging.mjs dns",
     "cloud:staging:up": "node scripts/cloud-staging.mjs up",
     "test": "pnpm -r --stream --workspace-concurrency=1 run test",
     "typecheck": "pnpm run build:packages && pnpm -r run typecheck",

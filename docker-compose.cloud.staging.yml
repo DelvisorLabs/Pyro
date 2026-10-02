@@ -1,0 +1,92 @@
+# Private staging: only loopback ports; Tailscale Serve supplies tailnet-only HTTPS.
+name: pyro-cloud-staging
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: pyro
+      POSTGRES_USER: pyro_migrator
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set a hex migration password}
+      PYRO_RUNTIME_PASSWORD: ${PYRO_RUNTIME_PASSWORD:?Set a separate hex runtime password}
+    volumes:
+      - cloud-postgres:/var/lib/postgresql/data
+      - ./deploy/cloud/init-db.sh:/docker-entrypoint-initdb.d/10-runtime.sh:ro
+    healthcheck:
+      test: [CMD, pg_isready, -h, 127.0.0.1, -U, pyro_migrator, -d, pyro]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    mem_limit: 768m
+    logging: &logging
+      driver: json-file
+      options: {max-size: 10m, max-file: "3"}
+  migrate:
+    build: {context: ., target: cloud}
+    command: [node, apps/cloud/dist/migrate.js]
+    environment:
+      DATABASE_URL: postgresql://pyro_migrator:${POSTGRES_PASSWORD}@postgres:5432/pyro
+    depends_on:
+      postgres: {condition: service_healthy}
+    logging: *logging
+  cloud:
+    build: {context: ., target: cloud}
+    restart: unless-stopped
+    environment:
+      HOST: 0.0.0.0
+      PORT: 8082
+      NODE_ENV: production
+      DATABASE_URL: postgresql://pyro_runtime:${PYRO_RUNTIME_PASSWORD}@postgres:5432/pyro
+      PYRO_SKIP_MIGRATIONS: "true"
+      CLOUD_PUBLIC_URL: https://${TAILSCALE_DOMAIN:?Set the VM's Tailscale DNS name}
+      CLOUD_TRUST_PROXY: 172.29.48.0/24
+      CONTROL_PLANE_SECRET: ${CONTROL_PLANE_SECRET:?Set CONTROL_PLANE_SECRET}
+      CLOUD_PLATFORM_TOKEN: ${CLOUD_PLATFORM_TOKEN:?Set CLOUD_PLATFORM_TOKEN}
+      CLOUD_EMAIL_MODE: resend
+      CLOUD_EMAIL_FROM: ${CLOUD_EMAIL_FROM:?Set CLOUD_EMAIL_FROM}
+      RESEND_API_KEY: ${RESEND_API_KEY:?Set RESEND_API_KEY}
+      CLOUD_PROVIDER_MODE: jev
+      TYPESAFE_API_KEY: ${TYPESAFE_API_KEY:?Set TYPESAFE_API_KEY}
+      TYPESAFE_ENDPOINT: ${TYPESAFE_ENDPOINT:-https://api.typesafe.ai/v1/systemone}
+      TYPESAFE_MODEL: ${TYPESAFE_MODEL:-jev-latest}
+      CLOUD_PROVIDER_PRICE_PER_MILLION: ${CLOUD_PROVIDER_PRICE_PER_MILLION:?Verify and set a supplier price ceiling}
+      CLOUD_PROVIDER_BUDGET_MICROS: ${CLOUD_PROVIDER_BUDGET_MICROS:-30000000}
+      CLOUD_MAX_ORGANIZATIONS: ${CLOUD_MAX_ORGANIZATIONS:-25}
+      CLOUD_TRIAL_CREDITS: ${CLOUD_TRIAL_CREDITS:-100}
+      CLOUD_PACK_PRICE_PAISE: ${CLOUD_PACK_PRICE_PAISE:-199900}
+      CLOUD_PACK_CREDITS: ${CLOUD_PACK_CREDITS:-25000}
+      RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID:-}
+      RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET:-}
+      RAZORPAY_WEBHOOK_SECRET: ${RAZORPAY_WEBHOOK_SECRET:-}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      EVENT_RETENTION_DAYS: 7
+    ports: ["127.0.0.1:8082:8082"]
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 1536m
+    stop_grace_period: 45s
+    healthcheck:
+      test: [CMD, wget, -qO-, http://127.0.0.1:8082/health]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    logging: *logging
+  web:
+    build: {context: ., target: cloud-web}
+    restart: unless-stopped
+    ports: ["127.0.0.1:3001:8080"]
+    volumes: ["./deploy/cloud/Caddyfile.private:/etc/caddy/Caddyfile:ro"]
+    depends_on:
+      cloud: {condition: service_healthy}
+    mem_limit: 192m
+    logging: *logging
+networks:
+  default:
+    ipam:
+      config: [{subnet: 172.29.48.0/24}]
+volumes:
+  cloud-postgres:

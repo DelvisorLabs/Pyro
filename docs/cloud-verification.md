@@ -24,6 +24,10 @@ The load smoke used local PostgreSQL and a mock classifier. It is not a producti
 
 The build retains the existing Vite warning about a large dashboard JavaScript chunk. Builds succeed; bundle optimization is a separate performance task.
 
+## Private staging configuration follow-up — October 2, 2026
+
+The staging template now uses `docker-compose.cloud.staging.yml`, binding its web and administration ports only to loopback for Tailscale Serve. A completed temporary env file passed generated-secret uniqueness/permissions and Compose preflight; missing tailnet hostname and existing-file overwrite were rejected. The rendered Compose configuration was checked for non-loopback published ports and the private Caddyfile validated with Caddy 2. No VM, Tailscale tailnet, real email delivery or live provider call was available for an external smoke test; those remain operator steps.
+
 ## Local preview follow-up — October 2, 2026
 
 The default self-hosted Compose stack was confirmed to contain the new pipeline UI and engine: authenticated draft previews returned both allow/block branches with traces, and YAML export succeeded. Existing saved signal-based policies were preserved, so the pipeline editor is reached through **Policy Playground → New pipeline**. Organization and billing controls require the cloud backend and do not appear in self-hosted mode.
@@ -57,4 +61,4 @@ pnpm --filter @pyro/cloud test:docker
 CLOUD_EDGE_SMOKE_URL=http://127.0.0.1:9180 pnpm --filter @pyro/cloud test:edge
 ```
 
-Backup scripts accept `CLOUD_ENV_FILE` to select a disposable environment file and normal Compose project selection through `COMPOSE_PROJECT_NAME`. They require Docker Compose and age; the restore script always creates a new database. Keep backup decryption identities out of Git.
+Backup scripts accept `CLOUD_ENV_FILE` and `CLOUD_COMPOSE_FILE` to select a disposable/private environment, plus normal Compose project selection through `COMPOSE_PROJECT_NAME`. They require Docker Compose and age; the restore script always creates a new database. Keep backup decryption identities out of Git.

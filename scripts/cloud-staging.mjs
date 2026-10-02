@@ -1,21 +1,19 @@
 import { randomBytes } from "node:crypto";
-import { resolve4, resolve6 } from "node:dns/promises";
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
-import { isIP } from "node:net";
 import { parseEnv } from "node:util";
 import { fileURLToPath } from "node:url";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const templateFile = fileURLToPath(new URL("../.env.cloud.staging.example", import.meta.url));
 const defaultEnvFile = fileURLToPath(new URL("../.env.cloud.staging", import.meta.url));
-const composeFile = "docker-compose.cloud.yml";
+const composeFile = "docker-compose.cloud.staging.yml";
 const secrets = ["POSTGRES_PASSWORD", "PYRO_RUNTIME_PASSWORD", "CONTROL_PLANE_SECRET", "CLOUD_PLATFORM_TOKEN"];
 const action = process.argv[2] ?? "check";
 const envFile = process.argv[3] ?? defaultEnvFile;
-const usage = "Usage: node scripts/cloud-staging.mjs init|check|dns|up [path-to-env-file]";
+const usage = "Usage: node scripts/cloud-staging.mjs init|check|up [path-to-env-file]";
 
-if (!["init", "check", "dns", "up"].includes(action) || process.argv.length > 4) {
+if (!["init", "check", "up"].includes(action) || process.argv.length > 4) {
   console.error(usage);
   process.exit(1);
 }
@@ -63,16 +61,8 @@ for (const key of secrets) {
   if (!/^[0-9a-f]{64}$/.test(required(key))) fail(`${key} must be a unique 32-byte hex secret (64 characters).`);
 }
 if (new Set(secrets.map((key) => values[key])).size !== secrets.length) fail("The four generated secrets must be different.");
-const vmIp = required("STAGING_VM_IPV4");
-if (isIP(vmIp) !== 4) fail("STAGING_VM_IPV4 must be the public IPv4 address of the staging VM.");
-const dashboard = required("CLOUD_DOMAIN");
-const api = required("CLOUD_API_DOMAIN");
-for (const domain of [dashboard, api]) {
-  if (!hostname(domain)) fail("CLOUD_DOMAIN and CLOUD_API_DOMAIN must be hostnames without https:// or a path.");
-}
-if (dashboard === api) fail("The dashboard and API hostnames must be different.");
-if ([dashboard, api].some((value) => ["cloud.pyro.delvisor.com", "api.pyro.delvisor.com"].includes(value))) fail("Use separate staging hostnames, not the production defaults.");
-if (!email(required("ACME_EMAIL"))) fail("ACME_EMAIL must be a working email address for TLS certificate notices.");
+const tailnetDomain = required("TAILSCALE_DOMAIN").toLowerCase();
+if (!hostname(tailnetDomain) || !tailnetDomain.endsWith(".ts.net")) fail("TAILSCALE_DOMAIN must be the VM's full *.ts.net MagicDNS hostname, without https:// or a path.");
 const from = required("CLOUD_EMAIL_FROM");
 const sender = from.includes("<") ? from.match(/<([^<>]+)>$/)?.[1] : from;
 if (!sender || !email(sender)) fail("CLOUD_EMAIL_FROM must be an email address or Display Name <email@verified-domain>.");
@@ -88,7 +78,7 @@ for (const key of ["CLOUD_PROVIDER_BUDGET_MICROS", "CLOUD_MAX_ORGANIZATIONS", "C
   const number = Number(required(key));
   if (!Number.isSafeInteger(number) || number < 0 || (key !== "CLOUD_TRIAL_CREDITS" && number === 0)) fail(`${key} must be a non-negative integer${key === "CLOUD_TRIAL_CREDITS" ? "" : " greater than zero"}.`);
 }
-for (const key of ["CLOUD_EMAIL_MODE", "CLOUD_PROVIDER_MODE", "CLOUD_PUBLIC_URL", "DATABASE_URL"]) {
+for (const key of ["CLOUD_EMAIL_MODE", "CLOUD_PROVIDER_MODE", "CLOUD_PUBLIC_URL", "DATABASE_URL", "STAGING_VM_IPV4", "CLOUD_DOMAIN", "CLOUD_API_DOMAIN", "ACME_EMAIL"]) {
   if (seen.has(key)) fail(`Remove ${key}; the cloud Compose file derives or fixes it for production-mode staging.`);
 }
 const paymentKeys = ["RAZORPAY_KEY_ID", "RAZORPAY_KEY_SECRET", "RAZORPAY_WEBHOOK_SECRET"];
@@ -103,26 +93,32 @@ function docker(args, inherit = false) {
   const result = spawnSync("docker", [...compose, ...args], { cwd: root, env: composeEnv, stdio: inherit ? "inherit" : "pipe", encoding: "utf8" });
   if (result.error) fail(`Docker Compose is unavailable: ${result.error.message}`);
   if (result.status !== 0) fail(`Docker Compose ${args[0]} failed. Check the Compose file and env values (exit ${result.status}).`);
+  return result.stdout;
 }
 
-if (action !== "dns") {
-  docker(["config", "--quiet"]);
-  console.log("Staging env and Docker Compose configuration are valid. Secrets were not printed.");
-}
-
-if (action === "dns" || action === "up") {
-  for (const domain of [dashboard, api]) {
-    let addresses;
-    try { addresses = await resolve4(domain); } catch { fail(`${domain} has no reachable A record yet. Add a DNS-only A record pointing to ${vmIp}.`); }
-    if (addresses.length !== 1 || addresses[0] !== vmIp) fail(`${domain} resolves to ${addresses.join(", ")}, not only ${vmIp}. Set its A record to the staging VM and turn off DNS proxying.`);
-    let ipv6 = [];
-    try { ipv6 = await resolve6(domain); } catch (error) { if (!["ENODATA", "ENOTFOUND"].includes(error.code)) fail(`Could not check AAAA records for ${domain}: ${error.code}.`); }
-    if (ipv6.length) fail(`${domain} has an AAAA record. Remove it unless IPv6 is configured on this VM and verified separately.`);
-    console.log(`${domain} resolves directly to ${vmIp}.`);
+// The JSON contains interpolated secrets. Inspect it in memory and never log it.
+let config;
+try { config = JSON.parse(docker(["config", "--format", "json"])); }
+catch { fail("Could not inspect the rendered Compose configuration."); }
+for (const [serviceName, service] of Object.entries(config.services ?? {})) {
+  if (service.network_mode === "host") fail(`${serviceName} uses host networking; private staging must remain on the Docker bridge.`);
+  for (const port of service.ports ?? []) {
+    if (port.host_ip !== "127.0.0.1") fail(`${serviceName} publishes a non-loopback port. Private staging cannot start.`);
   }
 }
+const webPorts = config.services?.web?.ports ?? [];
+if (!webPorts.some((port) => port.host_ip === "127.0.0.1" && String(port.published) === "3001")) fail("Private web ingress must bind only to 127.0.0.1:3001.");
+console.log("Private staging env and Compose configuration are valid; no public ports are published. Secrets were not printed.");
 
 if (action === "up") {
+  const status = spawnSync("tailscale", ["status", "--json"], { encoding: "utf8" });
+  if (status.error || status.status !== 0) fail("Tailscale is not connected on this VM. Install it, run tailscale up, and enable MagicDNS plus HTTPS in the tailnet settings.");
+  let actualDomain;
+  try { actualDomain = JSON.parse(status.stdout).Self?.DNSName?.replace(/\.$/, "").toLowerCase(); }
+  catch { fail("Could not read the VM's Tailscale DNS name."); }
+  if (actualDomain !== tailnetDomain) fail(`TAILSCALE_DOMAIN must match this VM's Tailscale DNS name (${actualDomain ?? "unavailable"}).`);
   docker(["up", "-d", "--build", "--wait"], true);
-  console.log(`Staging is running at https://${dashboard}; API: https://${api}. Verify /health, signup email and a real SDK call.`);
+  const serve = spawnSync("tailscale", ["serve", "--bg", "--https=443", "http://127.0.0.1:3001"], { encoding: "utf8" });
+  if (serve.error || serve.status !== 0) fail("Containers are healthy, but Tailscale Serve did not start. Enable tailnet HTTPS and run tailscale serve --bg --https=443 http://127.0.0.1:3001 with Tailscale operator permission.");
+  console.log(`Private staging is available to your tailnet at https://${tailnetDomain}. Use that same origin as the SDK baseUrl.`);
 }
