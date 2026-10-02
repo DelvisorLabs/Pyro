@@ -71,6 +71,7 @@ export default function App() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [toast, setToast] = useState<string>();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [tourOpen, setTourOpen] = useState(false);
   const mobileMenuRef = useRef<HTMLButtonElement>(null);
 
   const refreshSession = async () => {
@@ -157,7 +158,7 @@ export default function App() {
     reviews: <ReviewsPage canReview={user.role !== "viewer"} />,
     activity: <ActivityPage refreshKey={refreshKey} />,
     keys: <ApiKeysPage />,
-    settings: <SettingsPage />,
+    settings: <SettingsPage onRestartTour={() => setTourOpen(true)} />,
     team: <TeamPage currentUserId={user.id} />,
     integrations: <IntegrationsPage />,
   }[currentPage];
@@ -175,7 +176,7 @@ export default function App() {
           <div className="flex items-center justify-between gap-1 border-t border-line px-3 py-3"><button type="button" className="branched-menu__item flex-1" data-active={currentPage === "settings" ? "" : undefined} aria-current={currentPage === "settings" ? "page" : undefined} onClick={() => navigate("settings")}><span className="branched-menu__icon"><Settings className="size-3.5" /></span><span className="branched-menu__label">{user.role === "admin" ? "Settings" : user.username}</span></button><Button variant="ghost" size="icon" className="size-8 shrink-0" onClick={() => void logout()} aria-label="Log out" title="Log out"><LogOut className="size-3.5" /></Button></div>
         </div>
       </aside>
-      <main className="min-w-0">{!switching && !(user.cloud && !user.organizationId) && <ProductTour key={`${user.id}:${user.organizationId ?? "local"}`} user={user} navigate={navigate} reduceMotion={preferences.reduceMotion} />}<div data-tour="surface" className="page-shell">{scopeError && <p role="alert" className="mb-5 rounded-control border border-danger/30 p-3 text-sm text-danger">{scopeError}</p>}{invite && user.cloud && <div className="mb-5 flex flex-wrap items-center gap-3 rounded-control border border-line bg-surface-subtle p-4"><p className="text-sm">You have an organization invitation.</p><Button size="sm" disabled={switching} onClick={() => { setSwitching(true); void api.post("/api/invitations/accept", { token: invite }).then(async () => { sessionStorage.removeItem("pyro-invite"); setInvite(null); history.replaceState(null, "", "/"); selectOrganization(undefined); await refreshSession(); }).catch((e) => setScopeError(e.message)).finally(() => setSwitching(false)); }}>Accept invitation</Button><Button variant="ghost" size="sm" onClick={() => { sessionStorage.removeItem("pyro-invite"); setInvite(null); }}>Dismiss</Button></div>}{switching ? <p role="status" className="p-5 text-sm text-muted">Opening organization…</p> : <PageErrorBoundary key={`${user.organizationId ?? "local"}:${currentPage}`}>
+      <main className="min-w-0">{!switching && !(user.cloud && !user.organizationId) && <ProductTour key={`${user.id}:${user.organizationId ?? "local"}`} user={user} navigate={navigate} reduceMotion={preferences.reduceMotion} open={tourOpen} onOpenChange={setTourOpen} />}<div data-tour="surface" className="page-shell">{scopeError && <p role="alert" className="mb-5 rounded-control border border-danger/30 p-3 text-sm text-danger">{scopeError}</p>}{invite && user.cloud && <div className="mb-5 flex flex-wrap items-center gap-3 rounded-control border border-line bg-surface-subtle p-4"><p className="text-sm">You have an organization invitation.</p><Button size="sm" disabled={switching} onClick={() => { setSwitching(true); void api.post("/api/invitations/accept", { token: invite }).then(async () => { sessionStorage.removeItem("pyro-invite"); setInvite(null); history.replaceState(null, "", "/"); selectOrganization(undefined); await refreshSession(); }).catch((e) => setScopeError(e.message)).finally(() => setSwitching(false)); }}>Accept invitation</Button><Button variant="ghost" size="sm" onClick={() => { sessionStorage.removeItem("pyro-invite"); setInvite(null); }}>Dismiss</Button></div>}{switching ? <p role="status" className="p-5 text-sm text-muted">Opening organization…</p> : <PageErrorBoundary key={`${user.organizationId ?? "local"}:${currentPage}`}>
         {isPolicyPage(currentPage) && <ViewTabs label="Policy sections" value={currentPage} options={policySections} onChange={navigate} />}
         {content}
       </PageErrorBoundary>}</div></main>

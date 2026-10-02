@@ -1,6 +1,6 @@
 import { useCloud } from "@/lib/cloud";
 import { useEffect, useState, type ReactNode } from "react";
-import { Monitor, Moon, Sun } from "lucide-react";
+import { Compass, Monitor, Moon, Sun } from "lucide-react";
 import type { ProviderSettings } from "@pyro/contracts";
 import { PageHeader } from "@/components/shared";
 import { Badge } from "@/components/ui/badge";
@@ -67,7 +67,7 @@ function PreferenceRow({ id, title, description, children }: { id: string; title
   </div>;
 }
 
-export function SettingsPage() {
+export function SettingsPage({ onRestartTour }: { onRestartTour: () => void }) {
   const cloud = useCloud();
   const [view, setView] = useState<"dashboard" | "provider">("dashboard");
   const { preferences, updatePreferences, resetPreferences } = useDashboardPreferences();
@@ -87,6 +87,7 @@ export function SettingsPage() {
         <PreferenceRow id="decision-toasts" title="Decision notifications" description="Show banners for decisions flagged by your policies. Webhooks stay active."><Switch id="decision-toasts" aria-describedby="decision-toasts-hint" checked={preferences.decisionToasts} onCheckedChange={(decisionToasts) => updatePreferences({ decisionToasts })} /></PreferenceRow>
         <PreferenceRow id="activity-time" title="Activity timestamps" description="Relative time or local date and time."><GlideSelect id="activity-time" ariaDescribedBy="activity-time-hint" ariaLabel="Activity timestamps" value={preferences.timeDisplay} onChange={(timeDisplay) => updatePreferences({ timeDisplay: timeDisplay as DashboardPreferences["timeDisplay"] })} options={[{ value: "relative", label: "Relative · 5m ago" }, { value: "absolute", label: "Date and time" }]} /></PreferenceRow>
       </CardContent></Card>
+      <Card><CardHeader><CardTitle>Guided tour</CardTitle><CardDescription>Revisit the key features of your workspace at your own pace.</CardDescription></CardHeader><CardContent><Button variant="outline" onClick={onRestartTour}><Compass className="size-4" />Restart tour</Button></CardContent></Card>
       <div className="flex flex-wrap items-center justify-between gap-3"><p className="text-xs text-muted">Saved automatically in this browser.</p><Button variant="outline" size="sm" onClick={resetPreferences}>Reset preferences</Button></div>
     </div>}
   </>;
