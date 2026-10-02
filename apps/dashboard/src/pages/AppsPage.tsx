@@ -109,7 +109,7 @@ export function AppsPage() {
 
   return (
     <>
-      <PageHeader title="Applications" actions={<Button onClick={() => setCreateOpen(true)}><Plus className="size-4" />New app</Button>} />
+      <PageHeader title="Applications" actions={<Button data-tour="create-app" onClick={() => setCreateOpen(true)}><Plus className="size-4" />New app</Button>} />
       {!apps.length ? <EmptyState title="No applications">Create an application to connect policies and API keys.</EmptyState> : <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[280px_minmax(0,1fr)]">
         <SideSelector
           label="Applications"

@@ -1,0 +1,17 @@
+.driver-popover.pyro-tour { background: var(--surface); color: var(--foreground); border: 1px solid var(--line); border-radius: 6px; padding: 22px; width: 360px; max-width: calc(100vw - 24px); box-shadow: var(--dialog-shadow); font-family: "Open Sans Variable", sans-serif; }
+.pyro-tour .driver-popover-title { font-size: 16px; line-height: 1.5; font-weight: 600; padding-right: 16px; }
+.pyro-tour .driver-popover-description { font-size: 13px; line-height: 1.7; color: var(--muted); margin-top: 10px; }
+.pyro-tour-progress { display: flex; gap: 6px; margin: 2px 24px 20px 0; }
+.pyro-tour-progress span { height: 5px; flex: 1; border-radius: 99px; background: var(--line); }
+.pyro-tour-progress [data-state="complete"] { background: var(--accent); }
+.pyro-tour-progress [data-state="current"] { background: var(--accent); outline: 1px solid var(--accent); outline-offset: 3px; }
+.pyro-tour .driver-popover-footer { margin-top: 22px; align-items: center; }
+.pyro-tour .driver-popover-progress-text { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.pyro-tour .driver-popover-footer button { background: var(--surface); color: var(--foreground); border: 1px solid var(--line-strong); border-radius: 4px; text-shadow: none; font: inherit; font-size: 12px; padding: 7px 12px; }
+.pyro-tour .driver-popover-footer .driver-popover-next-btn { background: var(--accent); border-color: var(--accent); color: var(--inverse); }
+.pyro-tour .driver-popover-footer button:hover { background: var(--surface-hover); color: var(--foreground); }
+.pyro-tour .driver-popover-close-btn { color: var(--muted); }
+.pyro-tour .driver-popover-arrow-side-top { border-bottom-color: var(--surface); }
+.pyro-tour .driver-popover-arrow-side-bottom { border-top-color: var(--surface); }
+.pyro-tour .driver-popover-arrow-side-left { border-right-color: var(--surface); }
+.pyro-tour .driver-popover-arrow-side-right { border-left-color: var(--surface); }

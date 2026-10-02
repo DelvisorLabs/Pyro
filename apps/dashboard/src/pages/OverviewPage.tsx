@@ -67,7 +67,7 @@ function OverviewContent({ overview }: { overview: Overview }) {
 
   return (
     <>
-      <div className="metric-grid">
+      <div data-tour="metrics" className="metric-grid">
         {cards.map((card) => <MetricCard key={card.label} {...card} />)}
       </div>
       <div className="two-column mt-4">

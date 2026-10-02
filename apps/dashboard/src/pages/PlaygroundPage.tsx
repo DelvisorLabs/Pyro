@@ -48,7 +48,7 @@ export function PlaygroundPage({ onDecision }: { onDecision: () => void }) {
   const semantic = draft ? semanticCheckCount(draft) : 0;
   if (loading) return <p role="status" className="text-sm text-muted">Loading Playground…</p>;
   return <>
-    <PageHeader title="Playground" actions={<Button disabled={busy} onClick={() => requestSwitch("new")}><Plus className="size-4" />New pipeline</Button>} />
+    <PageHeader title="Playground" actions={<Button data-tour="new-pipeline" disabled={busy} onClick={() => requestSwitch("new")}><Plus className="size-4" />New pipeline</Button>} />
     {error && <p role="alert" className="mb-4 rounded-control border border-danger bg-danger-surface px-4 py-3 text-sm text-danger">{error}</p>}
     {message && <p role="status" className="mb-4 rounded-control border border-line bg-surface-subtle px-4 py-3 text-sm">{message}</p>}
     {!draft ? <Card><CardContent><p className="text-sm text-muted">Create a pipeline to start designing a policy.</p><Button className="mt-3" onClick={() => choose("new")}>Create pipeline</Button></CardContent></Card> : <fieldset disabled={busy} className="min-w-0 space-y-5">
