@@ -6,7 +6,7 @@ import "./product-tour.css";
 import { BookOpen, Compass } from "lucide-react";
 import type { UserRecord } from "@pyro/contracts";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { TOUR_VERSION, tourSteps, type TourPage } from "@/lib/product-tour";
 
 export function ProductTour({ user, navigate, reduceMotion, open, onOpenChange }: { user: UserRecord; navigate: (page: TourPage) => void; reduceMotion: boolean; open: boolean; onOpenChange: (open: boolean) => void }) {
@@ -91,6 +91,14 @@ export function ProductTour({ user, navigate, reduceMotion, open, onOpenChange }
       <a className="inline-flex items-center gap-2 rounded-control px-2 py-1 text-xs text-muted hover:text-foreground" href="https://docs.delvisor.com/pyro" target="_blank" rel="noreferrer"><BookOpen className="size-3.5" />Documentation</a>
       {welcome && <Button size="sm" variant="ghost" onClick={remember}>Dismiss</Button>}
     </div>
-    <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="max-w-md"><DialogHeader><DialogTitle>A quick tour of Pyro</DialogTitle><DialogDescription>{tourSteps(user.role).length} stops, from understanding policies to reviewing decisions. Save any unfinished edits before starting: the tour opens different pages.</DialogDescription></DialogHeader><div className="px-6 py-5 text-sm text-muted">Follow the highlighted controls. Filled marks track your progress, and you can go back or leave at any point.</div><DialogFooter><Button variant="outline" onClick={() => onOpenChange(false)}>Not now</Button><Button onClick={() => { remember(); onOpenChange(false); setRunning(true); }}>Start tour</Button></DialogFooter></DialogContent></Dialog>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md" aria-describedby={undefined}>
+        <DialogHeader className="border-b-0"><DialogTitle>Welcome to Pyro! Ready for a quick tour?</DialogTitle></DialogHeader>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Not now</Button>
+          <Button onClick={() => { remember(); onOpenChange(false); setRunning(true); }}>Start tour</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   </>;
 }
