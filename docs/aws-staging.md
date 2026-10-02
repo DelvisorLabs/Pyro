@@ -28,6 +28,18 @@ application images on the development machine and transfer them over SSH.
    latest seven, bills by stored GB, and removes them with the instance; they
    are an initial recovery layer, not an independent database backup.
 
+If creation returns `Sorry, your account can not create an instance using this
+Lightsail plan size` in `ap-south-1`, AWS has rejected this bundle for the
+account. In **Lightsail → Account → Service quotas**, inspect **Instances** for
+Mumbai; it is a regional vCPU quota, and new accounts may have a lower applied
+value. Request an increase if the applied quota cannot accommodate this 2-vCPU
+bundle. If the displayed quota is already sufficient, open a case from the
+[AWS Support Center](https://console.aws.amazon.com/support/home) and include
+the exact `CreateInstances[ap-south-1]` error. Ask AWS to enable one 2 GB Linux
+Lightsail instance with public IPv4 in Mumbai. A smaller 1 GB plan cannot
+reliably run this Docker/PostgreSQL staging stack, and launching it will not
+automatically remove an account-specific 2 GB restriction.
+
 Lightsail's firewall governs the public interface. Docker publishes only
 `127.0.0.1:3001` for web and `127.0.0.1:8082` for administration. Docker Engine
 28 or later is required because older versions could expose loopback-published
