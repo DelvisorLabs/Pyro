@@ -3,8 +3,7 @@ info:
   title: Pyro control-plane API
   version: 0.2.0
   description: Authenticated control-plane endpoints. Use pf_session from
-    /api/auth/login. Gateway bearer keys are not accepted. See integrations.md
-    and ../profiles/README.md for runtime semantics and constraints.
+    /api/auth/login. Gateway bearer keys are not accepted.
 servers:
   - url: http://localhost:8081
 security:

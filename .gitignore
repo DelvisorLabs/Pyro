@@ -2,8 +2,14 @@ node_modules/
 dist/
 .env*
 !.env.example
-!.env.cloud.example
-!.env.cloud.staging.example
+AGENTS.md
+docs/
+*.md
+!THIRD_PARTY_NOTICES.md
+deploy/cloud/
+docker-compose.cloud*.yml
+scripts/cloud-local.mjs
+scripts/cloud-staging.mjs
 npm-debug.log*
 .DS_Store
 coverage/

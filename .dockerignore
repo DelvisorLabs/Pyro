@@ -4,7 +4,11 @@ node_modules
 .git
 .env*
 !.env.example
-!.env.cloud.example
+AGENTS.md
+docs/
+*.md
+**/*.md
+!THIRD_PARTY_NOTICES.md
 data
 npm-debug.log
 coverage

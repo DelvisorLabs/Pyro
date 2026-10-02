@@ -18,7 +18,7 @@ for (const target of ['gateway', 'control-plane', 'dashboard']) {
   compose.services[target].image = `ghcr.io/delvisorlabs/pyro-${target}${digest ? '@' + digest : ':' + version}`;
 }
 await writeFile(`${directory}/compose.yaml`, YAML.stringify(compose));
-for (const [from, to] of [['.env.example', '.env.example'], ['LICENSE', 'LICENSE'], ['NOTICE', 'NOTICE'], ['THIRD_PARTY_NOTICES.md', 'THIRD_PARTY_NOTICES.md'], ['CHANGELOG.md', 'CHANGELOG.md'], ['docs/deployment.md', 'DEPLOYMENT.md']]) await copyFile(from, `${directory}/${to}`);
+for (const [from, to] of [['.env.example', '.env.example'], ['LICENSE', 'LICENSE'], ['NOTICE', 'NOTICE'], ['THIRD_PARTY_NOTICES.md', 'THIRD_PARTY_NOTICES.md']]) await copyFile(from, `${directory}/${to}`);
 await mkdir(`${directory}/profiles`, { recursive: true });
 for (const name of await readdir('profiles')) await copyFile(`profiles/${name}`, `${directory}/profiles/${name}`);
 execFileSync('pnpm', ['--filter', '@delvisor/pyro', '--config.ignore-scripts=true', 'pack', '--pack-destination', directory], { stdio: 'inherit' });

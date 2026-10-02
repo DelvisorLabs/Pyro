@@ -74,4 +74,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           tar -czf "artifacts/pyro-$RELEASE_VERSION.tar.gz" -C artifacts "pyro-$RELEASE_VERSION"
-          gh release create "v$RELEASE_VERSION" --draft --prerelease --target "$GITHUB_SHA" --title "Pyro $RELEASE_VERSION" --notes-file CHANGELOG.md "artifacts/pyro-$RELEASE_VERSION.tar.gz" "artifacts/pyro-$RELEASE_VERSION/compose.yaml" "artifacts/pyro-$RELEASE_VERSION/.env.example" "artifacts/pyro-$RELEASE_VERSION/SHA256SUMS" artifacts/pyro-*/delvisor-pyro-*.tgz
+          gh release create "v$RELEASE_VERSION" --draft --prerelease --target "$GITHUB_SHA" --title "Pyro $RELEASE_VERSION" --generate-notes "artifacts/pyro-$RELEASE_VERSION.tar.gz" "artifacts/pyro-$RELEASE_VERSION/compose.yaml" "artifacts/pyro-$RELEASE_VERSION/.env.example" "artifacts/pyro-$RELEASE_VERSION/SHA256SUMS" artifacts/pyro-*/delvisor-pyro-*.tgz

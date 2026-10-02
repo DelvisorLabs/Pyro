@@ -11,7 +11,7 @@ import { invoke, server, sessionConfig, temporary } from "./helpers.js";
 
 test("bundled contracts match source OpenAPI and every operation has a unique reachable command", async () => {
   for (const [service, file] of Object.entries({ gateway: "openapi.yaml", control: "control-plane.openapi.yaml" })) {
-    assert.deepEqual(specs[service as keyof typeof specs], YAML.parse(await readFile(new URL(`../../../docs/${file}`, import.meta.url), "utf8")));
+    assert.deepEqual(specs[service as keyof typeof specs], YAML.parse(await readFile(new URL(`../specs/${file}`, import.meta.url), "utf8")));
   }
   const program = createProgram();
   const ids = new Set<string>();

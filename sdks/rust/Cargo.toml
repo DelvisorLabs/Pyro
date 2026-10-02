@@ -5,7 +5,6 @@ edition = "2024"
 license = "Apache-2.0"
 description = "Async Rust client for the Pyro prompt protection gateway"
 repository = "https://github.com/DelvisorLabs/Pyro"
-readme = "README.md"
 
 [dependencies]
 reqwest = { version = "0.13", default-features = false, features = ["json", "rustls"] }
