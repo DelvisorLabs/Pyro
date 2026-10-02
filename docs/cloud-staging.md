@@ -8,8 +8,8 @@ No staging A records, Cloudflare proxy, Vercel configuration, public 80/443 ingr
 
 | Component | Choice |
 |---|---|
-| VM | Try an [Oracle Always Free A1 VM](https://docs.oracle.com/en-us/iaas/Content/FreeTier/freetier_topic-Always_Free_Resources.htm): 2 OCPUs, 12 GB RAM, Ubuntu ARM64. Availability is not guaranteed. A [4 GB Lightsail VM](https://aws.amazon.com/lightsail/pricing/) is a predictable $24/month fallback. |
-| Tailnet | Pyro is Apache-2.0 under a GitHub organization, so investigate Tailscale's [Community on GitHub plan](https://tailscale.com/docs/reference/free-plans-discounts) for a free project test server; eligibility/application is external. The free Personal plan is [for non-commercial use](https://tailscale.com/pricing), so do not assume it covers a business pilot. Standard is currently $8/user/month if the community plan is unavailable. |
+| VM | An [AWS Lightsail 4 GB VM in Mumbai](aws-staging.md) is the chosen staging host; the Linux public-IPv4 bundle is currently [listed at $24/month](https://aws.amazon.com/lightsail/pricing/), before snapshots and tax. |
+| Tailnet | Pyro is Apache-2.0 under a GitHub organization, so investigate Tailscale's [Community on GitHub plan](https://tailscale.com/docs/reference/free-plans-discounts) for a free project test server; eligibility/application is external. The free Personal plan is [for non-commercial use](https://tailscale.com/pricing), so do not assume it covers a business pilot. Standard is currently $8/user/month plus $1/month per tagged resource if the community plan is unavailable. |
 | Account email | [Resend Free](https://resend.com/pricing/) currently lists 3,000 emails/month and 100/day. |
 | Inference | The template reserves at most $5/month in Pyro (`CLOUD_PROVIDER_BUDGET_MICROS=5000000`); set a supplier-side cap where available. Provider charges remain separate, and Pyro's reservation is not an invoice guarantee. |
 | Payments | Disabled; all `RAZORPAY_*` values stay blank. |
@@ -17,6 +17,10 @@ No staging A records, Cloudflare proxy, Vercel configuration, public 80/443 ingr
 For one-person, mock-only testing with no Tailscale or external credentials, run `pnpm cloud:local` and use an SSH tunnel to its loopback port on a remote VM. That path does **not** exercise real email, TLS or semantic inference. Self-managed WireGuard is another private-network option but requires maintaining VPN keys and HTTPS certificates yourself.
 
 ## 1. Prepare the VM and tailnet
+
+For the chosen AWS Mumbai Lightsail instance, follow the [console, firewall,
+host-install and transfer steps](aws-staging.md). The instructions below also
+apply to another VM provider.
 
 Provision the VM and install a current Docker Engine and Compose plugin. Docker versions before 28 had a [loopback port-publishing caveat](https://docs.docker.com/engine/network/port-publishing/); use Engine 28+ and keep the cloud firewall closed for public 80/443 and 3001/8082. Restrict SSH to trusted addresses. The Compose subnet `172.29.48.0/24` must not overlap your VM network.
 
