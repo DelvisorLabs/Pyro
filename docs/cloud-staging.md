@@ -8,7 +8,7 @@ No staging A records, Cloudflare proxy, Vercel configuration, public 80/443 ingr
 
 | Component | Choice |
 |---|---|
-| VM | An [AWS Lightsail 4 GB VM in Mumbai](aws-staging.md) is the chosen staging host; the Linux public-IPv4 bundle is currently [listed at $24/month](https://aws.amazon.com/lightsail/pricing/), before snapshots and tax. |
+| VM | An [AWS Lightsail 2 GB VM in Mumbai](aws-staging.md) is the chosen low-traffic staging host; the Linux public-IPv4 bundle is currently [listed at $12/month](https://aws.amazon.com/lightsail/pricing/), before snapshots and tax. Build application images on the development machine. |
 | Tailnet | Pyro is Apache-2.0 under a GitHub organization, so investigate Tailscale's [Community on GitHub plan](https://tailscale.com/docs/reference/free-plans-discounts) for a free project test server; eligibility/application is external. The free Personal plan is [for non-commercial use](https://tailscale.com/pricing), so do not assume it covers a business pilot. Standard is currently $8/user/month plus $1/month per tagged resource if the community plan is unavailable. |
 | Account email | [Resend Free](https://resend.com/pricing/) currently lists 3,000 emails/month and 100/day. |
 | Inference | The template reserves at most $5/month in Pyro (`CLOUD_PROVIDER_BUDGET_MICROS=5000000`); set a supplier-side cap where available. Provider charges remain separate, and Pyro's reservation is not an invoice guarantee. |
@@ -19,8 +19,8 @@ For one-person, mock-only testing with no Tailscale or external credentials, run
 ## 1. Prepare the VM and tailnet
 
 For the chosen AWS Mumbai Lightsail instance, follow the [console, firewall,
-host-install and transfer steps](aws-staging.md). The instructions below also
-apply to another VM provider.
+host-install, off-VM build and transfer steps](aws-staging.md). The instructions
+below also apply to another VM provider.
 
 Provision the VM and install a current Docker Engine and Compose plugin. Docker versions before 28 had a [loopback port-publishing caveat](https://docs.docker.com/engine/network/port-publishing/); use Engine 28+ and keep the cloud firewall closed for public 80/443 and 3001/8082. Restrict SSH to trusted addresses. The Compose subnet `172.29.48.0/24` must not overlap your VM network.
 
@@ -69,7 +69,7 @@ pnpm cloud:staging:up
 tailscale serve status
 ```
 
-`up` checks the VM's tailnet name, starts `docker-compose.cloud.staging.yml` as the isolated `pyro-cloud-staging` project with `--build --wait`, and runs `tailscale serve --bg --https=443 http://127.0.0.1:3001`. Give the invoking user Tailscale operator permission or rerun that last command with the needed privileges if Tailscale refuses it. Do not use the public `docker-compose.cloud.yml` for staging.
+`up` checks the VM's tailnet name, starts `docker-compose.cloud.staging.yml` as the isolated `pyro-cloud-staging` project with `--build --wait`, and runs `tailscale serve --bg --https=443 http://127.0.0.1:3001`. The AWS 2 GB runbook uses prebuilt images and `--no-build` instead; prefer that path on the small VM. Give the invoking user Tailscale operator permission or rerun the Serve command with the needed privileges if Tailscale refuses it. Do not use the public `docker-compose.cloud.yml` for staging.
 
 From a permitted tailnet device, `curl -f https://YOUR-VM-NAME.ts.net/health`, open the same URL in a browser, sign up, receive the verification email, create an organization and API key, and make a TypeScript/Python SDK call with `baseUrl`/`base_url` set to that **same** private HTTPS origin. Published SDK defaults point to the future production API hostname. Test a local-only policy and one semantic policy; check supplier usage and Pyro's `/platform/status` reservation through SSH.
 

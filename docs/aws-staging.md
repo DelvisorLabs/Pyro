@@ -5,14 +5,15 @@ Lightsail VM in `ap-south-1` (Mumbai), with PostgreSQL, Pyro Cloud and the
 dashboard/Caddy edge in Docker. Tailscale Serve gives approved tailnet devices
 private HTTPS. Do not create a public DNS record or open web/database ports in
 the Lightsail firewall. Production is a separate deployment and is not covered
-by these commands.
+by these commands. The 2 GB plan is for low-traffic private tests; build the
+application images on the development machine and transfer them over SSH.
 
 ## 1. Create and secure the VM
 
 1. Use an AWS identity with MFA, then create a monthly AWS budget and alert.
    In [Lightsail](https://lightsail.aws.amazon.com/), select **Mumbai
    (`ap-south-1`)**. Create an **OS Only → Ubuntu 24.04 LTS** Linux instance,
-   **4 GB RAM / 2 vCPU / 80 GB** (currently $24/month before tax, snapshots and
+   **2 GB RAM / 2 vCPU / 60 GB** (currently $12/month before tax, snapshots and
    any excess transfer), named `pyro-staging-in`. Record its public IP and
    download/protect the SSH key. Do not put the key in this repository. On the
    instance's browser SSH terminal, record
@@ -113,26 +114,34 @@ pnpm cloud:staging:check
 ports without printing secrets. It runs on the development machine; the VM
 does not need Node or pnpm because the Docker build contains both.
 
-## 4. Transfer exactly the committed code and start
+## 4. Build and transfer exactly the committed code
 
 From your development machine, after the VM and laptop are on the tailnet,
-replace the SSH key path and VM hostname below. `git archive HEAD` sends the
+replace the SSH key path and VM hostname below. `git archive HEAD` captures the
 committed tree only, excluding unrelated uncommitted work and local secrets.
-The env is copied separately over encrypted SSH. The Tailscale access policy
-must allow your account TCP 22 to this VM.
+Build the two Linux/amd64 application images on the development machine so the
+2 GB VM never runs a Node build. The env and images travel over encrypted SSH.
+The Tailscale access policy must allow your account TCP 22 to this VM.
 
 ```sh
-git archive HEAD | ssh -i /path/to/lightsail-key.pem ubuntu@pyro-staging-in.YOUR-TAILNET.ts.net 'mkdir -p ~/pyro && tar -x -C ~/pyro'
+STAGING_BUILD_CONTEXT="$(mktemp -d)"
+git archive HEAD | tar -x -C "$STAGING_BUILD_CONTEXT"
+docker buildx build --platform linux/amd64 --target cloud -t pyro-cloud:staging --load "$STAGING_BUILD_CONTEXT"
+docker buildx build --platform linux/amd64 --target cloud-web -t pyro-cloud-web:staging --load "$STAGING_BUILD_CONTEXT"
+tar -C "$STAGING_BUILD_CONTEXT" -cf - . | ssh -i /path/to/lightsail-key.pem ubuntu@pyro-staging-in.YOUR-TAILNET.ts.net 'mkdir -p ~/pyro && tar -x -C ~/pyro'
 scp -i /path/to/lightsail-key.pem .env.cloud.staging ubuntu@pyro-staging-in.YOUR-TAILNET.ts.net:~/pyro/
+docker save pyro-cloud:staging pyro-cloud-web:staging | ssh -i /path/to/lightsail-key.pem ubuntu@pyro-staging-in.YOUR-TAILNET.ts.net 'sudo docker load'
 ```
 
-On the VM:
+The build may be slower on an Apple Silicon Mac because it targets the VM's
+amd64 architecture. Keep the temporary context until the transfer is verified;
+it contains committed code only. On the VM:
 
 ```sh
 cd ~/pyro
 chmod 600 .env.cloud.staging
 sudo docker compose --project-name pyro-cloud-staging --env-file .env.cloud.staging -f docker-compose.cloud.staging.yml config --quiet
-sudo docker compose --project-name pyro-cloud-staging --env-file .env.cloud.staging -f docker-compose.cloud.staging.yml up -d --build --wait
+sudo docker compose --project-name pyro-cloud-staging --env-file .env.cloud.staging -f docker-compose.cloud.staging.yml up -d --no-build --wait
 sudo tailscale serve --bg --https=443 http://127.0.0.1:3001
 tailscale serve status
 curl -fsS http://127.0.0.1:3001/health
@@ -144,6 +153,13 @@ Do not use `docker-compose.cloud.yml` for private staging and never use
 --project-name pyro-cloud-staging --env-file .env.cloud.staging -f
 docker-compose.cloud.staging.yml logs --tail=100 cloud` on the VM; do not share
 raw logs without checking them for sensitive data.
+
+The staging container ceilings are 384 MiB PostgreSQL, 896 MiB cloud app and
+128 MiB Caddy; these are limits, not guaranteed allocations. Monitor
+`docker stats`, host memory, and restarts after signup and SDK smoke tests. If
+memory pressure, OOM kills or slow queries appear, stop adding testers and
+move to the 4 GB plan. Lightsail can create a larger instance from a snapshot;
+it cannot create a smaller one from a larger snapshot.
 
 ## 5. Prove access and protect the data
 

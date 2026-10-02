@@ -17,19 +17,22 @@ services:
       interval: 5s
       timeout: 3s
       retries: 20
-    mem_limit: 768m
+    mem_limit: 384m
     logging: &logging
       driver: json-file
       options: {max-size: 10m, max-file: "3"}
   migrate:
+    image: pyro-cloud:staging
     build: {context: ., target: cloud}
     command: [node, apps/cloud/dist/migrate.js]
     environment:
       DATABASE_URL: postgresql://pyro_migrator:${POSTGRES_PASSWORD}@postgres:5432/pyro
     depends_on:
       postgres: {condition: service_healthy}
+    mem_limit: 512m
     logging: *logging
   cloud:
+    image: pyro-cloud:staging
     build: {context: ., target: cloud}
     restart: unless-stopped
     environment:
@@ -67,7 +70,7 @@ services:
     tmpfs: [/tmp]
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
-    mem_limit: 1536m
+    mem_limit: 896m
     stop_grace_period: 45s
     healthcheck:
       test: [CMD, wget, -qO-, http://127.0.0.1:8082/health]
@@ -76,13 +79,14 @@ services:
       retries: 3
     logging: *logging
   web:
+    image: pyro-cloud-web:staging
     build: {context: ., target: cloud-web}
     restart: unless-stopped
     ports: ["127.0.0.1:3001:8080"]
     volumes: ["./deploy/cloud/Caddyfile.private:/etc/caddy/Caddyfile:ro"]
     depends_on:
       cloud: {condition: service_healthy}
-    mem_limit: 192m
+    mem_limit: 128m
     logging: *logging
 networks:
   default:
