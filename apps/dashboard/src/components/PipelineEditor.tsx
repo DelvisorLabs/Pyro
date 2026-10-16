@@ -61,7 +61,7 @@ export function PipelineEditor({ pipeline, onChange }: { pipeline: PolicyPipelin
         </div>
       </li>;
     })}</ol>
-    <div className="flex flex-wrap gap-2"><Button variant="outline" size="sm" disabled={pipeline.steps.length >= 16} onClick={() => add("text")}><Plus className="size-3.5" />Add text check</Button><Button variant="outline" size="sm" disabled={pipeline.steps.length >= 16} onClick={() => add("semantic")}><Plus className="size-3.5" />Add semantic condition</Button></div>
+    <div className="flex flex-wrap justify-end gap-2"><Button variant="outline" size="sm" disabled={pipeline.steps.length >= 16} onClick={() => add("text")}><Plus className="size-3.5" />Add text check</Button><Button variant="outline" size="sm" disabled={pipeline.steps.length >= 16} onClick={() => add("semantic")}><Plus className="size-3.5" />Add semantic condition</Button></div>
     <div className="grid gap-3 border-t border-line pt-4 sm:grid-cols-3"><OutcomeSelect id={`${prefix}-end`} label="If all checks continue" value={pipeline.otherwise} onChange={(value) => onChange({ ...pipeline, otherwise: value as PolicyPipeline["otherwise"] })} /><OutcomeSelect id={`${prefix}-unknown`} label="If uncertain" value={pipeline.onUncertain} safeOnly onChange={(value) => onChange({ ...pipeline, onUncertain: value as PolicyPipeline["onUncertain"] })} /><OutcomeSelect id={`${prefix}-error`} label="If a check fails" value={pipeline.onError} safeOnly onChange={(value) => onChange({ ...pipeline, onError: value as PolicyPipeline["onError"] })} /></div>
   </div>;
 }

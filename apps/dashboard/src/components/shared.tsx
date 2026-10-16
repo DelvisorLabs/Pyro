@@ -11,7 +11,7 @@ export function PageHeader({ title, description, actions }: { title: string; des
         <h1 className="text-[22px] leading-8 font-semibold tracking-[-0.025em] text-foreground">{title}</h1>
         {description && <p className="mt-1 max-w-2xl text-[13px] leading-5 text-muted">{description}</p>}
       </div>
-      {actions}
+      {actions && <div className="ml-auto flex max-w-full flex-wrap items-center justify-end gap-2">{actions}</div>}
     </div>
   );
 }

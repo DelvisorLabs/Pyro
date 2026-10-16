@@ -94,7 +94,7 @@ export function EvaluationsPage({ canRun, onOpenCase }: { canRun: boolean; onOpe
                 <Checkbox id="evaluation-retain" className="mt-0.5" checked={retain} onCheckedChange={(checked) => setRetain(checked === true)} />
                 <Label htmlFor="evaluation-retain" className="cursor-pointer font-normal leading-5">Retain these redacted inputs encrypted in this deployment for the selected period.</Label>
               </div>
-              <div className="mt-auto border-t border-line pt-4">
+              <div className="mt-auto flex justify-end border-t border-line pt-4">
                 <Button disabled={busy || !retain || !jsonl.trim() || !name.trim()} onClick={() => void work(async () => {
                   const result = await api.post<{ dataset: Dataset }>("/api/datasets", { appId, name, jsonl, retentionDays: retention, retainInputs: retain });
                   setDatasetId(result.dataset.id);
@@ -152,8 +152,8 @@ export function EvaluationsPage({ canRun, onOpenCase }: { canRun: boolean; onOpe
                 <Checkbox id="evaluation-paid" className="mt-0.5" checked={paid} onCheckedChange={(checked) => setPaid(checked === true)} />
                 <Label htmlFor="evaluation-paid" className="cursor-pointer font-normal leading-5">I authorize this dataset to be sent to the configured semantic provider and accept its charges, if these revisions use it.</Label>
               </div>
-              {cloud && <div className="space-y-2"><FieldLabel htmlFor="evaluation-cap">Maximum credits for this run</FieldLabel><Input id="evaluation-cap" type="number" min={0} value={creditCap} onChange={e => setCreditCap(Number(e.target.value))} /><Button variant="outline" disabled={busy || !datasetId || !first} onClick={() => void work(async () => { const result = await api.post<{ maximumCredits: number }>("/api/evaluations", { datasetId, policies: [{ id: first, revision }, ...(second ? [{ id: second, revision: otherRevision }] : [])], estimateOnly: true }); setMaximumCredits(result.maximumCredits); })}>Estimate credits</Button>{maximumCredits !== undefined && <p className="text-xs text-muted">Up to {maximumCredits} credits for the selection at estimate time. The server checks your cap again when starting.</p>}</div>}
-              <div className="mt-auto flex flex-wrap gap-2 border-t border-line pt-4">
+              {cloud && <div className="space-y-2"><FieldLabel htmlFor="evaluation-cap">Maximum credits for this run</FieldLabel><Input id="evaluation-cap" type="number" min={0} value={creditCap} onChange={e => setCreditCap(Number(e.target.value))} /><Button className="ml-auto flex" variant="outline" disabled={busy || !datasetId || !first} onClick={() => void work(async () => { const result = await api.post<{ maximumCredits: number }>("/api/evaluations", { datasetId, policies: [{ id: first, revision }, ...(second ? [{ id: second, revision: otherRevision }] : [])], estimateOnly: true }); setMaximumCredits(result.maximumCredits); })}>Estimate credits</Button>{maximumCredits !== undefined && <p className="text-xs text-muted">Up to {maximumCredits} credits for the selection at estimate time. The server checks your cap again when starting.</p>}</div>}
+              <div className="mt-auto flex flex-wrap justify-end gap-2 border-t border-line pt-4">
                 <Button disabled={busy || !datasetId || !first || !Number.isSafeInteger(creditCap) || creditCap < 0} onClick={() => void work(async () => {
                   const policies = [{ id: first, revision }, ...(second ? [{ id: second, revision: otherRevision }] : [])];
                   const result = await api.post<{ run: Run }>("/api/evaluations", { datasetId, policies, allowPaid: paid, ...(cloud ? { maxCredits: creditCap } : {}) });
