@@ -1,3 +1,6 @@
+const numberFormatter = new Intl.NumberFormat("en-US");
+export function formatNumber(value: number): string { return numberFormatter.format(value); }
+
 export function percent(value: number, digits = 1): string {
   return `${(value * 100).toFixed(digits)}%`;
 }
@@ -9,7 +12,7 @@ export function duration(value: number): string {
 }
 
 export function compactNumber(value: number): string {
-  return new Intl.NumberFormat("en", { notation: value >= 10_000 ? "compact" : "standard" }).format(value);
+  return new Intl.NumberFormat("en-US", { notation: value >= 10_000 ? "compact" : "standard" }).format(value);
 }
 
 export function money(amount: number, currency: string): string {

@@ -23,7 +23,7 @@ Endpoints, authenticated with the platform bearer token:
 - `GET /api/billing/usage`: authenticated organization members can inspect their plan, monthly usage, source totals and available credits.
 - `GET /api/billing`: owners/admins can inspect the prepaid ledger as before.
 
-Customers cannot change plans or raise limits through organization membership. The existing `beta` plan is used for unassigned organizations and preserves the previous queue/rate defaults, with zero included monthly credits. Existing prepaid balances are preserved.
+Customers cannot change plans or raise limits through organization membership. The existing `beta` plan is used for unassigned organizations and preserves the previous queue/rate defaults, with zero included monthly credits. New accounts receive a one-time 1,000,000-credit grant by default (`CLOUD_TRIAL_CREDITS` can override it). The 1,000,000 monthly spending cap is separate from the credit balance. Existing prepaid balances are preserved.
 
 ## Limits
 

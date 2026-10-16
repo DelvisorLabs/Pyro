@@ -28,7 +28,7 @@ export function loadConfig(): CloudConfig {
     publicUrl, host: process.env.HOST ?? "127.0.0.1", port: number("PORT", 8082), legacyAdminPassword: process.env.ADMIN_PASSWORD,
     providerKey: production ? required("TYPESAFE_API_KEY") : process.env.TYPESAFE_API_KEY,
     providerEndpoint, providerModel: process.env.TYPESAFE_MODEL ?? "jev-latest", providerMode,
-    maxOrganizations: number("CLOUD_MAX_ORGANIZATIONS", 25), trialCredits: number("CLOUD_TRIAL_CREDITS", 100),
+    maxOrganizations: number("CLOUD_MAX_ORGANIZATIONS", 25), trialCredits: number("CLOUD_TRIAL_CREDITS", 1_000_000),
     monthlyProviderBudgetMicros: number("CLOUD_PROVIDER_BUDGET_MICROS", 30_000_000), providerPricePerMillion,
     emailMode, emailKey: emailMode === "resend" ? required("RESEND_API_KEY") : undefined, emailFrom: process.env.CLOUD_EMAIL_FROM ?? "Pyro <accounts@example.com>",
     razorpayKey: process.env.RAZORPAY_KEY_ID, razorpaySecret: process.env.RAZORPAY_KEY_SECRET, razorpayWebhookSecret: process.env.RAZORPAY_WEBHOOK_SECRET,
