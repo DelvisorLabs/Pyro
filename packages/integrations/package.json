@@ -17,7 +17,7 @@
     "ipaddr.js": "^2.2.0"
   },
   "devDependencies": {
-    "@types/node": "^26.6.2",
+    "@types/node": "^26.6.3",
     "tsx": "^4.20.6"
   },
   "files": [
