@@ -15,6 +15,8 @@
     "pyro": "node packages/cli/dist/bin.js",
     "evaluate": "node scripts/evaluate.mjs",
     "release:prepare": "node scripts/release-artifacts.mjs",
+    "deploy:staging": "node scripts/deploy.mjs staging",
+    "deploy:prod": "node scripts/deploy.mjs prod",
     "cloud:plans": "node scripts/cloud-plans.mjs",
     "test:support-example": "node --test examples/support-assistant/server.test.mjs"
   },

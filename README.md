@@ -112,6 +112,17 @@ An async Rust client is also available in [`sdks/rust`](sdks/rust). These SDKs a
 
 This repository also contains the optional cloud application. It uses the same policy engine and dashboard, and adds user accounts, organizations, and API-key access. The hosted service is not public yet. Cloud deployment files are kept outside the public repository; `docker compose up` starts the self-hosted product described above.
 
+### Operator deployment commands
+
+With the private operator configuration installed, deploy committed local `main` using:
+
+```sh
+pnpm deploy:staging
+pnpm deploy:prod
+```
+
+These commands require Docker, SSH access, and the local backup recovery keys. Each update verifies an encrypted off-server database backup before migrations, reuses the existing database volume and environment, and refuses to initialize a replacement database. The application pauses briefly during the update. Add `--check` for read-only preflight checks or `--backup-only` to create and verify a backup without deploying. Private environment and deployment files remain outside Git.
+
 ## API and data
 
 The [gateway API](packages/cli/specs/openapi.yaml) and [dashboard API](packages/cli/specs/control-plane.openapi.yaml) have OpenAPI specifications. Policies, accounts, and activity are stored in PostgreSQL. Pyro encrypts stored provider credentials and certain retained inputs. Semantic checks send their input to the configured provider, so review that provider's terms before sending sensitive data.
